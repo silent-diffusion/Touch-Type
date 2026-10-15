@@ -1,0 +1,59 @@
+{
+  "name": "touch-type",
+  "productName": "Touch Type",
+  "version": "1.0.0",
+  "description": "Improve your touch typing with speed tests, weak-key practice and games.",
+  "author": "silent-diffusion",
+  "license": "MIT",
+  "homepage": "https://github.com/silent-diffusion/Touch-Type",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/silent-diffusion/Touch-Type.git"
+  },
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win --publish never",
+    "release": "electron-builder --win --publish always"
+  },
+  "build": {
+    "appId": "com.silentdiffusion.touchtype",
+    "productName": "Touch Type",
+    "files": [
+      "electron/**/*",
+      "src/**/*"
+    ],
+    "directories": {
+      "buildResources": "build",
+      "output": "dist"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "runAfterFinish": true,
+      "artifactName": "Touch-Type-Setup-${version}.${ext}"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "silent-diffusion",
+      "repo": "Touch-Type",
+      "releaseType": "release"
+    }
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
+  },
+  "devDependencies": {
+    "electron": "^44.7.2",
+    "electron-builder": "^26.15.3"
+  },
+  "allowScripts": {
+    "electron-winstaller": false
+  }
+}

@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en" data-theme="sand">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Touch Type</title>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:">
+  <link rel="stylesheet" href="fonts/fonts.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+
+    <!-- Bar shown on the test, practice and results screens -->
+    <header id="bar" class="bar">
+      <div class="bar-left">
+        <span class="brand">TOUCH TYPE</span>
+        <button class="outline-btn" data-act="menu">
+          <svg aria-hidden="true" width="18" height="14" viewBox="0 0 18 14"><path d="M0 1.5h18M0 7h18M0 12.5h18" stroke="currentColor" stroke-width="2.5" fill="none"/></svg>
+          MENU
+        </button>
+        <span id="practice-badge" class="badge" hidden>PRACTICE</span>
+      </div>
+      <nav id="test-config" class="seg" aria-label="Test settings"></nav>
+    </header>
+
+    <!-- Full menu, shown on the games, stats and settings screens -->
+    <nav id="menu-nav" class="menu-nav" aria-label="Main menu" hidden>
+      <button data-act="nav:test">TEST</button>
+      <button data-act="nav:practice">PRACTICE</button>
+      <button data-act="nav:games" data-view="games">GAMES</button>
+      <button data-act="nav:stats" data-view="stats">STATS</button>
+      <button data-act="nav:settings" data-view="settings">SETTINGS</button>
+    </nav>
+
+    <main id="view-typing" class="view typing-view">
+      <div class="typing-top">
+        <div class="live"><span id="live-num" class="live-num"></span><span id="live-label" class="caps-label"></span></div>
+        <div id="targets" class="targets" hidden></div>
+      </div>
+      <div id="words-box"><div id="words"></div></div>
+      <p id="typing-note" class="note"></p>
+      <div id="capslock" class="capslock" hidden>CAPS LOCK IS ON</div>
+    </main>
+
+    <main id="view-results" class="view" hidden>
+      <div class="cols">
+        <section class="col-main detail">
+          <div class="title-row">
+            <h1 id="r-title">TEST COMPLETE</h1>
+            <span id="r-test" class="title-meta"></span>
+          </div>
+          <div id="r-kind" class="kind-line"></div>
+          <div class="result-hero">
+            <div class="hero-wpm">
+              <div id="r-wpm" class="hero-num"></div>
+              <div class="caps-label lg">WORDS PER MINUTE</div>
+            </div>
+            <div class="hero-side">
+              <div><div id="r-acc" class="side-num"></div><div class="caps-label">ACCURACY</div></div>
+              <div class="muted"><div id="r-raw" class="side-num sm"></div><div class="caps-label">RAW WPM</div></div>
+            </div>
+          </div>
+          <div id="r-pb" class="rule-box"></div>
+        </section>
+        <aside class="col-side">
+          <div class="rule-head">STATUS</div>
+          <dl id="r-status" class="status"></dl>
+          <div class="side-label">Missed keys:</div>
+          <div id="r-keys" class="keygrid"></div>
+          <div class="caps-label foot-caption">ADDED TO PRACTICE</div>
+        </aside>
+      </div>
+    </main>
+
+    <main id="view-game" class="view" hidden></main>
+    <main id="view-games" class="view menu-view" hidden></main>
+    <main id="view-stats" class="view menu-view" hidden></main>
+    <main id="view-settings" class="view menu-view" hidden></main>
+
+    <footer class="bar footer">
+      <div id="hints" class="hints"></div>
+      <span id="status-line"></span>
+    </footer>
+  </div>
+
+  <script src="store.js"></script>
+  <script src="words.js"></script>
+  <script src="analysis.js"></script>
+  <script src="typing.js"></script>
+  <script src="pathrunner.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
