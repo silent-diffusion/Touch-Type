@@ -43,7 +43,7 @@
       "provider": "github",
       "owner": "silent-diffusion",
       "repo": "Touch-Type",
-      "releaseType": "release"
+      "releaseType": "draft"
     }
   },
   "dependencies": {
