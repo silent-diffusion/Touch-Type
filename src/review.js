@@ -249,6 +249,7 @@
           a.wrong.push({ t: m.t, expected, typed: m.typed, word: d.word, pos: m.pos });
         }
         a.steps.push({ t, word: d.word, ms: t - stepStart, misses: pending.length, grade: d.grade, offset: d.d });
+        if (d.sloppy) a.extra.push({ t, kind: "wrong", text: `Sloppy hit on "${d.word}" (typed "${bufAt}")` });
         pending = [];
         stepStart = t;
         prevChar = null;

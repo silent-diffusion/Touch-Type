@@ -721,6 +721,7 @@
             <li>Each column has a word at the bottom. Tiles fall down the columns in time with the music, higher notes further right.</li>
             <li>Type a column's word, then press <strong>Enter</strong> or <strong>Space</strong> as that column's tile crosses the line. Its word then changes.</li>
             <li>Close to the line counts, and a little early gets more room than a little late. Enter on the wrong column counts as a mistake, but your typing stays. Misses and typos cost health, and a typo has to be backspaced before you can go on.</li>
+            <li>Mistyped or didn't finish the word, but you're in the right column? Press Enter on time anyway: it's a <strong>sloppy</strong> hit, worth the fewest points, and it won't cost health.</li>
           </ol>
         </aside>
       </div>`;

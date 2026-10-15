@@ -10,8 +10,9 @@
   const W = TT.wordInput;
   const BACK = "<", BACK_WORD = "{";
   // v2: wrong letters are typed and must be backspaced. v3: a missed tile clears the typing unless
-  // it's a correct start on another tile. v4: blank tiles, a word under each column.
-  const RULES = 4;
+  // it's a correct start on another tile. v4: blank tiles, a word under each column. v5: Enter on
+  // time in the right column with the word mistyped or unfinished is a sloppy hit.
+  const RULES = 5;
   const LANES = 4;
 
   // gap: seconds between tiles the chart aims for (it snaps to the song's beats)
@@ -27,10 +28,11 @@
   const DIFF_IDS = Object.keys(DIFFS);
   // Timing windows in ms. Early presses get more room than late ones.
   const WIN = { perfect: 60, great: 130, early: 250, late: 180 };
-  const POINTS = { P: 300, G: 200, O: 100 };
-  const HEAL = { P: 4, G: 3, O: 2 };
+  // S: sloppy, on time in the right column but with the word mistyped or unfinished (v5)
+  const POINTS = { P: 300, G: 200, O: 100, S: 50 };
+  const HEAL = { P: 4, G: 3, O: 2, S: 0 };
   const TYPO_HP = 2, START_HP = 80, MAX_HP = 100;
-  const GRADE_NAMES = { P: "PERFECT", G: "GREAT", O: "GOOD", M: "MISS", E: "TOO EARLY", X: "WRONG COLUMN" };
+  const GRADE_NAMES = { P: "PERFECT", G: "GREAT", O: "GOOD", S: "SLOPPY", M: "MISS", E: "TOO EARLY", X: "WRONG COLUMN" };
   const LEAD_MS = 1200; // quiet time before the first tile shows up
   const HISTORY_CAP = 200;
 
@@ -137,7 +139,7 @@
       buf: "", bad: -1,
       score: 0, combo: 0, maxCombo: 0, hp: START_HP,
       keys: 0, correct: 0, mistakes: 0, chars: 0,
-      counts: { P: 0, G: 0, O: 0, M: 0 },
+      counts: { P: 0, G: 0, O: 0, S: 0, M: 0 },
       offsets: [],      // ms early (-) or late (+) of each hit
       keyStats: {}, missedWords: new Set(), stepMisses: [],
       last: null,       // the latest judgment: { grade, t, i, l, d }
@@ -258,6 +260,26 @@
     return { type: "hit", grade, d, word, misses, i: tile.i };
   }
 
+  // v5: Enter on time in the right column, with the word mistyped or unfinished. It still takes the
+  // tile, for the fewest points, without healing or hurting, and leaves the combo as it was. The
+  // letters typed right count toward key stats, the wrong ones as misses, and the word goes on the
+  // missed-words list.
+  function sloppy(g, tile, d, t, word) {
+    const typed = W.good(g);
+    g.tiles = g.tiles.filter((x) => x !== tile);
+    g.keys++;
+    const misses = attribute(g, typed, word);
+    g.missedWords.add(word);
+    g.res[tile.i] = { grade: "S", d, t, w: word };
+    g.counts.S++;
+    g.score += POINTS.S * multiplier(g.combo);
+    g.chars += typed.length;
+    g.offsets.push(d);
+    W.reset(g);
+    g.last = { grade: "S", t, i: tile.i, l: tile.l, d };
+    return { type: "hit", grade: "S", d, word, misses, i: tile.i, sloppy: true };
+  }
+
   // Runs everything that happens on its own (tiles appearing, tiles passing the line, the song
   // ending) up to time t, in time order. Returns true once the round is over.
   function advance(g, t, provider) {
@@ -316,6 +338,15 @@
   // at the line) and the typing stays, so you can still go on to hit it.
   function strikeColumn(g, t, provider) {
     const c = column(g);
+    if (g.v >= 5 && c >= 0 && !W.ready(g, g.words[c])) {
+      const tile = g.tiles.find((x) => x.l === c);
+      const d = tile ? t - g.hits[tile.i] : null;
+      if (tile && d >= -WIN.early) {
+        const out = sloppy(g, tile, d, t, g.words[c]);
+        deal(g, c, t, provider);
+        return out;
+      }
+    }
     if (c < 0 || !W.ready(g, g.words[c])) {
       if (g.buf) {
         g.keys++;
@@ -341,12 +372,12 @@
   function gameStats(g, ms) {
     const minutes = ms / 60000;
     const c = g.counts;
-    const judged = c.P + c.G + c.O + c.M;
+    const judged = c.P + c.G + c.O + (c.S || 0) + c.M;
     const avg = g.offsets.length ? g.offsets.reduce((s, x) => s + x, 0) / g.offsets.length : 0;
     return {
       wpm: minutes > 1 / 60 ? g.chars / 5 / minutes : 0,
       acc: g.keys ? (g.correct / g.keys) * 100 : 100,
-      timing: judged ? ((c.P + c.G * 0.7 + c.O * 0.4) / judged) * 100 : 100,
+      timing: judged ? ((c.P + c.G * 0.7 + c.O * 0.4 + (c.S || 0) * 0.2) / judged) * 100 : 100,
       judged,
       avg,
     };
@@ -662,11 +693,11 @@
       const age = last ? viewT - last.t : Infinity;
       // the judgment text
       const show = last && age >= 0 && age < 700;
-      const text = show ? GRADE_NAMES[last.grade] + (last.d != null && "PGO".includes(last.grade) ? ` ${last.d > 0 ? "+" : ""}${Math.round(last.d)}MS` : "") : "";
+      const text = show ? GRADE_NAMES[last.grade] + (last.d != null && "PGOS".includes(last.grade) ? ` ${last.d > 0 ? "+" : ""}${Math.round(last.d)}MS` : "") : "";
       if (el.judge.textContent !== text) el.judge.textContent = text;
       el.judge.classList.toggle("miss", !!show && "MEX".includes(last.grade));
       // a flash in the lane of a hit
-      const flash = last && "PGO".includes(last.grade) && age >= 0 && age < 320;
+      const flash = last && "PGOS".includes(last.grade) && age >= 0 && age < 320;
       el.flash.style.opacity = flash ? (1 - age / 320).toFixed(2) : "0";
       if (flash) el.flash.style.left = colLeft(last.l);
       // the line pulses on each beat
@@ -686,7 +717,7 @@
       el.typed.classList.toggle("shake", viewT - shakeT < 250);
       // v4: a word card pushes up into the tile it hit, then settles back
       const cards = el.words.children;
-      const push = g.v >= 4 && last && "PGO".includes(last.grade) && age >= 0 && age < PUSH_MS ? last.l : -1;
+      const push = g.v >= 4 && last && "PGOS".includes(last.grade) && age >= 0 && age < PUSH_MS ? last.l : -1;
       for (let i = 0; i < cards.length; i++) {
         const p = i === push ? Math.sin((Math.PI * age) / PUSH_MS) : 0;
         const tf = p ? `translateY(${(-16 * p).toFixed(1)}px) scale(${(1 + 0.1 * p).toFixed(3)})` : "";
@@ -718,7 +749,7 @@
       el.avg.textContent = g.offsets.length
         ? `AVG ${st.avg > 0 ? "+" : ""}${Math.round(st.avg)}MS${Math.abs(st.avg) < 15 ? "" : st.avg < 0 ? " EARLY" : " LATE"}`
         : "AVG —";
-      el.counts.innerHTML = [["PERFECT", c.P], ["GREAT", c.G], ["GOOD", c.O], ["MISS", c.M]]
+      el.counts.innerHTML = [["PERFECT", c.P], ["GREAT", c.G], ["GOOD", c.O], ["SLOPPY", c.S || 0], ["MISS", c.M]]
         .map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join("");
     }
 
@@ -877,7 +908,7 @@
         <p>${best}</p>
         <dl class="tl-over-stats">
           <div><dt>PERFECT</dt><dd>${c.P}</dd></div><div><dt>GREAT</dt><dd>${c.G}</dd></div>
-          <div><dt>GOOD</dt><dd>${c.O}</dd></div><div><dt>MISS</dt><dd>${c.M}</dd></div>
+          <div><dt>GOOD</dt><dd>${c.O}</dd></div><div><dt>SLOPPY</dt><dd>${c.S}</dd></div><div><dt>MISS</dt><dd>${c.M}</dd></div>
           <div><dt>WPM</dt><dd>${Math.round(st.wpm)}</dd></div><div><dt>ACCURACY</dt><dd>${Math.round(st.acc)}%</dd></div>
           <div><dt>TIMING</dt><dd>${g.offsets.length ? `${st.avg > 0 ? "+" : ""}${Math.round(st.avg)} ms` : "—"}</dd></div>
         </dl>
