@@ -18,6 +18,7 @@ A desktop app for improving your touch typing. It has a quick speed test, practi
 - **Practice:** mixes words that use your weak keys and words you've missed with ordinary words. Recent mistakes count more than old ones.
 - **Stats:** a WPM chart, a keyboard heatmap, your weakest keys and words, and test history.
 - **Replays and keystroke analysis:** every round is recorded and can be replayed. See which wrong key you pressed, how long each key takes, the slowest letter pairs, and every space, backspace and pause in context.
+- **Forest Hop:** a Crossy Road–style game. Pick a pixel-art animal and hop as far into the forest as you can: type a direction's word, then press Space to jump. Dodge deer herds, ride logs across creeks, wait out rockslides and keep ahead of the hawk. Collect acorns to unlock more animals.
 - **Path Runner:** choose a path by typing its word before the clock runs out.
 - **Settings:** three themes, five accent colors, interface and typing fonts, text size and caret style.
 
@@ -32,6 +33,8 @@ Your data stays on your computer.
 | Esc | Open or close the menu |
 | P | Practice weak keys (on the results and stats screens) |
 | Enter | Play the selected game |
+| Space | Jump in Forest Hop, once a direction's word is typed |
+| ← → / H | Choose an animal, or open How to Play, in Forest Hop |
 | R | Replay the round (on the results and game-over screens) |
 | Space / ← → | Play or pause, and skip, in a replay |
 | F11 | Full screen |

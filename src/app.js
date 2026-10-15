@@ -32,6 +32,8 @@
   const CARETS = { line: "Line", block: "Block", underline: "Underline" };
 
   const GAMES = [
+    { id: "forest", name: "Forest Hop", cat: "arcade", kind: "ARCADE GAME", playable: true,
+      desc: "Pick an animal and get as far through the forest as you can. Type a direction's word, then press Space to hop. Dodge deer, ride logs, and keep ahead of the hawk." },
     { id: "path", name: "Path Runner", cat: "arcade", kind: "ARCADE GAME", playable: true,
       desc: "Type a path's word to step onto it. The words come from your weak keys. The clock keeps draining, so keep moving." },
     { id: "falling", name: "Falling Words", cat: "arcade", kind: "ARCADE GAME",
@@ -56,6 +58,7 @@
   };
 
   const MENU_VIEWS = ["games", "stats", "settings"];
+  const FOREST_VIEWS = ["forest", "forest-select", "forest-guide"];
 
   const ui = {
     view: "test",
@@ -64,7 +67,7 @@
     statsTab: "overview",
     settingsTab: "appearance",
     gamesTab: "all",
-    game: "path",
+    game: "forest",
     targets: [],
   };
 
@@ -177,10 +180,11 @@
     const s = S();
     const btn = (label, on, act) => `<button class="${on ? "on" : ""}" aria-pressed="${on}" data-act="${act}">${label}</button>`;
     const divider = `<span class="divider" aria-hidden="true"></span>`;
-    const special = ui.view === "game" || ui.view === "replay";
+    const special = ui.view === "game" || ui.view === "replay" || FOREST_VIEWS.includes(ui.view);
     els.config.hidden = special;
     els.badge.hidden = !special && ui.lastTyping !== "practice";
-    els.badge.textContent = ui.view === "replay" ? "REPLAY" : ui.view === "game" ? "PATH RUNNER" : "PRACTICE";
+    els.badge.textContent = ui.view === "replay" ? "REPLAY" : ui.view === "game" ? "PATH RUNNER"
+      : FOREST_VIEWS.includes(ui.view) ? "FOREST HOP" : "PRACTICE";
     if (special) return;
 
     if (ui.lastTyping === "practice") {
@@ -232,8 +236,8 @@
     return { best, isFirst: prior.length === 0 };
   }
 
-  const testName = (kind, mode, amount) =>
-    kind === "game" ? `path runner, ${amount} steps` : `${kind === "practice" ? "practice" : mode} ${amount}`;
+  const testName = (kind, mode, amount, game) =>
+    kind === "game" ? `${game === "forest" ? "forest hop" : "path runner"}, ${amount} steps` : `${kind === "practice" ? "practice" : mode} ${amount}`;
 
   function statusRows(rows) {
     return rows.map(([label, value, ruled, cls]) =>
@@ -286,6 +290,9 @@
     results: [["TAB / ENTER", "NEXT TEST", "restart"], ["R", "REPLAY", "replay:last"], ["P", "PRACTICE WEAK KEYS", "practice"], ["ESC", "MENU", "menu"]],
     games: [["ESC", "CLOSE MENU", "close"]],
     game: [["TAB", "RESTART", "play"], ["ESC", "MENU", "menu"]],
+    forest: [["SPACE", "JUMP", "noop"], ["TAB", "RESTART", "fh:play"], ["ESC", "ANIMALS", "fh:select"]],
+    "forest-select": [["← →", "CHOOSE", "fh:next"], ["ENTER", "PLAY", "fh:play"], ["H", "HOW TO PLAY", "fh:guide"], ["ESC", "MENU", "menu"]],
+    "forest-guide": [["ENTER", "PLAY", "fh:play"], ["ESC", "BACK", "fh:select"]],
     replay: [["SPACE", "PLAY / PAUSE", "rp:toggle"], ["← →", "SKIP 2S", "rp:skip:2000"], ["ESC", "BACK", "rp:back"]],
     stats: [["P", "PRACTICE WEAK KEYS", "practice"], ["ESC", "CLOSE MENU", "close"]],
     settings: [["ESC", "CLOSE MENU", "close"]],
@@ -296,6 +303,9 @@
     results: "Result saved.",
     games: "Select a game.",
     game: "Type a word to move.",
+    forest: "Type a word, then press Space to hop.",
+    "forest-select": "Collect acorns on your runs to unlock more animals.",
+    "forest-guide": "Lanes get more dangerous the further you go.",
     replay: "Click a moment to jump to it.",
     stats: "Select a view.",
     settings: "Changes save automatically.",
@@ -308,7 +318,7 @@
       hints = hints.filter(([, , act]) => act !== "practice").map(([key, label, act]) =>
         [key, act === "restart" ? "PRACTICE AGAIN" : label, act]);
     }
-    if (ui.view === "games" && selectedGame().playable) hints = [["ENTER", "PLAY", "play"], ...hints];
+    if (ui.view === "games" && selectedGame().playable) hints = [["ENTER", "PLAY", selectedGame().id === "forest" ? "fh:select" : "play"], ...hints];
     els.hints.innerHTML = hints.map(([key, label, act]) => `<button data-act="${act}"><kbd>${key}</kbd>${label}</button>`).join("");
     els.statusLine.textContent = STATUS[ui.view];
   }
@@ -321,6 +331,8 @@
     els.typing.hidden = view !== "test" && view !== "practice";
     els.results.hidden = view !== "results";
     $("view-game").hidden = view !== "game";
+    for (const v of FOREST_VIEWS) $(`view-${v}`).hidden = v !== view;
+    if (view !== "forest" && forest) forest.stop();
     $("view-replay").hidden = view !== "replay";
     if (view !== "replay") pauseReplay();
     for (const v of MENU_VIEWS) $(`view-${v}`).hidden = v !== view;
@@ -336,6 +348,7 @@
   function openMenu(view) {
     engine.stop();
     runner.stop();
+    forest.stop();
     document.body.classList.remove("typing");
     ui.menuView = view;
     show(view);
@@ -383,10 +396,10 @@
         <section class="col-main">
           <div class="title-row"><h1>${g.name.toUpperCase()}</h1><span class="title-meta">${g.playable ? `BEST ${gameBest(g.id)}` : "SOON"}</span></div>
           <div class="kind-line">${g.kind}</div>
-          <div class="game-art"><svg viewBox="0 0 300 300" role="img" aria-label="${g.name} icon">${GAME_ART[g.id]}</svg></div>
+          <div class="game-art">${g.id === "forest" ? TT.sprites.svg("frog", 220) : `<svg viewBox="0 0 300 300" role="img" aria-label="${g.name} icon">${GAME_ART[g.id]}</svg>`}</div>
           <div class="detail-line">DIFFICULTY: <strong>ADAPTIVE</strong></div>
           <div class="rule-box">${g.desc}${g.playable ? "" : " <strong>Coming in a later update.</strong>"}</div>
-          ${g.playable ? `<button class="outline-btn play-btn" data-act="play">PLAY <kbd>ENTER</kbd></button>` : ""}
+          ${g.playable ? `<button class="outline-btn play-btn" data-act="${g.id === "forest" ? "fh:select" : "play"}">PLAY <kbd>ENTER</kbd></button>` : ""}
         </section>
         <aside class="col-side">${statusPanel()}${targetPanel()}</aside>
       </div>`;
@@ -412,6 +425,168 @@
     show("game");
     renderBar();
     runner.newGame();
+  }
+
+  // ---------- forest hop ----------
+
+  const FH_ANIMALS = [
+    { kind: "frog", title: "FROG", cost: 0, blurb: "Light on its feet and right at home by the creek." },
+    { kind: "chicken", title: "CHICKEN", cost: 0, blurb: "Nobody knows how it got into the forest. Neither does it." },
+    { kind: "moose", title: "MOOSE", cost: 0, blurb: "Big antlers, big steps, same hop as everyone else." },
+    { kind: "bear", title: "BEAR", cost: 0, blurb: "Follows its nose toward the acorns." },
+    { kind: "fox", title: "FOX", cost: 150, blurb: "Quick, quiet and a little smug about it." },
+    { kind: "rabbit", title: "RABBIT", cost: 100, blurb: "Born for hopping. Very proud of the ears." },
+    { kind: "owl", title: "OWL", cost: 250, blurb: "Keeps one eye on the hawk at all times." },
+    { kind: "raccoon", title: "RACCOON", cost: 300, blurb: "Has already found your acorn stash." },
+  ];
+
+  const fhData = () => {
+    const d = (TT.store.games.forest ||= { best: 0, plays: 0, acorns: 0, unlocked: ["frog", "chicken", "moose", "bear"], animal: "frog", history: [] });
+    d.bestBy ||= {};
+    d.runsBy ||= {};
+    return d;
+  };
+
+  const forest = TT.createForest({
+    root: $("view-forest"),
+    onStart() {
+      els.statusLine.textContent = "Keep moving. The hawk is watching.";
+    },
+    onEnd(id) {
+      ui.lastForestId = id;
+      els.statusLine.textContent = "Run saved. Press R to replay it.";
+    },
+  });
+
+  function openForestSelect() {
+    engine.stop();
+    runner.stop();
+    document.body.classList.remove("typing");
+    ui.fhPick ||= fhData().animal;
+    show("forest-select");
+    renderBar();
+    renderForestSelect();
+  }
+
+  function renderForestSelect() {
+    const d = fhData();
+    const pick = FH_ANIMALS.find((a) => a.kind === ui.fhPick) || FH_ANIMALS[0];
+    const unlocked = (a) => d.unlocked.includes(a.kind);
+    const open = unlocked(pick);
+    const cards = FH_ANIMALS.map((a) => {
+      const on = a.kind === pick.kind;
+      const tag = !unlocked(a) ? `LOCKED · ${a.cost}` : d.bestBy[a.kind] ? `BEST ${d.bestBy[a.kind]}` : "NEW";
+      return `<button class="fh-animal ${on ? "on" : ""} ${unlocked(a) ? "" : "locked"}" data-act="fh:pick:${a.kind}" aria-pressed="${on}" aria-label="${a.title.toLowerCase()}${unlocked(a) ? "" : ", locked"}">
+        ${TT.sprites.svg(a.kind, 90)}<span class="fh-animal-name">${a.title}</span><span class="caps-label">${tag}</span>
+      </button>`;
+    }).join("");
+    const action = open
+      ? `<button class="fh-play" data-act="fh:play">PLAY <kbd>ENTER</kbd></button>`
+      : `<button class="outline-btn fh-unlock" data-act="fh:unlock:${pick.kind}" ${d.acorns < pick.cost ? "disabled" : ""}>UNLOCK FOR ${pick.cost} ${TT.sprites.svg("acorn", 20)}</button>
+         ${d.acorns < pick.cost ? `<p class="note">You need ${pick.cost - d.acorns} more acorns.</p>` : ""}`;
+
+    $("view-forest-select").innerHTML = `
+      <div class="cols">
+        <section class="col-main">
+          <div class="title-row"><h1>CHOOSE YOUR ANIMAL</h1><span class="title-meta fh-acorns">${TT.sprites.svg("acorn", 26)} ${d.acorns} ACORNS</span></div>
+          <div class="kind-line">EVERY ANIMAL HOPS THE SAME</div>
+          <div class="fh-animals">${cards}</div>
+        </section>
+        <aside class="col-side">
+          <div class="rule-head">SELECTED</div>
+          <div class="fh-portrait">${TT.sprites.svg(pick.kind, 160)}</div>
+          <div class="fh-pick-title"><span>${pick.title}</span><span class="caps-label">${open ? "UNLOCKED" : "LOCKED"}</span></div>
+          <p class="fh-blurb">${pick.blurb}</p>
+          <dl class="status">${statusRows([
+            ["Best:", open && d.bestBy[pick.kind] ? `${d.bestBy[pick.kind]} steps` : "—"],
+            ["Runs:", open ? d.runsBy[pick.kind] || 0 : "—", true],
+          ])}</dl>
+          ${action}
+        </aside>
+      </div>`;
+  }
+
+  function renderForestGuide() {
+    const lane = (bg, inner) => `<div class="fh-lane" style="background: ${bg}">${inner}</div>`;
+    const at = (c, html) => `<span class="fh-at" style="left: ${c * 56 + 3}px">${html}</span>`;
+    const sp = (k, c) => at(c, TT.sprites.svg(k, 50));
+    const log = (c, len) => `<span class="fh-log" style="left: ${c * 56 + 3}px; width: ${len * 56 - 6}px"></span>`;
+    const pad = (c) => `<span class="fh-pad" style="left: ${c * 56 + 8}px"></span>`;
+    const LANES = [
+      ["MEADOW", "SAFE", lane("#B7BC95", sp("pine", 0) + sp("rock", 2) + sp("stump", 3) + sp("acorn", 5)),
+        "Safe ground. Trees, rocks and stumps block your way, so that direction shows BLOCKED."],
+      ["GAME TRAIL", "DANGER", lane("#C4AF88", sp("deer", 1) + sp("deer", 2)),
+        "Deer herds run across the trail. Wait for a gap, then press Space. Each trail runs one way."],
+      ["CREEK", "DANGER", lane("#8EA5A3", log(0, 2) + pad(3) + log(4, 3)),
+        "Hop onto drifting logs or lily pads. Logs carry you sideways. Miss and you fall in."],
+      ["RAPIDS", "FURTHER IN", lane("#7F989A", log(1, 2) + log(4, 2)),
+        "A fast creek with short logs and no lily pads. Words are kept short here."],
+      ["ROCKSLIDE", "WARNING FIRST", lane("#BCB199", `<span class="fh-warn" style="left: 6px">!</span><span class="fh-boulder" style="left: ${2 * 56 + 5}px"></span>`),
+        "The ! markers flash, then a boulder rolls straight through. Wait for it, then hop."],
+      ["HAWK", "KEEP MOVING", lane("#AFB48C", sp("hawk", 2) + sp(fhData().animal, 4)),
+        "Go 9 seconds without reaching a new row, or hop back 3 rows, and the hawk swoops down."],
+    ];
+    $("view-forest-guide").innerHTML = `
+      <div class="title-row"><h1>HOW TO PLAY</h1><span class="title-meta">GET AS FAR AS YOU CAN</span></div>
+      <div class="cols fh-guide">
+        <aside class="col-side">
+          <div class="rule-head">THE CROSS</div>
+          <div class="fh-mini-cross">
+            <span style="grid-area: 1 / 2">pine</span><span style="grid-area: 2 / 1">fern</span>
+            <span class="c" style="grid-area: 2 / 2">${TT.sprites.svg(fhData().animal, 30)}</span>
+            <span style="grid-area: 2 / 3">moss</span><span style="grid-area: 3 / 2">bark</span>
+          </div>
+          <ol class="fh-rules">
+            <li>Each direction around your animal gets a word: forward, back, left and right.</li>
+            <li>Type the word, then press <strong>Space</strong> to hop. You can type ahead and wait for the right moment.</li>
+            <li>Keys that don't fit any word are ignored and counted as mistakes. Backspace works.</li>
+            <li>If a tree or rock is in the way, that direction shows <strong>BLOCKED</strong>.</li>
+            <li>Words lean toward your target keys, and get longer the further you go.</li>
+          </ol>
+          <p class="fh-acorn-note">${TT.sprites.svg("acorn", 36)}<span>Hop onto <strong>acorns</strong> to collect them, then spend them to unlock animals.</span></p>
+        </aside>
+        <section class="col-main fh-lanes">${LANES.map(([title, tag, art, text]) => `
+          <div class="fh-lane-card">${art}
+            <div class="fh-lane-title"><span>${title}</span><span class="caps-label">${tag}</span></div>
+            <p>${text}</p>
+          </div>`).join("")}
+        </section>
+      </div>`;
+  }
+
+  function startForest() {
+    const d = fhData();
+    const pick = ui.fhPick || d.animal;
+    if (!d.unlocked.includes(pick)) return;
+    d.animal = pick;
+    TT.save();
+    engine.stop();
+    runner.stop();
+    document.body.classList.remove("typing");
+    show("forest");
+    renderBar();
+    forest.newGame(pick);
+  }
+
+  function forestAct(x, y) {
+    const d = fhData();
+    if (x === "select") { forest.stop(); openForestSelect(); }
+    else if (x === "play") startForest();
+    else if (x === "guide") { show("forest-guide"); renderBar(); renderForestGuide(); }
+    else if (x === "pick") { ui.fhPick = y; renderForestSelect(); }
+    else if (x === "next" || x === "prev") {
+      const i = FH_ANIMALS.findIndex((a) => a.kind === ui.fhPick);
+      ui.fhPick = FH_ANIMALS[(i + (x === "next" ? 1 : -1) + FH_ANIMALS.length) % FH_ANIMALS.length].kind;
+      renderForestSelect();
+    } else if (x === "unlock") {
+      const a = FH_ANIMALS.find((z) => z.kind === y);
+      if (a && !d.unlocked.includes(a.kind) && d.acorns >= a.cost) {
+        d.acorns -= a.cost;
+        d.unlocked.push(a.kind);
+        TT.save();
+        renderForestSelect();
+      }
+    }
   }
 
   // ---------- replay ----------
@@ -453,7 +628,7 @@
     $("view-replay").innerHTML = `
       <div class="cols">
         <section class="col-main">
-          <div class="title-row"><h1>REPLAY</h1><span class="title-meta">${testName(rec.kind, rec.mode, rec.amount).toUpperCase()}</span></div>
+          <div class="title-row"><h1>REPLAY</h1><span class="title-meta">${testName(rec.kind, rec.mode, rec.amount, rec.game).toUpperCase()}</span></div>
           <div class="kind-line">${fmtDate.format(new Date(rec.date))}</div>
           <div id="rp-stage" class="rp-stage">${game ? "" : `
             <div class="live"><span id="rp-live-num" class="live-num"></span><span id="rp-live-label" class="caps-label"></span></div>
@@ -489,7 +664,10 @@
         </aside>
       </div>`;
 
-    if (game) {
+    if (rec.game === "forest") {
+      $("rp-stage").classList.add("rp-forest");
+      rp.player = TT.createForest({ root: $("rp-stage"), replayOnly: true });
+    } else if (game) {
       rp.player = TT.createPathRunner({ root: $("rp-stage"), replayOnly: true });
     } else {
       rp.player = TT.createTyping({ box: $("rp-words-box"), wordsEl: $("rp-words") });
@@ -511,7 +689,11 @@
     let rows;
     // Speeds over a fraction of a second are meaningless, so they appear after the first second.
     const speed = (x) => (rp.T < 1000 && rec.duration >= 1000 ? "—" : Math.round(x));
-    if (rec.kind === "game") {
+    if (rec.game === "forest") {
+      const F = TT.forestCore;
+      const st = F.gameStats(state, Math.max(rp.T, 1));
+      rows = [["Steps:", F.score(state)], ["WPM:", speed(st.wpm)], ["Accuracy:", `${Math.round(st.acc)}%`], ["Mistakes:", state.mistakes, true]];
+    } else if (rec.kind === "game") {
       const st = TT.pathCore.gameStats(state, Math.max(rp.T, 1));
       rows = [["Steps:", state.n], ["WPM:", speed(st.wpm)], ["Accuracy:", `${Math.round(st.acc)}%`], ["Mistakes:", state.mistakes, true]];
     } else {
@@ -695,7 +877,7 @@
         <thead><tr><th>DATE</th><th>TEST</th><th class="num">WPM</th><th class="num">ACCURACY</th><th class="num">RAW</th><th class="num">REPLAY</th></tr></thead>
         <tbody>${rows.map((h) => `<tr>
           <td>${fmt.format(new Date(h.date))}</td>
-          <td>${testName(h.kind || "test", h.mode, h.amount)}</td>
+          <td>${testName(h.kind || "test", h.mode, h.amount, h.game)}</td>
           <td class="num"><strong>${Math.round(h.wpm)}</strong></td>
           <td class="num">${Math.round(h.acc)}%</td>
           <td class="num">${Math.round(h.raw)}</td>
@@ -931,11 +1113,12 @@
       case "practice": startTyping("practice"); break;
       case "play": startGame(); break;
       case "replay": {
-        const id = x === "last" ? (ui.view === "game" ? ui.lastGameId : ui.lastRoundId) : x;
+        const id = x === "last" ? (ui.view === "game" ? ui.lastGameId : ui.view === "forest" ? ui.lastForestId : ui.lastRoundId) : x;
         if (id) openReplay(id, ui.view === "stats" ? "stats" : ui.view);
         break;
       }
       case "rp": replayAct(x, y); break;
+      case "fh": forestAct(x, y); break;
       case "stab": ui.statsTab = x; renderStats(); break;
       case "settab": ui.settingsTab = x; renderSettings(); break;
       case "gtab": ui.gamesTab = x; renderGames(); break;
@@ -977,6 +1160,21 @@
       }
       return;
     }
+    if (FOREST_VIEWS.includes(v)) {
+      if (v === "forest") {
+        if (e.key === "Tab") { e.preventDefault(); act("fh:play"); }
+        else if (e.key === "Escape") { e.preventDefault(); act("fh:select"); }
+        else if (forest.isOver()) { if (plainKey(e, "r")) act("replay:last"); }
+        else forest.handleKey(e);
+      } else if (v === "forest-select") {
+        const keys = { ArrowRight: "fh:next", ArrowLeft: "fh:prev", Enter: "fh:play", h: "fh:guide", Escape: "menu" };
+        if (keys[e.key] && !e.ctrlKey && !e.altKey && !e.metaKey) { e.preventDefault(); act(keys[e.key]); }
+      } else {
+        const keys = { Enter: "fh:play", Escape: "fh:select" };
+        if (keys[e.key]) { e.preventDefault(); act(keys[e.key]); }
+      }
+      return;
+    }
     if (e.key === "Escape") {
       e.preventDefault();
       act(MENU_VIEWS.includes(v) ? "close" : "menu");
@@ -1012,7 +1210,7 @@
       runner.handleKey(e);
     } else if (v === "games" && e.key === "Enter" && selectedGame().playable) {
       e.preventDefault();
-      act("play");
+      act(selectedGame().id === "forest" ? "fh:select" : "play");
     } else if (v === "stats" && plainKey(e, "p")) {
       act("practice");
     }

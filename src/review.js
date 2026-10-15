@@ -127,9 +127,67 @@
     return a;
   }
 
+  function analyzeForest(rec) {
+    const F = TT.forestCore;
+    const g = F.newCore(rec.seed, rec.animal || "frog");
+    const provider = F.recordedWords(rec);
+    F.assignWords(g, provider);
+    const a = newAnalysis();
+    let prevT = null;
+    let prevChar = null;
+    let stepStart = 0;
+    let pending = []; // wrong keys since the last hop; their intended letter is known after the hop
+
+    for (let i = 0; i < rec.keys.length; i++) {
+      const k = rec.keys[i];
+      const t = rec.times[i];
+      const gap = prevT == null ? null : t - prevT;
+      prevT = t;
+      const bufAt = g.buf;
+      if (gap != null && gap >= HESITATION_MS) a.hesitations.push({ t, gap, word: bufAt ? `${bufAt}…` : "(choosing a direction)", pos: bufAt.length });
+
+      const d = F.applyKey(g, k, t, provider);
+      if (!d) continue;
+      if (d.type === "miss") {
+        pending.push({ t, typed: d.typed, pos: d.pos });
+        prevChar = null;
+      } else if (d.type === "back") {
+        a.backs.push({ t, gap, word: `${bufAt}…`, deleted: d.deleted, fixedError: false, crossed: false, whole: k === TT.typingCore.BACK_WORD });
+        prevChar = null;
+      } else if (d.type === "letter") {
+        time(a.keyTimes, d.typed, gap);
+        if (prevChar) time(a.bigrams, prevChar + d.typed, gap);
+        if (gap != null) a.gaps.push(gap);
+        prevChar = d.typed;
+      } else if (d.type === "space") {
+        a.spaces.push({ t, gap, ok: false, ignored: d.empty, word: bufAt, typed: bufAt, next: "", skipped: 0,
+          note: d.empty ? "Space with nothing typed" : `Space before finishing a word (typed "${bufAt}")` });
+        prevChar = null;
+      } else if (d.type === "hop") {
+        a.spaces.push({ t, gap, ok: true, word: d.word, typed: d.word, next: "", skipped: 0 });
+        for (const m of pending) {
+          if (m.pos >= d.word.length) continue;
+          const expected = d.word[m.pos];
+          a.confusions[`${expected}>${m.typed}`] = (a.confusions[`${expected}>${m.typed}`] || 0) + 1;
+          a.wrong.push({ t: m.t, expected, typed: m.typed, word: d.word, pos: m.pos });
+        }
+        a.steps.push({ t, word: d.word, ms: t - stepStart, misses: pending.length, dir: d.dir });
+        pending = [];
+        stepStart = t;
+        prevChar = null;
+      }
+    }
+    F.advance(g, rec.duration);
+    a.duration = rec.duration;
+    a.final = { steps: F.score(g), cause: g.cause, ...F.gameStats(g, rec.duration) };
+    return a;
+  }
+
   const cache = new Map();
   function analyze(rec) {
-    if (!cache.has(rec.id)) cache.set(rec.id, rec.kind === "game" ? analyzeGame(rec) : analyzeTyping(rec));
+    if (!cache.has(rec.id)) {
+      cache.set(rec.id, rec.game === "forest" ? analyzeForest(rec) : rec.kind === "game" ? analyzeGame(rec) : analyzeTyping(rec));
+    }
     return cache.get(rec.id);
   }
 
@@ -189,7 +247,8 @@
       list.push({ t: w.t, kind: "wrong", text: w.expected ? `Pressed ${w.typed} for ${w.expected} in "${w.word}"` : `Extra ${w.typed} after "${w.word}"` });
     }
     for (const s of a.spaces) {
-      if (s.ignored) list.push({ t: s.t, kind: "space", text: `Extra space before "${s.next}"` });
+      if (s.note) list.push({ t: s.t, kind: "space", text: s.note });
+      else if (s.ignored) list.push({ t: s.t, kind: "space", text: `Extra space before "${s.next}"` });
       else if (!s.ok) list.push({ t: s.t, kind: "space", text: s.skipped ? `Space ${s.skipped} letter${s.skipped > 1 ? "s" : ""} early in "${s.word}" (typed "${s.typed}")` : `Space after mistyped "${s.word}" (typed "${s.typed}")` });
     }
     for (const b of a.backs) {
@@ -197,6 +256,10 @@
       list.push({ t: b.t, kind: "back", text: `${what} "${b.word}"` });
     }
     for (const h of a.hesitations) list.push({ t: h.t, kind: "pause", text: `${(h.gap / 1000).toFixed(1)}s pause in "${h.word}"` });
+    if (a.final && a.final.cause && TT.forestCore) {
+      const c = TT.forestCore.CAUSES[a.final.cause];
+      list.push({ t: a.duration, kind: "wrong", text: c[0] + c.slice(1).toLowerCase() });
+    }
     return list.sort((x, y) => x.t - y.t);
   }
 
