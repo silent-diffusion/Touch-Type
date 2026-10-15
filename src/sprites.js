@@ -45,7 +45,45 @@
     hawk: { pal: { k: K, h: "#6B5A48", l: "#A8957A" }, rows: [
       "....kk....", "...khhk...", "kk.khhk.kk", "khkkhhkkhk", "khhhhhhhhk",
       ".khhllhhk.", "..khllhk..", "...khhk...", "..khkkhk..", "..kk..kk.."] },
+
+    // predators
+    hunter: { pal: { k: K, o: "#D07A2E", s: "#E0B48A", g: "#5E6B2F", b: "#6B4E35", m: "#555143" }, rows: [
+      "...oooo...", "..oooooo..", "...ssss...", "...skks...", "..oooooomm",
+      ".sooooos.m", "..oooooo..", "..gg..gg..", "..gg..gg..", ".bbb..bbb."] },
+    wolf: { pal: { k: K, g: "#7E7A72", l: "#B5B0A4", e: K }, rows: [
+      ".kk.......", "kgk.......", "kggkkkkkk.", "kegggggggk", ".kgggggggk",
+      "..kllgggk.", "..kgk.kgk.", "..kgk.kgk.", "..kk..kk..", ".........."] },
+    orca: { pal: { k: "#1E1D1A", w: W }, rows: [
+      "....k.....", "...kk.....", "..kkk.....", ".kkkkkkk..", "kkwkkkkkk.",
+      "kkkkkkkkkk", "kwwwwwwkkk", ".kwwwwkkk.", "..kkkkk...", ".........."] },
+
+    // treats
+    fly: { pal: { k: K, w: "#DDE6E8" }, rows: [
+      "..........", "..ww..ww..", ".wwwwwwww.", "..wwkkww..", "...kkkk...",
+      "..kkkkkk..", "...kkkk...", "....kk....", "..........", ".........."] },
+    corn: { pal: { k: K, y: "#E3B94A", g: "#6F8F4E" }, rows: [
+      "....kk....", "...kyyk...", "..kyyyyk..", "..kyyyyk..", "..kyyyyk..",
+      ".gkyyyykg.", ".ggkyykgg.", "..ggkkgg..", "...gggg...", "....gg...."] },
+    leaf: { pal: { k: K, g: "#6F8F4E", d: "#4E6A36" }, rows: [
+      "......kk..", "....kkggk.", "...kgggdgk", "..kgggdggk", ".kgggdgggk",
+      ".kggdgggk.", ".kgdgggk..", "..kdggk...", ".kdkkk....", "kd........"] },
+    berries: { pal: { k: K, r: "#8E3B4F", l: "#C26A7E", g: "#6F8F4E" }, rows: [
+      "....gg....", "...gggg...", "..krrkrrk.", ".krlrkrlrk", ".krrrkrrrk",
+      "..kkrrrkk.", "...krlrk..", "...krrrk..", "....kkk...", ".........."] },
+    egg: { pal: { k: K, w: W, s: "#CDB98E" }, rows: [
+      "..........", "...kkkk...", "..kwwwwk..", ".kwwswwwk.", ".kwwwwswk.",
+      ".kwswwwwk.", ".kwwwwwwk.", "..kwwwwk..", "...kkkk...", ".........."] },
+    carrot: { pal: { k: K, o: "#D9772E", g: "#6F8F4E" }, rows: [
+      ".....g.g..", "......gg..", ".....kkk..", "....koook.", "...koook..",
+      "...kook...", "..kook....", "..kok.....", ".kok......", ".kk......."] },
+    trash: { pal: { k: K, m: "#9C9886", l: "#B8B4A2", d: "#6E6A5C" }, rows: [
+      "...kkkk...", ".kkkkkkkk.", ".kllllllk.", ".kmlmdmmk.", ".kmlmdmmk.",
+      ".kmlmdmmk.", ".kmlmdmmk.", ".kmlmdmmk.", ".kkkkkkkk.", ".........."] },
   };
+  // recolored versions of existing sprites
+  S.eagle = { rows: S.hawk.rows, pal: { k: K, h: "#4E3A28", l: "#F2EEE2" } };
+  S.coyote = { rows: S.wolf.rows, pal: { k: K, g: "#A08458", l: "#D2B98A", e: K } };
+  S.moth = { rows: S.fly.rows, pal: { k: "#8C7A62", w: "#D9C9A8" } };
 
   const cache = new Map();
   function sheet(kind, flip) {

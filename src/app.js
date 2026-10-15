@@ -33,7 +33,7 @@
 
   const GAMES = [
     { id: "forest", name: "Forest Hop", cat: "arcade", kind: "ARCADE GAME", playable: true,
-      desc: "Pick an animal and get as far through the forest as you can. Type a direction's word, then press Space to hop. Dodge deer, ride logs, and keep ahead of the hawk." },
+      desc: "Pick an animal and get as far through the forest as you can. Type a direction's word, then press Space to hop. Dodge deer, ride logs, collect treats, and keep moving before your predator catches up." },
     { id: "path", name: "Path Runner", cat: "arcade", kind: "ARCADE GAME", playable: true,
       desc: "Type a path's word to step onto it. The words come from your weak keys. The clock keeps draining, so keep moving." },
     { id: "falling", name: "Falling Words", cat: "arcade", kind: "ARCADE GAME",
@@ -304,7 +304,7 @@
     games: "Select a game.",
     game: "Type a word to move.",
     forest: "Type a word, then press Space to hop.",
-    "forest-select": "Collect acorns on your runs to unlock more animals.",
+    "forest-select": "Collect treats on your runs to unlock more animals.",
     "forest-guide": "Lanes get more dangerous the further you go.",
     replay: "Click a moment to jump to it.",
     stats: "Select a view.",
@@ -433,15 +433,17 @@
     { kind: "frog", title: "FROG", cost: 0, blurb: "Light on its feet and right at home by the creek." },
     { kind: "chicken", title: "CHICKEN", cost: 0, blurb: "Nobody knows how it got into the forest. Neither does it." },
     { kind: "moose", title: "MOOSE", cost: 0, blurb: "Big antlers, big steps, same hop as everyone else." },
-    { kind: "bear", title: "BEAR", cost: 0, blurb: "Follows its nose toward the acorns." },
+    { kind: "bear", title: "BEAR", cost: 0, blurb: "Follows its nose toward the berries." },
     { kind: "fox", title: "FOX", cost: 150, blurb: "Quick, quiet and a little smug about it." },
     { kind: "rabbit", title: "RABBIT", cost: 100, blurb: "Born for hopping. Very proud of the ears." },
-    { kind: "owl", title: "OWL", cost: 250, blurb: "Keeps one eye on the hawk at all times." },
-    { kind: "raccoon", title: "RACCOON", cost: 300, blurb: "Has already found your acorn stash." },
+    { kind: "owl", title: "OWL", cost: 250, blurb: "Keeps one eye on the eagle at all times." },
+    { kind: "raccoon", title: "RACCOON", cost: 300, blurb: "Has strong opinions about trash cans." },
   ];
 
   const fhData = () => {
-    const d = (TT.store.games.forest ||= { best: 0, plays: 0, acorns: 0, unlocked: ["frog", "chicken", "moose", "bear"], animal: "frog", history: [] });
+    const d = (TT.store.games.forest ||= { best: 0, plays: 0, treats: 0, unlocked: ["frog", "chicken", "moose", "bear"], animal: "frog", history: [] });
+    if (d.treats == null) d.treats = d.acorns || 0; // acorns were renamed to treats
+    delete d.acorns;
     d.bestBy ||= {};
     d.runsBy ||= {};
     return d;
@@ -450,7 +452,7 @@
   const forest = TT.createForest({
     root: $("view-forest"),
     onStart() {
-      els.statusLine.textContent = "Keep moving. The hawk is watching.";
+      els.statusLine.textContent = "Keep moving forward.";
     },
     onEnd(id) {
       ui.lastForestId = id;
@@ -480,15 +482,16 @@
         ${TT.sprites.svg(a.kind, 90)}<span class="fh-animal-name">${a.title}</span><span class="caps-label">${tag}</span>
       </button>`;
     }).join("");
+    const th = TT.forestCore.theme(pick.kind);
     const action = open
       ? `<button class="fh-play" data-act="fh:play">PLAY <kbd>ENTER</kbd></button>`
-      : `<button class="outline-btn fh-unlock" data-act="fh:unlock:${pick.kind}" ${d.acorns < pick.cost ? "disabled" : ""}>UNLOCK FOR ${pick.cost} ${TT.sprites.svg("acorn", 20)}</button>
-         ${d.acorns < pick.cost ? `<p class="note">You need ${pick.cost - d.acorns} more acorns.</p>` : ""}`;
+      : `<button class="outline-btn fh-unlock" data-act="fh:unlock:${pick.kind}" ${d.treats < pick.cost ? "disabled" : ""}>UNLOCK FOR ${pick.cost} TREATS</button>
+         ${d.treats < pick.cost ? `<p class="note">You need ${pick.cost - d.treats} more treats.</p>` : ""}`;
 
     $("view-forest-select").innerHTML = `
       <div class="cols">
         <section class="col-main">
-          <div class="title-row"><h1>CHOOSE YOUR ANIMAL</h1><span class="title-meta fh-acorns">${TT.sprites.svg("acorn", 26)} ${d.acorns} ACORNS</span></div>
+          <div class="title-row"><h1>CHOOSE YOUR ANIMAL</h1><span class="title-meta fh-acorns">${d.treats} TREATS</span></div>
           <div class="kind-line">EVERY ANIMAL HOPS THE SAME</div>
           <div class="fh-animals">${cards}</div>
         </section>
@@ -498,6 +501,8 @@
           <div class="fh-pick-title"><span>${pick.title}</span><span class="caps-label">${open ? "UNLOCKED" : "LOCKED"}</span></div>
           <p class="fh-blurb">${pick.blurb}</p>
           <dl class="status">${statusRows([
+            ["Collects:", `<span class="fh-inline">${TT.sprites.svg(th.treat, 22)}${th.treats[1]}</span>`],
+            ["Watch out for:", `<span class="fh-inline">${TT.sprites.svg(th.predator, 22)}${th.name.toLowerCase()}</span>`],
             ["Best:", open && d.bestBy[pick.kind] ? `${d.bestBy[pick.kind]} steps` : "—"],
             ["Runs:", open ? d.runsBy[pick.kind] || 0 : "—", true],
           ])}</dl>
@@ -513,7 +518,7 @@
     const log = (c, len) => `<span class="fh-log" style="left: ${c * 56 + 3}px; width: ${len * 56 - 6}px"></span>`;
     const pad = (c) => `<span class="fh-pad" style="left: ${c * 56 + 8}px"></span>`;
     const LANES = [
-      ["MEADOW", "SAFE", lane("#B7BC95", sp("pine", 0) + sp("rock", 2) + sp("stump", 3) + sp("acorn", 5)),
+      ["MEADOW", "SAFE", lane("#B7BC95", sp("pine", 0) + sp("rock", 2) + sp("stump", 3) + sp(TT.forestCore.theme(fhData().animal).treat, 5)),
         "Safe ground. Trees, rocks and stumps block your way, so that direction shows BLOCKED."],
       ["GAME TRAIL", "DANGER", lane("#C4AF88", sp("deer", 1) + sp("deer", 2)),
         "Deer herds run across the trail. Wait for a gap, then press Space. Each trail runs one way."],
@@ -523,27 +528,27 @@
         "A fast creek with short logs and no lily pads. Words are kept short here."],
       ["ROCKSLIDE", "WARNING FIRST", lane("#BCB199", `<span class="fh-warn" style="left: 6px">!</span><span class="fh-boulder" style="left: ${2 * 56 + 5}px"></span>`),
         "The ! markers flash, then a boulder rolls straight through. Wait for it, then hop."],
-      ["HAWK", "KEEP MOVING", lane("#AFB48C", sp("hawk", 2) + sp(fhData().animal, 4)),
-        "Go 9 seconds without reaching a new row, or hop back 3 rows, and the hawk swoops down."],
+      ["PREDATORS", "KEEP MOVING", lane("#AFB48C", sp(TT.forestCore.theme(fhData().animal).predator, 2) + sp(fhData().animal, 4)),
+        "Go 20 seconds without reaching a new row, or hop 3 rows back, and your predator shows up. A countdown starts: reach a new row within 10 seconds to shake it off."],
     ];
     $("view-forest-guide").innerHTML = `
       <div class="title-row"><h1>HOW TO PLAY</h1><span class="title-meta">GET AS FAR AS YOU CAN</span></div>
       <div class="cols fh-guide">
         <aside class="col-side">
-          <div class="rule-head">THE CROSS</div>
+          <div class="rule-head">HOPPING</div>
           <div class="fh-mini-cross">
             <span style="grid-area: 1 / 2">pine</span><span style="grid-area: 2 / 1">fern</span>
             <span class="c" style="grid-area: 2 / 2">${TT.sprites.svg(fhData().animal, 30)}</span>
             <span style="grid-area: 2 / 3">moss</span><span style="grid-area: 3 / 2">bark</span>
           </div>
           <ol class="fh-rules">
-            <li>Each direction around your animal gets a word: forward, back, left and right.</li>
+            <li>A word sits beside each tile around your animal: forward, back, left and right.</li>
             <li>Type the word, then press <strong>Space</strong> to hop. You can type ahead and wait for the right moment.</li>
             <li>Keys that don't fit any word are ignored and counted as mistakes. Backspace works.</li>
-            <li>If a tree or rock is in the way, that direction shows <strong>BLOCKED</strong>.</li>
-            <li>Words lean toward your target keys, and get longer the further you go.</li>
+            <li>If a tree or rock is in the way, that direction has no word.</li>
+            <li>Only the word you used changes after a hop. New words lean toward your target keys and get longer the further you go.</li>
           </ol>
-          <p class="fh-acorn-note">${TT.sprites.svg("acorn", 36)}<span>Hop onto <strong>acorns</strong> to collect them, then spend them to unlock animals.</span></p>
+          <p class="fh-acorn-note">${TT.sprites.svg(TT.forestCore.theme(fhData().animal).treat, 36)}<span>Hop onto <strong>treats</strong> to collect them, then spend them to unlock animals. Every animal has its own treat and its own predator.</span></p>
         </aside>
         <section class="col-main fh-lanes">${LANES.map(([title, tag, art, text]) => `
           <div class="fh-lane-card">${art}
@@ -580,8 +585,8 @@
       renderForestSelect();
     } else if (x === "unlock") {
       const a = FH_ANIMALS.find((z) => z.kind === y);
-      if (a && !d.unlocked.includes(a.kind) && d.acorns >= a.cost) {
-        d.acorns -= a.cost;
+      if (a && !d.unlocked.includes(a.kind) && d.treats >= a.cost) {
+        d.treats -= a.cost;
         d.unlocked.push(a.kind);
         TT.save();
         renderForestSelect();

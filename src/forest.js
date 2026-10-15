@@ -1,18 +1,23 @@
-// Forest Hop: a Crossy Road-style game. Each direction around your animal gets a word; type a
+// Forest Hop: a Crossy Road-style game. Each direction around your animal shows a word; type a
 // word, then press Space to hop that way. The forest has meadows (trees block your way), game
 // trails (deer herds), creeks (ride logs, or hop across lily pads), rapids and rockslides.
-// Stand still too long, or go back too far, and the hawk gets you.
+// Each animal has its own predator, which shows up if you stop making progress: you then get a
+// countdown to reach a new row before it catches you.
 //
 // The world comes from a seed and moves on a fixed 20 ms time step, so a recording (seed, the
-// words offered at each spot, and the key presses with their times) replays exactly.
+// words offered at each spot, and the key presses with their times) replays exactly. Rule
+// changes are versioned (rec.v) so older recordings keep replaying the way they were played.
 (() => {
   const A = TT.analysis;
   const COLS = 13;          // playable columns
   const STEP = 20;          // simulation step, ms
   const START_LANE = 2;
   const START_COL = 6;
-  const IDLE_MS = 9000;     // no forward progress for this long brings the hawk
-  const HAWK_BACK = 3;      // going this many rows back from your best brings the hawk
+  const RULES = 2;          // current rules version
+  const WARN_MS = 20000;    // v2: this long without reaching a new row brings the predator
+  const GRACE_MS = 10000;   // v2: then this long to reach a new row before it strikes
+  const V1_IDLE_MS = 9000;  // v1: the hawk struck after 9 s without progress
+  const HAWK_BACK = 3;      // this many rows back from your best brings the predator
   const SPAN = COLS + 6;    // moving things loop over this many tiles (3 off each side)
   const BACK = "<", BACK_WORD = "{";
   const DIRS = ["up", "left", "right", "down"];
@@ -24,7 +29,31 @@
     swept: "SWEPT DOWNSTREAM",
     crushed: "FLATTENED BY A BOULDER",
     hawk: "CAUGHT BY THE HAWK",
+    predator: "CAUGHT",
   };
+
+  // Each animal's predator, treat and any special water ending.
+  //   circle: swoops in from above and circles   stalk: creeps up from behind
+  //   side: a hunter steps out at the edge of the screen and takes aim
+  const THEMES = {
+    frog: { predator: "hawk", name: "THE HAWK", mode: "circle", caught: "CAUGHT BY THE HAWK", treat: "fly", treats: ["fly", "flies"] },
+    chicken: { predator: "fox", name: "THE FOX", mode: "stalk", caught: "CAUGHT BY THE FOX", treat: "corn", treats: ["corn", "corn"] },
+    moose: { predator: "wolf", name: "THE WOLF", mode: "stalk", caught: "CAUGHT BY THE WOLF", treat: "leaf", treats: ["leaf", "leaves"],
+      water: { sprite: "orca", text: "EATEN BY AN ORCA" } },
+    bear: { predator: "hunter", name: "THE HUNTER", mode: "side", caught: "SHOT BY THE HUNTER", treat: "berries", treats: ["berry", "berries"] },
+    fox: { predator: "hunter", name: "THE HUNTER", mode: "side", caught: "SHOT BY THE HUNTER", treat: "egg", treats: ["egg", "eggs"] },
+    rabbit: { predator: "fox", name: "THE FOX", mode: "stalk", caught: "CAUGHT BY THE FOX", treat: "carrot", treats: ["carrot", "carrots"] },
+    owl: { predator: "eagle", name: "THE EAGLE", mode: "circle", caught: "CAUGHT BY THE EAGLE", treat: "moth", treats: ["moth", "moths"] },
+    raccoon: { predator: "coyote", name: "THE COYOTE", mode: "stalk", caught: "CAUGHT BY THE COYOTE", treat: "trash", treats: ["trash can", "trash cans"] },
+  };
+  const theme = (animal) => THEMES[animal] || THEMES.frog;
+
+  function causeText(cause, animal) {
+    const th = theme(animal);
+    if (cause === "predator" || cause === "hawk") return th.caught;
+    if ((cause === "drowned" || cause === "swept") && th.water) return th.water.text;
+    return CAUSES[cause];
+  }
 
   // ---------- world generation ----------
 
@@ -77,7 +106,7 @@
     const lane = { k, type };
     if (type === "meadow") {
       lane.blocks = {};
-      lane.acorns = {};
+      lane.treats = {};
       const n = k === 0 ? 7 : k < 2 ? 0 : Math.floor(r() * (3 + d * 3));
       for (let i = 0; i < n; i++) {
         const c = Math.floor(r() * COLS);
@@ -86,7 +115,7 @@
       }
       if (k > START_LANE && r() < 0.3) {
         const c = Math.floor(r() * COLS);
-        if (!lane.blocks[c]) lane.acorns[c] = true;
+        if (!lane.blocks[c]) lane.treats[c] = true;
       }
     } else if (type === "trail") {
       lane.dir = r() < 0.5 ? 1 : -1;
@@ -148,16 +177,16 @@
 
   // ---------- core: pure game rules, shared by live play, replays and analysis ----------
 
-  function newCore(seed, animal) {
+  function newCore(seed, animal, v = RULES) {
     return {
-      seed, animal,
+      v, seed, animal,
       world: newWorld(seed),
       lane: START_LANE, x: START_COL,
       from: { lane: START_LANE, x: START_COL }, hopT: -1000,
-      maxLane: START_LANE, lastProgressT: 0,
+      maxLane: START_LANE, lastProgressT: 0, threatStart: null,
       simT: 0, over: false, endT: null, cause: null,
       words: null, wordSets: 0, buf: "",
-      keys: 0, correct: 0, mistakes: 0, spaceErrors: 0, chars: 0, acorns: 0,
+      keys: 0, correct: 0, mistakes: 0, spaceErrors: 0, chars: 0, treats: 0,
       keyStats: {}, missedWords: new Set(), stepMisses: [],
     };
   }
@@ -210,6 +239,21 @@
     g.cause = cause;
   }
 
+  function threat(g, t) {
+    if (g.v < 2) {
+      if (t - g.lastProgressT > V1_IDLE_MS || g.maxLane - g.lane >= HAWK_BACK) die(g, t, "hawk");
+      return;
+    }
+    const behind = g.maxLane - g.lane >= HAWK_BACK;
+    const idle = t - g.lastProgressT >= WARN_MS;
+    if (g.threatStart == null) {
+      if (idle || behind) g.threatStart = t;
+    } else if (!idle && !behind) {
+      g.threatStart = null; // reached a new row: the predator gives up for now
+    }
+    if (g.threatStart != null && t - g.threatStart >= GRACE_MS) die(g, t, "predator");
+  }
+
   function tick(g, t) {
     const L = laneAt(g.world, g.lane);
     if (isWater(L) && !L.pads && supported(g, t)) {
@@ -218,7 +262,7 @@
     }
     const hit = collision(g, t);
     if (hit) return die(g, t, hit);
-    if (t - g.lastProgressT > IDLE_MS || g.maxLane - g.lane >= HAWK_BACK) die(g, t, "hawk");
+    threat(g, t);
   }
 
   function advance(g, t) {
@@ -229,8 +273,9 @@
     return g.over;
   }
 
-  function assignWords(g, provider) {
-    g.words = provider(g);
+  // usedDir: the direction just hopped (only its word needs replacing), or undefined at the start.
+  function assignWords(g, provider, usedDir) {
+    g.words = provider(g, usedDir);
     g.wordSets++;
   }
 
@@ -263,18 +308,19 @@
     if (g.lane > g.maxLane) {
       g.maxLane = g.lane;
       g.lastProgressT = t;
+      if (g.v >= 2) g.threatStart = null;
     }
     const L = laneAt(g.world, g.lane);
-    let acorn = false;
-    if (L.type === "meadow" && L.acorns[to.col]) {
-      delete L.acorns[to.col];
-      g.acorns++;
-      acorn = true;
+    let treat = false;
+    if (L.type === "meadow" && (L.treats || L.acorns)[to.col]) {
+      delete (L.treats || L.acorns)[to.col];
+      g.treats++;
+      treat = true;
     }
     const hit = collision(g, t);
     if (hit) die(g, t, hit);
-    else assignWords(g, provider);
-    return { type: "hop", dir, word, typed: " ", misses, acorn };
+    else assignWords(g, provider, dir);
+    return { type: "hop", dir, word, typed: " ", misses, treat };
   }
 
   // Applies one key press at time t (ms from the first key). Returns what it did, or null.
@@ -333,7 +379,10 @@
     return hit;
   }
 
-  TT.forestCore = { newCore, applyKey, advance, assignWords, recordedWords, gameStats, attribute, score, probe, target, laneAt, CAUSES, START_LANE };
+  TT.forestCore = {
+    newCore, applyKey, advance, assignWords, recordedWords, gameStats, attribute, score, probe, target, laneAt,
+    CAUSES, THEMES, theme, causeText, START_LANE, RULES, WARN_MS, GRACE_MS,
+  };
 
   // ---------- drawing ----------
 
@@ -355,27 +404,36 @@
 
   function themeColors() {
     const cs = getComputedStyle(document.documentElement);
+    const v = (name, fallback) => cs.getPropertyValue(name).trim() || fallback;
     return {
       ink: "#3F3C33",
-      accent: cs.getPropertyValue("--accent").trim() || "#B4472B",
+      ground: v("--ground", "#ccc8b3"),
+      text: v("--ink", "#3f3c33"),
+      sub: v("--sub", "#736e5b"),
+      accent: v("--accent", "#B4472B"),
+      font: v("--type-font", "monospace"),
       night: document.documentElement.dataset.theme === "night",
     };
   }
 
-  // reserve: pixels at the bottom covered by the cross (landscape), kept clear of the player.
-  function drawWorld(ctx, g, viewT, cam, w, h, portrait, colors, reserve) {
-    const avail = h - reserve;
+  function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, r);
+  }
+
+  // view: { viewT, cam, w, h, portrait, colors, shakeT }
+  function drawWorld(ctx, g, view) {
+    const { viewT, cam, w, h, portrait, colors } = view;
     const T = portrait
-      ? Math.floor(Math.min(w / 9.5, h / 7))
-      : Math.max(22, Math.floor(Math.min(60, w / (COLS + 3), avail / 5.2)));
+      ? Math.floor(Math.min(w / 9.5, h / 9.5))
+      : Math.max(24, Math.floor(Math.min(64, w / (COLS + 3), h / 7.6)));
     const hopP = Math.min(1, Math.max(0, (viewT - g.hopT) / 130));
     const px = g.from.x + (g.x - g.from.x) * ease(hopP);
     const pl = g.from.lane + (g.lane - g.from.lane) * ease(hopP);
     if (cam.lane == null || Math.abs(cam.lane - pl) > 4) cam.lane = pl;
     else cam.lane += (pl - cam.lane) * 0.18;
 
-    // top of the camera's lane: the player's row and the row behind it stay above the cross
-    const baseY = portrait ? h - T * 2.4 : avail - T * 2.1;
+    const baseY = h - T * 3.1; // top of the camera's lane, leaving room for the back word
     const laneY = (k) => baseY - (k - cam.lane) * T;
     const worldW = COLS * T;
     let ox = (w - worldW) / 2;
@@ -384,6 +442,7 @@
     const kMin = Math.floor(cam.lane - (h - baseY) / T) - 1;
     const kMax = Math.ceil(cam.lane + baseY / T) + 1;
     const ink = colors.ink;
+    const th = theme(g.animal);
 
     ctx.clearRect(0, 0, w, h);
     for (let k = kMax; k >= kMin; k--) {
@@ -425,13 +484,13 @@
       const y = laneY(k);
       if (L.type === "meadow") {
         for (const [c, kind] of Object.entries(L.blocks)) TT.sprites.draw(ctx, kind, X(+c) + T * 0.03, y + T * 0.03, T * 0.94);
-        for (const c of Object.keys(L.acorns)) {
+        for (const c of Object.keys(L.treats || L.acorns || {})) {
           const bob = Math.sin(viewT / 250 + +c) * T * 0.04;
-          TT.sprites.draw(ctx, "acorn", X(+c) + T * 0.18, y + T * 0.16 + bob, T * 0.64);
+          TT.sprites.draw(ctx, th.treat, X(+c) + T * 0.18, y + T * 0.16 + bob, T * 0.64);
         }
       } else if (L.type === "trail") {
-        for (const th of L.things) {
-          const x = thingX(L, th, viewT);
+        for (const it of L.things) {
+          const x = thingX(L, it, viewT);
           TT.sprites.draw(ctx, "deer", X(x) + T * 0.04, y + T * 0.04, T * 0.92, L.dir > 0);
         }
       } else if (isWater(L)) {
@@ -448,11 +507,10 @@
             ctx.stroke();
           }
         }
-        for (const th of L.things) {
-          const x = X(thingX(L, th, viewT));
-          const lw = th.len * T;
-          ctx.beginPath();
-          ctx.roundRect(x + 3, y + T * 0.18, lw - 6, T * 0.64, T * 0.3);
+        for (const it of L.things) {
+          const x = X(thingX(L, it, viewT));
+          const lw = it.len * T;
+          roundRect(ctx, x + 3, y + T * 0.18, lw - 6, T * 0.64, T * 0.3);
           ctx.fillStyle = "#8A6A47";
           ctx.fill();
           ctx.fillStyle = "rgba(63,60,51,0.25)";
@@ -494,16 +552,16 @@
       }
     }
 
-    // hop targets: dashed squares; the one you're typing toward turns solid
+    // hop targets: faint dashed squares; the one you're typing toward turns solid
+    const matches = g.words ? DIRS.filter((d) => g.buf && g.words[d].startsWith(g.buf) && target(g, d)) : [];
     if (!g.over && g.words) {
-      const matches = DIRS.filter((d) => g.buf && g.words[d].startsWith(g.buf) && target(g, d));
       for (const d of DIRS) {
         const to = target(g, d);
         if (!to) continue;
         const sel = matches.length === 1 && matches[0] === d;
         ctx.save();
         ctx.lineWidth = sel ? 3.5 : 2;
-        ctx.strokeStyle = sel ? colors.accent : "rgba(63,60,51,0.55)";
+        ctx.strokeStyle = sel ? colors.accent : "rgba(63,60,51,0.45)";
         if (!sel) ctx.setLineDash([6, 5]);
         ctx.strokeRect(X(to.col) + 4, laneY(to.lane) + 4, T - 8, T - 8);
         ctx.restore();
@@ -513,6 +571,8 @@
     // the player
     const pxs = X(px), pys = laneY(pl);
     const lift = Math.sin(Math.PI * hopP) * T * 0.35;
+    const caught = g.over && (g.cause === "predator" || g.cause === "hawk");
+    const watered = g.over && (g.cause === "drowned" || g.cause === "swept");
     ctx.fillStyle = "rgba(63,60,51,0.28)";
     ctx.beginPath();
     ctx.ellipse(pxs + T / 2, pys + T * 0.86, T * 0.3, T * 0.08, 0, 0, Math.PI * 2);
@@ -520,15 +580,159 @@
     if (g.over && g.cause === "trampled") {
       TT.sprites.draw(ctx, g.animal, pxs + T * 0.05, pys + T * 0.5, T * 0.9);
     } else {
-      if (g.over && (g.cause === "drowned" || g.cause === "swept")) ctx.globalAlpha = 0.4;
+      if (watered || (caught && th.mode === "side")) ctx.globalAlpha = 0.4;
       TT.sprites.draw(ctx, g.animal, pxs + T * 0.05, pys + T * 0.02 - lift, T * 0.9);
       ctx.globalAlpha = 1;
     }
-    if (g.over && g.cause === "hawk") TT.sprites.draw(ctx, "hawk", pxs - T * 0.25, pys - T * 0.55, T * 1.5);
+    if (watered && th.water) {
+      // something big comes up out of the water
+      TT.sprites.draw(ctx, th.water.sprite, pxs - T * 0.2, pys - T * 0.35, T * 1.4);
+    }
+
+    drawWords(ctx, g, view, T, X, laneY, matches);
+    drawPredator(ctx, g, view, T, X, laneY, px, pl, th);
 
     if (colors.night) {
       ctx.fillStyle = "rgba(20,19,16,0.35)";
       ctx.fillRect(0, 0, w, h);
+    }
+  }
+
+  // The four words sit around the animal, each beside the tile it leads to.
+  function drawWords(ctx, g, view, T, X, laneY, matches) {
+    if (g.over || !g.words) return;
+    const { colors, viewT, shakeT } = view;
+    const fs = Math.max(13, Math.round(T * 0.34));
+    const shake = viewT - shakeT < 220 ? Math.sin((viewT - shakeT) / 18) * 5 : 0;
+    ctx.save();
+    ctx.font = `500 ${fs}px ${colors.font}`;
+    ctx.textBaseline = "middle";
+    ctx.textAlign = "left";
+    for (const d of DIRS) {
+      const to = target(g, d);
+      if (!to) continue;
+      const word = g.words[d];
+      const match = !!g.buf && word.startsWith(g.buf);
+      const ready = word === g.buf;
+      const dim = !!g.buf && !match;
+      const typed = match ? g.buf.length : 0;
+      const tw = ctx.measureText(word).width;
+      const bw = tw + fs * 1.1;
+      const bh = fs * 1.7;
+      const tx = X(to.col), ty = laneY(to.lane);
+      let x, y;
+      if (d === "up") { x = tx + T / 2 - bw / 2; y = ty - bh - 3; }
+      else if (d === "down") { x = tx + T / 2 - bw / 2; y = ty + T + 3; }
+      else if (d === "left") { x = tx - bw - 3; y = ty + T / 2 - bh / 2; }
+      else { x = tx + T + 3; y = ty + T / 2 - bh / 2; }
+      x += shake;
+
+      ctx.globalAlpha = dim ? 0.45 : 1;
+      roundRect(ctx, x, y, bw, bh, 4);
+      ctx.fillStyle = colors.ground;
+      ctx.fill();
+      if (ready) {
+        ctx.fillStyle = colors.accent;
+        ctx.globalAlpha = 0.18;
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+      ctx.lineWidth = ready ? 3 : 2;
+      ctx.strokeStyle = ready || (match && matches.length === 1) ? colors.accent : colors.text;
+      ctx.stroke();
+
+      const textX = x + fs * 0.55;
+      const textY = y + bh / 2 + 1;
+      const done = word.slice(0, typed);
+      ctx.fillStyle = colors.text;
+      ctx.fillText(done, textX, textY);
+      const doneW = ctx.measureText(done).width;
+      ctx.fillStyle = ready ? colors.text : colors.sub;
+      ctx.fillText(word.slice(typed), textX + doneW, textY);
+      if (typed) {
+        ctx.fillStyle = colors.accent;
+        ctx.fillRect(textX, textY + fs * 0.55, doneW, 2);
+      }
+      if (ready) {
+        // a small "space" tab under the word
+        const label = "SPACE";
+        ctx.font = `800 ${Math.max(9, Math.round(fs * 0.5))}px Archivo, sans-serif`;
+        const lw = ctx.measureText(label).width + 10;
+        const lx = x + bw / 2 - lw / 2, ly = y + bh - 2;
+        ctx.fillStyle = colors.accent;
+        ctx.fillRect(lx, ly, lw, fs * 0.75);
+        ctx.fillStyle = colors.ground;
+        ctx.textAlign = "center";
+        ctx.fillText(label, lx + lw / 2, ly + fs * 0.4);
+        ctx.textAlign = "left";
+        ctx.font = `500 ${fs}px ${colors.font}`;
+      }
+    }
+    ctx.restore();
+  }
+
+  // The predator appears once the countdown starts and closes in as it runs down.
+  function drawPredator(ctx, g, view, T, X, laneY, px, pl, th) {
+    if (g.v < 2) {
+      if (g.over && g.cause === "hawk") TT.sprites.draw(ctx, "hawk", X(px) - T * 0.25, laneY(pl) - T * 0.55, T * 1.5);
+      return;
+    }
+    const caught = g.over && g.cause === "predator";
+    if (g.threatStart == null && !caught) return;
+    const { viewT, w, h, cam, colors } = view;
+    const since = viewT - g.threatStart;
+    const p = Math.min(1, since / GRACE_MS);
+    const cx = X(px) + T / 2, cy = laneY(pl) + T / 2;
+    const size = T * 1.15;
+
+    if (th.mode === "circle") {
+      if (caught) return TT.sprites.draw(ctx, th.predator, cx - size * 0.6, cy - size * 0.75, size * 1.2);
+      const enter = Math.min(1, since / 900);
+      const a = since / 650;
+      const r = T * (1.7 - p * 0.6); // circles tighter as time runs out
+      const x = cx + Math.cos(a) * r;
+      const y = cy - T * 0.4 + Math.sin(a) * r * 0.55 - (1 - enter) * (cy + T * 2);
+      ctx.fillStyle = "rgba(63,60,51,0.18)";
+      ctx.beginPath();
+      ctx.ellipse(cx + Math.cos(a) * r * 0.7, cy + T * 0.3, T * 0.4, T * 0.12, 0, 0, Math.PI * 2);
+      ctx.fill();
+      TT.sprites.draw(ctx, th.predator, x - size / 2, y - size / 2, size);
+    } else if (th.mode === "stalk") {
+      // creeps up from the bottom of the screen, right behind you
+      const endY = cy + T * 0.75;
+      const startY = h + size;
+      const near = caught ? 1 : ease(Math.min(1, 0.3 * Math.min(1, since / 1200) + 0.7 * p));
+      const y = caught ? cy - size * 0.4 : startY + (endY - startY) * near;
+      TT.sprites.draw(ctx, th.predator, cx - size / 2, y - size / 2, size, false);
+    } else {
+      // a hunter steps out at the side of the screen and takes aim
+      if (cam.huntSince !== g.threatStart) {
+        cam.huntSince = g.threatStart;
+        cam.huntLeft = px > COLS / 2;
+      }
+      const left = cam.huntLeft;
+      const slide = ease(Math.min(1, since / 600));
+      const hx = left ? -size + slide * (size + 8) : w + 8 - slide * (size + 16);
+      const hy = cy - size / 2;
+      const aiming = caught || p > 0.6;
+      if (aiming && (caught || Math.floor(viewT / 200) % 2 === 0)) {
+        ctx.save();
+        ctx.strokeStyle = colors.accent;
+        ctx.lineWidth = caught ? 3 : 2;
+        if (!caught) ctx.setLineDash([8, 6]);
+        ctx.beginPath();
+        ctx.moveTo(left ? hx + size : hx, cy - T * 0.05);
+        ctx.lineTo(cx, cy);
+        ctx.stroke();
+        ctx.restore();
+      }
+      if (caught) {
+        ctx.fillStyle = colors.accent;
+        ctx.beginPath();
+        ctx.arc(left ? hx + size + 4 : hx - 4, cy - T * 0.05, T * 0.18, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      TT.sprites.draw(ctx, th.predator, hx, hy, size, !left);
     }
   }
 
@@ -543,31 +747,39 @@
           <div class="caps-label" data-f="best"></div>
         </div>
         <div class="fh-hud fh-hud-r">
-          <div class="fh-chip">${TT.sprites.svg("acorn", 26)}<span data-f="acorns">0</span></div>
+          <div class="fh-chip" data-f="treats"></div>
           <div class="fh-chip" data-f="animal"></div>
+          <div class="fh-chip fh-threat" data-f="threat" hidden></div>
         </div>
+        <div class="fh-typed" data-f="typed" aria-hidden="true"></div>
         <div class="fh-over" data-f="over" hidden></div>
       </div>
-      <div class="fh-cross" data-f="cross" aria-live="polite"></div>
+      <p class="visually-hidden" data-f="sr" aria-live="polite"></p>
     </div>`;
 
   TT.createForest = ({ root, onStart, onEnd, replayOnly = false }) => {
     root.innerHTML = TEMPLATE;
     const el = Object.fromEntries([...root.querySelectorAll("[data-f]")].map((x) => [x.dataset.f, x]));
     const fh = root.querySelector(".fh");
-    const stage = root.querySelector(".fh-stage");
     const canvas = root.querySelector(".fh-canvas");
     const ctx = canvas.getContext("2d");
     let g = null;
     let live = null;   // { state, startedAt, keys, times, words, recent, targets, missed }
     let replay = null; // { rec, pos, lastT, provider }
     let viewT = 0;
+    let shakeT = -1000;
     let raf = 0;
     let cam = { lane: null };
-    let crossSig = "";
+    let hudSig = "";
+    let srSig = "";
     let colors = themeColors();
 
-    const record = () => (TT.store.games.forest ||= { best: 0, plays: 0, acorns: 0, unlocked: ["frog", "chicken", "moose", "bear"], animal: "frog", history: [] });
+    const record = () => {
+      const d = (TT.store.games.forest ||= { best: 0, plays: 0, unlocked: ["frog", "chicken", "moose", "bear"], animal: "frog", history: [] });
+      if (d.treats == null) d.treats = d.acorns || 0; // acorns were renamed to treats
+      delete d.acorns;
+      return d;
+    };
 
     const ro = new ResizeObserver(() => {
       fh.classList.toggle("portrait", fh.clientHeight > fh.clientWidth * 1.05);
@@ -577,7 +789,8 @@
 
     // ---------- words (live play only) ----------
 
-    function makeWords(state) {
+    // Keeps the words for the directions you didn't use; only the one you hopped with changes.
+    function makeWords(state, usedDir) {
       const s = score(state);
       let maxLen = Math.min(9, 4 + Math.floor(s / 8));
       const minLen = s < 8 ? 2 : 3;
@@ -588,11 +801,16 @@
       const batch = A.practiceWords(60, live.targets, live.missed, TT.store.settings.mix).filter(fits);
       const anyFit = PRACTICE_WORDS.filter(fits);
       const share = Math.random() < Math.min(0.6, s * 0.02);
-      const chosen = [];
-      const clashes = (w) => chosen.some((c) => c === w || c.startsWith(w) || w.startsWith(c));
-      const ok = (w) => !clashes(w) && (share || !chosen.some((c) => c[0] === w[0]));
+
+      const prev = state.words;
       const out = {};
+      if (prev && usedDir) for (const d of DIRS) if (d !== usedDir) out[d] = prev[d];
+      const chosen = Object.values(out);
+      const clashes = (w) => chosen.some((c) => c === w || c.startsWith(w) || w.startsWith(c));
+      const replaced = prev && usedDir ? prev[usedDir] : null;
+      const ok = (w) => w !== replaced && !clashes(w) && (share || !chosen.some((c) => c[0] === w[0]));
       for (const d of DIRS) {
+        if (out[d]) continue;
         let cands = batch.length ? batch : anyFit;
         if (share && chosen.length) {
           const shared = anyFit.filter((w) => w[0] === chosen[0][0]);
@@ -607,7 +825,8 @@
         out[d] = word;
         chosen.push(word);
       }
-      live.recent = [...live.recent, ...chosen].slice(-16);
+      const fresh = DIRS.filter((d) => !(prev && usedDir) || d === usedDir).map((d) => out[d]);
+      live.recent = [...live.recent, ...fresh].slice(-16);
       live.words.push({ ...out });
       return out;
     }
@@ -624,55 +843,42 @@
         canvas.height = Math.round(h * dpr);
       }
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      const portrait = fh.classList.contains("portrait");
-      const reserve = portrait ? 0 : el.cross.offsetHeight + 18;
-      drawWorld(ctx, g, viewT, cam, w, h, portrait, colors, reserve);
+      drawWorld(ctx, g, { viewT, cam, w, h, portrait: fh.classList.contains("portrait"), colors, shakeT });
     }
 
     function renderHud() {
+      const th = theme(g.animal);
       const best = Math.max(record().best, score(g));
+      const treats = replay ? g.treats : record().treats + g.treats;
+      const left = g.v >= 2 && g.threatStart != null && !g.over ? Math.max(0, Math.ceil((GRACE_MS - (viewT - g.threatStart)) / 1000)) : null;
+      const sig = [score(g), best, treats, g.animal, left, g.buf].join("|");
+      if (sig === hudSig) return;
+      hudSig = sig;
       el.score.textContent = score(g);
       el.best.textContent = `BEST ${best}`;
-      el.acorns.textContent = replay ? g.acorns : record().acorns + g.acorns;
+      el.treats.innerHTML = `${TT.sprites.svg(th.treat, 26)}<span>${treats}</span>`;
+      el.treats.title = th.treats[1];
       el.animal.innerHTML = `${TT.sprites.svg(g.animal, 26)}<span>${g.animal.toUpperCase()}</span>`;
+      el.threat.hidden = left == null;
+      if (left != null) el.threat.innerHTML = `${TT.sprites.svg(th.predator, 26)}<span>${th.name} · ${left}</span>`;
+      el.typed.textContent = g.buf;
+      el.typed.hidden = !g.buf || g.over;
     }
 
-    const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
-
-    function renderCross() {
-      const blocked = Object.fromEntries(DIRS.map((d) => [d, !target(g, d)]));
-      const sig = JSON.stringify([g.words, g.buf, blocked, g.over]);
-      if (sig === crossSig) return;
-      crossSig = sig;
-      const exact = DIRS.find((d) => g.words[d] === g.buf && !blocked[d]);
-      const LABEL = { up: "↑ FORWARD", left: "← LEFT", right: "RIGHT →", down: "↓ BACK" };
-      const card = (d) => {
-        if (blocked[d]) return `<div class="fh-card fh-${d} blocked"><span class="fh-dir">${LABEL[d]}</span><span class="fh-blocked">BLOCKED</span></div>`;
-        const w = g.words[d];
-        const match = g.buf && w.startsWith(g.buf);
-        const typed = match ? g.buf.length : 0;
-        const cls = exact === d ? "ready" : g.buf && !match ? "dim" : match ? "match" : "";
-        return `<div class="fh-card fh-${d} ${cls}"><span class="fh-dir">${LABEL[d]}</span>` +
-          `<span class="fh-word"><b>${esc(w.slice(0, typed))}</b>${esc(w.slice(typed))}</span></div>`;
-      };
-      const center = `<div class="fh-card fh-center"><span class="fh-buf">${esc(g.buf)}<i class="fh-caret"></i></span>` +
-        `<span class="fh-hint">${exact ? "SPACE TO JUMP" : g.buf ? "TYPING" : "TYPE A WORD"}</span></div>`;
-      el.cross.innerHTML = card("up") + card("left") + center + card("right") + card("down");
-      el.cross.classList.toggle("ready", !!exact);
-      // once the run is over the cross would cover the game-over buttons
-      el.cross.style.visibility = g.over ? "hidden" : "";
+    // Screen readers get the four words and what has been typed.
+    function renderSr() {
+      if (!g.words) return;
+      const NAMES = { up: "forward", left: "left", right: "right", down: "back" };
+      const text = DIRS.map((d) => `${NAMES[d]}: ${target(g, d) ? g.words[d] : "blocked"}`).join(", ") + (g.buf ? `. Typed ${g.buf}` : "");
+      if (text === srSig) return;
+      srSig = text;
+      el.sr.textContent = text;
     }
 
     function render() {
       draw();
       renderHud();
-      renderCross();
-    }
-
-    function shake() {
-      el.cross.classList.remove("shake");
-      void el.cross.offsetWidth;
-      el.cross.classList.add("shake");
+      renderSr();
     }
 
     // ---------- live play ----------
@@ -683,11 +889,11 @@
       colors = themeColors();
       live = { state: "ready", startedAt: 0, keys: "", times: [], words: [], recent: [], targets: A.weakKeys(), missed: A.weakWords(20) };
       const seed = (Math.random() * 2 ** 32) >>> 0;
-      g = newCore(seed, animal);
+      g = newCore(seed, animal, RULES);
       assignWords(g, makeWords);
       viewT = 0;
       cam = { lane: null };
-      crossSig = "";
+      hudSig = srSig = "";
       el.over.hidden = true;
       render();
       raf = requestAnimationFrame(frame);
@@ -698,7 +904,7 @@
       if (live.state === "running") {
         viewT = performance.now() - live.startedAt;
         if (advance(g, viewT)) return end();
-        renderCross();
+        renderHud();
       }
       draw();
       raf = requestAnimationFrame(frame);
@@ -731,7 +937,7 @@
       live.times.push(t);
       const d = applyKey(g, k, t, makeWords);
       if (g.over) return end();
-      if (d && (d.type === "miss" || (d.type === "space" && !d.empty))) shake();
+      if (d && (d.type === "miss" || (d.type === "space" && !d.empty))) shakeT = viewT;
       render();
     }
 
@@ -743,6 +949,7 @@
       // A half-typed word counts only if it matches just one direction.
       if (g.buf && DIRS.filter((d) => g.words[d].startsWith(g.buf)).length === 1) attribute(g, g.buf);
 
+      const th = theme(g.animal);
       const s = score(g);
       const { wpm, acc } = gameStats(g, g.endT);
       const round = (x) => Math.round(x * 100) / 100;
@@ -752,7 +959,7 @@
       const prevBest = rec.best;
       rec.plays++;
       rec.best = Math.max(rec.best, s);
-      rec.acorns += g.acorns;
+      rec.treats += g.treats;
       rec.bestBy = rec.bestBy || {};
       rec.bestBy[g.animal] = Math.max(rec.bestBy[g.animal] || 0, s);
       rec.runsBy = rec.runsBy || {};
@@ -775,24 +982,26 @@
       for (const w of g.missedWords) store.weakWords[w] = (store.weakWords[w] || 0) + 1;
       TT.save();
       TT.rounds.save({
-        id, date, kind: "game", game: "forest", mode: "steps", amount: s,
+        id, date, kind: "game", game: "forest", mode: "steps", amount: s, v: RULES,
         seed: g.seed, animal: g.animal, words: live.words, keys: live.keys, times: live.times, duration: g.endT,
       });
 
       const line = s > prevBest && prevBest > 0
         ? `<strong class="hl">New best!</strong> Previous best was ${prevBest}.`
         : `Best ${rec.best} · ${Math.round(wpm)} wpm · ${Math.round(acc)}% accuracy`;
+      const got = g.treats ? ` · ${g.treats} ${th.treats[g.treats > 1 ? 1 : 0]}` : "";
       el.over.innerHTML = `
-        <h2>${CAUSES[g.cause]}</h2>
+        <h2>${causeText(g.cause, g.animal)}</h2>
         <div class="fh-over-score">${s}</div>
         <div class="caps-label">STEPS</div>
-        <p>${line}${g.acorns ? ` · ${g.acorns} acorn${g.acorns > 1 ? "s" : ""}` : ""}</p>
+        <p>${line}${got}</p>
         <div class="hints">
           <button data-act="fh:play"><kbd>TAB</kbd>PLAY AGAIN</button>
           <button data-act="replay:${id}"><kbd>R</kbd>REPLAY</button>
           <button data-act="fh:select"><kbd>ESC</kbd>ANIMALS</button>
         </div>`;
       el.over.hidden = false;
+      hudSig = "";
       render();
       onEnd && onEnd(id);
     }
@@ -810,11 +1019,11 @@
       colors = themeColors();
       const provider = recordedWords(rec);
       replay = { rec, pos: 0, lastT: 0, provider };
-      g = newCore(rec.seed, rec.animal || "frog");
+      g = newCore(rec.seed, rec.animal || "frog", rec.v || 1);
       assignWords(g, provider);
       viewT = 0;
       cam = { lane: null };
-      crossSig = "";
+      hudSig = srSig = "";
       el.over.hidden = true;
       render();
     }
@@ -823,19 +1032,20 @@
       if (!replay) return g;
       const { rec, provider } = replay;
       if (T < replay.lastT) {
-        g = newCore(rec.seed, rec.animal || "frog");
+        g = newCore(rec.seed, rec.animal || "frog", rec.v || 1);
         assignWords(g, provider);
         replay.pos = 0;
         cam = { lane: null };
       }
       while (replay.pos < rec.keys.length && rec.times[replay.pos] <= T) {
-        applyKey(g, rec.keys[replay.pos], rec.times[replay.pos], provider);
+        const d = applyKey(g, rec.keys[replay.pos], rec.times[replay.pos], provider);
+        if (d && d.type === "miss") shakeT = rec.times[replay.pos];
         replay.pos++;
       }
       advance(g, Math.min(T, rec.duration));
       replay.lastT = T;
       viewT = g.over ? g.endT : T;
-      if (g.over) el.over.innerHTML = `<h2>${CAUSES[g.cause]}</h2><div class="fh-over-score">${score(g)}</div><div class="caps-label">STEPS</div>`;
+      if (g.over) el.over.innerHTML = `<h2>${causeText(g.cause, g.animal)}</h2><div class="fh-over-score">${score(g)}</div><div class="caps-label">STEPS</div>`;
       el.over.hidden = !g.over;
       render();
       return g;
@@ -843,7 +1053,7 @@
 
     return {
       newGame, stop, handleKey, loadReplay, replayTo,
-      relayout: () => { colors = themeColors(); crossSig = ""; render(); },
+      relayout: () => { colors = themeColors(); hudSig = ""; render(); },
       isOver: () => !!live && live.state === "over",
     };
   };

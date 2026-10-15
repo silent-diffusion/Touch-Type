@@ -129,7 +129,7 @@
 
   function analyzeForest(rec) {
     const F = TT.forestCore;
-    const g = F.newCore(rec.seed, rec.animal || "frog");
+    const g = F.newCore(rec.seed, rec.animal || "frog", rec.v || 1);
     const provider = F.recordedWords(rec);
     F.assignWords(g, provider);
     const a = newAnalysis();
@@ -179,7 +179,7 @@
     }
     F.advance(g, rec.duration);
     a.duration = rec.duration;
-    a.final = { steps: F.score(g), cause: g.cause, ...F.gameStats(g, rec.duration) };
+    a.final = { steps: F.score(g), cause: g.cause, animal: g.animal, ...F.gameStats(g, rec.duration) };
     return a;
   }
 
@@ -257,7 +257,7 @@
     }
     for (const h of a.hesitations) list.push({ t: h.t, kind: "pause", text: `${(h.gap / 1000).toFixed(1)}s pause in "${h.word}"` });
     if (a.final && a.final.cause && TT.forestCore) {
-      const c = TT.forestCore.CAUSES[a.final.cause];
+      const c = TT.forestCore.causeText(a.final.cause, a.final.animal);
       list.push({ t: a.duration, kind: "wrong", text: c[0] + c.slice(1).toLowerCase() });
     }
     return list.sort((x, y) => x.t - y.t);
