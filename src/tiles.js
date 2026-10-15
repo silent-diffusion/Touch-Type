@@ -6,8 +6,9 @@
 // hit times, the words and lanes it was given, and the keys, so the song isn't needed to replay it.
 (() => {
   const A = TT.analysis;
+  const W = TT.wordInput;
   const BACK = "<", BACK_WORD = "{";
-  const RULES = 1;
+  const RULES = 2; // v2: wrong letters are typed and must be backspaced
   const LANES = 4;
 
   // gap: seconds between words the chart aims for (it snaps to the song's beats)
@@ -95,14 +96,14 @@
   // ---------- core ----------
 
   // hits: game-time ms at which each tile reaches the line. endT: when the round ends.
-  function newCore({ hits, fall, endT, diff }) {
+  function newCore({ hits, fall, endT, diff, v = RULES }) {
     return {
-      hits, fall, endT, diff,
+      v, hits, fall, endT, diff,
       missHp: (DIFFS[diff] || DIFFS.medium).missHp,
       next: 0,          // index of the next tile to appear
       tiles: [],        // on screen, oldest first: { i, w, l, born }
       res: [],          // per tile: { grade, d, t }
-      buf: "",
+      buf: "", bad: -1,
       score: 0, combo: 0, maxCombo: 0, hp: START_HP,
       keys: 0, correct: 0, mistakes: 0, chars: 0,
       counts: { P: 0, G: 0, O: 0, M: 0 },
@@ -113,22 +114,15 @@
     };
   }
 
-  const target = (g) => (g.buf ? g.tiles.find((x) => x.w.startsWith(g.buf)) || null : null);
+  // The tile you're typing: the first one the correctly typed letters fit.
+  const target = (g) => {
+    const typed = W.good(g);
+    return typed ? g.tiles.find((x) => x.w.startsWith(typed)) || null : null;
+  };
 
-  // Wrong keys are tied to a letter once it's known which word they were for.
-  function attribute(g, letters, word = letters) {
-    const bump = (letter, missed) => {
-      const k = (g.keyStats[letter] ||= { expected: 0, missed: 0 });
-      k.expected++;
-      if (missed) k.missed++;
-    };
-    for (const ch of letters) bump(ch, false);
-    const misses = g.stepMisses.filter((m) => m.pos < letters.length);
-    for (const m of misses) bump(letters[m.pos], true);
-    if (misses.length) g.missedWords.add(word);
-    g.stepMisses = [];
-    return misses;
-  }
+  // Wrong keys are tied to a letter once it's known which word they were for. `letters` is what
+  // was typed correctly of `word`. Before v2, wrong keys past what was typed weren't counted.
+  const attribute = (g, letters, word = letters) => W.attribute(g, letters, g.v >= 2 ? word : letters, word);
 
   function finish(g, t, cause) {
     g.over = true;
@@ -150,9 +144,10 @@
   function miss(g, tile, t) {
     g.tiles = g.tiles.filter((x) => x !== tile);
     // What was typed of a missed word still counts toward key stats.
-    if (g.buf && tile.w.startsWith(g.buf) && !g.tiles.some((x) => x.w.startsWith(g.buf))) {
-      attribute(g, g.buf, tile.w);
-      g.buf = "";
+    const typed = W.good(g);
+    if (typed && tile.w.startsWith(typed) && !g.tiles.some((x) => x.w.startsWith(typed))) {
+      attribute(g, typed, tile.w);
+      W.reset(g);
     }
     g.res[tile.i] = { grade: "M", t };
     g.counts.M++;
@@ -176,7 +171,7 @@
     g.hp = Math.min(MAX_HP, g.hp + HEAL[grade]);
     g.chars += tile.w.length + 1;
     g.offsets.push(d);
-    g.buf = "";
+    W.reset(g);
     g.last = { grade, t, i: tile.i, l: tile.l, d };
     return { type: "hit", grade, d, word: tile.w, misses, i: tile.i };
   }
@@ -200,14 +195,12 @@
   function applyKey(g, k, t, provider) {
     if (advance(g, t, provider)) return null;
     if (k === BACK || k === BACK_WORD) {
-      if (!g.buf) return null;
-      const deleted = k === BACK_WORD ? g.buf : g.buf.slice(-1);
-      g.buf = k === BACK_WORD ? "" : g.buf.slice(0, -1);
-      return { type: "back", deleted, buf: g.buf };
+      const b = W.back(g, k === BACK_WORD);
+      return b && { type: "back", ...b, buf: g.buf };
     }
     if (k === " ") {
       const tile = target(g);
-      if (tile && tile.w === g.buf) {
+      if (tile && W.ready(g, tile.w)) {
         const d = t - g.hits[tile.i];
         if (d < -WIN.early) {
           g.last = { grade: "E", t, i: tile.i, l: tile.l, d };
@@ -221,17 +214,17 @@
       }
       return { type: "strike", ok: false, buf: g.buf, empty: !g.buf };
     }
+    const r = W.letter(g, k, (s) => g.tiles.some((x) => x.w.startsWith(s)), g.v < 2);
+    if (!r) return null;
     g.keys++;
-    const cand = g.buf + k;
-    if (!g.tiles.some((x) => x.w.startsWith(cand))) {
-      g.stepMisses.push({ pos: g.buf.length, typed: k });
+    if (!r.ok) {
+      g.stepMisses.push({ pos: r.pos, typed: k });
       g.mistakes++;
       hurt(g, TYPO_HP, t);
-      return { type: "miss", typed: k, pos: g.buf.length, buf: g.buf };
+      return { type: "miss", typed: k, pos: r.pos, buf: g.buf };
     }
     g.correct++;
-    g.buf = cand;
-    return { type: "letter", typed: k, pos: cand.length - 1, buf: cand };
+    return { type: "letter", typed: k, pos: r.pos, buf: g.buf };
   }
 
   function gameStats(g, ms) {
@@ -400,7 +393,7 @@
           <div class="tl-tiles" data-t="tiles"></div>
           <div class="tl-judge" data-t="judge"></div>
         </div>
-        <div class="tl-typed-row"><span class="tl-typed" data-t="typed"></span></div>
+        <div class="tl-typed-row"><span class="word-box tl-typed" data-t="typed"></span></div>
       </div>
       <div class="tl-side tl-right">
         <div class="tl-box">
@@ -493,11 +486,12 @@
         seen.add(t.i);
         const y = hitY - ((g.hits[t.i] - viewT) / g.fall) * (hitY + TILE_H / 2) - TILE_H / 2;
         e.style.transform = `translateY(${y.toFixed(1)}px)`;
-        const sig = t === tg ? `1${g.buf}` : "0";
+        const typed = W.good(g);
+        const sig = t === tg ? `1${typed}` : "0";
         if (e.sig !== sig) {
           e.sig = sig;
           e.classList.toggle("on", t === tg);
-          e.innerHTML = t === tg ? `<span><b>${g.buf}</b>${t.w.slice(g.buf.length)}</span>` : `<span>${t.w}</span>`;
+          e.innerHTML = t === tg ? `<span><b>${typed}</b>${t.w.slice(typed.length)}</span>` : `<span>${t.w}</span>`;
         }
       }
       for (const [i, e] of tileEls) {
@@ -531,9 +525,9 @@
       el.band.classList.toggle("beat", !!beat);
       el.band.classList.toggle("down", !!beat && beat.down);
       // what's been typed
-      const typed = g.buf;
-      if (el.typed.textContent !== typed) el.typed.textContent = typed;
-      el.typed.classList.toggle("empty", !typed);
+      const typed = W.html(g);
+      if (el.typed.innerHTML !== typed) el.typed.innerHTML = typed;
+      el.typed.classList.toggle("empty", !g.buf);
       el.typed.classList.toggle("shake", viewT - shakeT < 250);
     }
 
@@ -665,7 +659,7 @@
       if (live.player) live.player.stop();
       viewT = g.endAt;
       const tg = target(g);
-      if (g.buf && tg) attribute(g, g.buf, tg.w);
+      if (tg) attribute(g, W.good(g), tg.w);
 
       const st = gameStats(g, g.endAt);
       const grade = letterGrade(st.timing);
@@ -740,7 +734,7 @@
     // ---------- replay ----------
 
     function resetReplayCore(rec) {
-      g = newCore({ hits: rec.hits, fall: rec.fall, endT: rec.endT, diff: rec.diff });
+      g = newCore({ hits: rec.hits, fall: rec.fall, endT: rec.endT, diff: rec.diff, v: rec.v || 1 });
       replay.pos = 0;
     }
 

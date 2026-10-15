@@ -571,7 +571,7 @@
           <ol class="fh-rules">
             <li>A word sits beside each tile around your animal: forward, back, left and right.</li>
             <li>Type the word, then press <strong>Space</strong> or <strong>Enter</strong> to hop. You can type ahead and wait for the right moment.</li>
-            <li>Keys that don't fit any word are ignored and counted as mistakes. Backspace works.</li>
+            <li>A wrong letter stays in what you've typed until you Backspace it, like in the speed test. Each one counts as a mistake.</li>
             <li>If a tree or rock is in the way, that direction has no word.</li>
             <li>Only the word you used changes after a hop. New words lean toward your target keys and get longer the further you go.</li>
           </ol>
@@ -720,7 +720,7 @@
           <ol class="fh-rules">
             <li>Type the word on a tile. The tile lights up once your letters match it.</li>
             <li>Press <strong>Enter</strong> or <strong>Space</strong> as it crosses the line, on the beat.</li>
-            <li>Close to the line counts, and a little early gets more room than a little late. Misses and typos cost health.</li>
+            <li>Close to the line counts, and a little early gets more room than a little late. Misses and typos cost health, and a typo has to be backspaced before you can go on.</li>
           </ol>
         </aside>
       </div>`;
@@ -934,7 +934,8 @@
           <dl class="status">${statusRows([
             ["Avg time per key:", `${Math.round(avgGap)} ms`],
             ["Rhythm consistency:", cons ? `${Math.round(cons.pct)}%` : "—"],
-            [game ? "Backspaces:" : "Backspaces (fixed typos):", game ? a.backs.length : `${a.backs.length} (${fixed})`],
+            // before games kept wrong letters typed, their Backspaces couldn't fix a typo
+            [game && !a.typedErrors ? "Backspaces:" : "Backspaces (fixed typos):", game && !a.typedErrors ? a.backs.length : `${a.backs.length} (${fixed})`],
             ...(rec.game === "tiles" ? [["Timing (average):", a.final.counts.M < a.final.judged ? `${a.final.avg > 0 ? "+" : ""}${Math.round(a.final.avg)} ms` : "—"], ["Missed tiles:", a.final.counts.M]]
               : game ? [["Slowest step:", a.steps.length ? fmtSec(Math.max(...a.steps.map((s) => s.ms))) : "—"]] : [["Space errors:", spaceBad]]),
             ["Pauses over 1s:", a.hesitations.length, true],

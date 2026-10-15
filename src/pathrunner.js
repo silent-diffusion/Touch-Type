@@ -3,6 +3,8 @@
 // Every run is recorded (key presses, times and the rows that appeared) so it can be replayed.
 (() => {
   const A = TT.analysis;
+  const W = TT.wordInput;
+  const RULES = 2;        // v2: wrong letters are typed and must be backspaced (v1 recordings have no v)
   const START_TIME = 8;   // seconds on the clock at the start
   const MAX_TIME = 10;
   const BONUS = 2;        // extra seconds for a bonus path
@@ -17,9 +19,9 @@
   // The clock is kept as a "bank": time left at moment t (ms) is bank - t/1000. That makes it
   // exact no matter how often the screen updates, so replays end at the same moment.
 
-  function newCore(rows) {
+  function newCore(rows, v = RULES) {
     return {
-      n: 0, lane: 1, rows, buf: "",
+      v, n: 0, lane: 1, rows, buf: "", bad: -1,
       bank: START_TIME, over: false, endT: null,
       keys: 0, correct: 0, mistakes: 0, chars: 0,
       keyStats: {}, missedWords: new Set(),
@@ -39,50 +41,36 @@
 
   // Wrong keys can't be tied to a letter until we know which word you were going for.
   // Once it's known, each wrong key counts as a miss on that word's letter at that position.
-  function attribute(g, word, typedLen) {
-    const bump = (letter, missed) => {
-      const k = (g.keyStats[letter] ||= { expected: 0, missed: 0 });
-      k.expected++;
-      if (missed) k.missed++;
-    };
-    for (const ch of word.slice(0, typedLen)) bump(ch, false);
-    const misses = g.stepMisses.filter((m) => m.pos < word.length);
-    for (const m of misses) bump(word[m.pos], true);
-    if (misses.length) g.missedWords.add(word);
-    g.stepMisses = [];
-    return misses;
-  }
+  const attribute = (g, word, typedLen) => W.attribute(g, word.slice(0, typedLen), word);
 
   // Applies one key press at time t. Returns what it did, or null if it had no effect.
   // onMove (live play only) creates the rows that come into view.
   function applyKey(g, k, t, onMove) {
     if (advance(g, t)) return null;
     if (k === BACK || k === BACK_WORD) {
-      if (!g.buf) return null;
-      const deleted = k === BACK_WORD ? g.buf : g.buf.slice(-1);
-      g.buf = k === BACK_WORD ? "" : g.buf.slice(0, -1);
-      return { type: "back", deleted, buf: g.buf };
+      const b = W.back(g, k === BACK_WORD);
+      return b && { type: "back", ...b, buf: g.buf };
     }
     if (k === " ") return null;
 
     const row = g.rows[g.n + 1];
-    const cand = g.buf + k;
+    const r = W.letter(g, k, (s) => row.cells.some((c) => c.type === "open" && c.word.startsWith(s)), g.v < 2);
+    if (!r) return null;
     g.keys++;
-    if (!row.cells.some((c) => c.type === "open" && c.word.startsWith(cand))) {
-      g.stepMisses.push({ pos: g.buf.length, typed: k });
+    if (!r.ok) {
+      g.stepMisses.push({ pos: r.pos, typed: k });
       g.mistakes++;
       g.bank -= PENALTY;
       if (timeLeft(g, t) <= 0) {
         g.over = true;
         g.endT = t; // the penalty itself ran the clock out
       }
-      return { type: "miss", typed: k, pos: g.buf.length, buf: g.buf };
+      return { type: "miss", typed: k, pos: r.pos, buf: g.buf };
     }
 
     g.correct++;
-    g.buf = cand;
-    const hit = row.cells.findIndex((c) => c.type === "open" && c.word === cand);
-    if (hit < 0) return { type: "letter", typed: k, pos: cand.length - 1, buf: cand };
+    const hit = row.cells.findIndex((c) => c.type === "open" && W.ready(g, c.word));
+    if (hit < 0) return { type: "letter", typed: k, pos: r.pos, buf: g.buf };
 
     const cell = row.cells[hit];
     const misses = attribute(g, cell.word, cell.word.length);
@@ -92,9 +80,9 @@
     g.n++;
     g.lane = hit;
     g.rows[g.n].lane = hit;
-    g.buf = "";
+    W.reset(g);
     if (onMove) onMove(g, cell.word);
-    return { type: "move", typed: k, pos: cand.length - 1, word: cell.word, lane: hit, bonus: !!cell.bonus, misses };
+    return { type: "move", typed: k, pos: r.pos, word: cell.word, lane: hit, bonus: !!cell.bonus, misses };
   }
 
   function gameStats(g, ms) {
@@ -105,7 +93,7 @@
     };
   }
 
-  TT.pathCore = { newCore, applyKey, advance, timeLeft, gameStats, attribute, MAX_TIME };
+  TT.pathCore = { newCore, applyKey, advance, timeLeft, gameStats, attribute, MAX_TIME, RULES };
 
   // ---------- engine: live play and replay, with rendering ----------
 
@@ -122,7 +110,7 @@
           <div class="pr-rows" data-pr="rows"></div>
           <div class="pr-over" data-pr="over" hidden></div>
         </div>
-        <div class="pr-input" data-pr="input" aria-live="polite"></div>
+        <div class="word-box pr-input" data-pr="input" aria-live="polite"></div>
         <p class="note" data-pr="note"></p>
       </section>`;
   const SIDE = `
@@ -224,8 +212,9 @@
       const bonus = c.bonus ? `<span class="pr-bonus">+${BONUS}s</span>` : "";
       if (rel === 2 || !c.word) return `<div class="pr-cell open faint">${bonus}</div>`;
 
-      const match = g.buf && c.word.startsWith(g.buf);
-      const typed = match ? g.buf.length : 0;
+      const good = W.good(g);
+      const match = good && c.word.startsWith(good);
+      const typed = match ? good.length : 0;
       return `<div class="pr-cell open active ${g.buf && !match ? "dim" : ""} ${c.bonus ? "bonus" : ""}">${bonus}` +
         `<span class="pr-word"><b>${c.word.slice(0, typed)}</b>${c.word.slice(typed)}</span></div>`;
     }
@@ -237,9 +226,8 @@
     }
 
     function renderInput() {
-      el.input.innerHTML = g.buf
-        ? `${g.buf}<span class="pr-caret"></span>`
-        : `<span class="pr-caret"></span><span class="pr-placeholder">type a path's word</span>`;
+      el.input.innerHTML = g.buf ? W.html(g) : `<span class="pr-placeholder">type a path's word</span>`;
+      el.input.classList.toggle("empty", !g.buf);
     }
 
     function renderTimer() {
@@ -299,7 +287,7 @@
       el.over.hidden = true;
       el.keys.innerHTML = TT.ui.keyTiles(live.targets.map((t) => t.key));
       el.caption.textContent = live.targets.length ? "WORDS USE YOUR TARGET KEYS" : "TAKE A FEW TESTS TO FIND THEM";
-      el.note.textContent = "Type a word to start. Finishing a word steps you onto that path. Wrong keys cost time.";
+      el.note.textContent = "Type a word to start. Finishing a word steps you onto that path. Wrong keys cost time and have to be backspaced.";
       render(false);
     }
 
@@ -325,9 +313,10 @@
       viewT = g.endT;
 
       // A half-typed word only counts if it can match just one path.
-      if (g.buf) {
-        const cands = g.rows[g.n + 1].cells.filter((c) => c.type === "open" && c.word.startsWith(g.buf));
-        if (cands.length === 1) attribute(g, cands[0].word, g.buf.length);
+      const good = W.good(g);
+      if (good) {
+        const cands = g.rows[g.n + 1].cells.filter((c) => c.type === "open" && c.word.startsWith(good));
+        if (cands.length === 1) attribute(g, cands[0].word, good.length);
       }
 
       const { wpm, acc } = gameStats(g, g.endT);
@@ -365,7 +354,7 @@
       TT.save();
       TT.rounds.save({
         id, date, kind: "game", game: "path", mode: "steps", amount: g.n,
-        rows: g.rows, keys: live.keys, times: live.times, duration: g.endT,
+        v: RULES, rows: g.rows, keys: live.keys, times: live.times, duration: g.endT,
       });
 
       const line = g.n > prevBest && prevBest > 0
@@ -414,6 +403,7 @@
       if (g.over) return end();
       if (!d) return;
       if (d.type === "miss") {
+        renderInput();
         shake();
         renderTimer();
         renderStatus();
@@ -431,7 +421,7 @@
       stop();
       live = null;
       replay = { rec, pos: 0, lastT: 0 };
-      g = newCore(structuredClone(rec.rows));
+      g = newCore(structuredClone(rec.rows), rec.v || 1);
       viewT = 0;
       el.over.hidden = true;
       if (el.note) el.note.textContent = "";
@@ -444,7 +434,7 @@
       const { rec } = replay;
       const rewind = T < replay.lastT;
       if (rewind) {
-        g = newCore(structuredClone(rec.rows));
+        g = newCore(structuredClone(rec.rows), rec.v || 1);
         replay.pos = 0;
       }
       let moved = false, missed = false;

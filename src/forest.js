@@ -9,11 +9,12 @@
 // changes are versioned (rec.v) so older recordings keep replaying the way they were played.
 (() => {
   const A = TT.analysis;
+  const W = TT.wordInput;
   const COLS = 13;          // playable columns
   const STEP = 20;          // simulation step, ms
   const START_LANE = 2;
   const START_COL = 6;
-  const RULES = 3;          // current rules version
+  const RULES = 4;          // current rules version (v4: wrong letters are typed and must be backspaced)
   const WARN_MS = 20000;    // v2: this long without reaching a new row brings the predator
   const GRACE_MS = 10000;   // v2: then this long to reach a new row before it strikes
   // v3: the predator is patient early on and gets quicker as your score grows
@@ -192,7 +193,7 @@
       from: { lane: START_LANE, x: START_COL }, hopT: -1000,
       maxLane: START_LANE, lastProgressT: 0, threatStart: null, threatGrace: GRACE_MS,
       simT: 0, over: false, endT: null, cause: null,
-      words: null, wordSets: 0, buf: "",
+      words: null, wordSets: 0, buf: "", bad: -1,
       keys: 0, correct: 0, mistakes: 0, spaceErrors: 0, chars: 0, treats: 0,
       keyStats: {}, missedWords: new Set(), stepMisses: [],
     };
@@ -290,19 +291,7 @@
   }
 
   // Wrong keys are tied to a letter once the word you hopped with is known.
-  function attribute(g, word) {
-    const bump = (letter, missed) => {
-      const k = (g.keyStats[letter] ||= { expected: 0, missed: 0 });
-      k.expected++;
-      if (missed) k.missed++;
-    };
-    for (const ch of word) bump(ch, false);
-    const misses = g.stepMisses.filter((m) => m.pos < word.length);
-    for (const m of misses) bump(word[m.pos], true);
-    if (misses.length) g.missedWords.add(word);
-    g.stepMisses = [];
-    return misses;
-  }
+  const attribute = (g, word) => W.attribute(g, word);
 
   function hop(g, dir, t, provider) {
     const word = g.words[dir];
@@ -314,7 +303,7 @@
     g.hopT = t;
     g.lane = to.lane;
     g.x = to.col;
-    g.buf = "";
+    W.reset(g);
     if (g.lane > g.maxLane) {
       g.maxLane = g.lane;
       g.lastProgressT = t;
@@ -337,13 +326,11 @@
   function applyKey(g, k, t, provider) {
     if (advance(g, t)) return null;
     if (k === BACK || k === BACK_WORD) {
-      if (!g.buf) return null;
-      const deleted = k === BACK_WORD ? g.buf : g.buf.slice(-1);
-      g.buf = k === BACK_WORD ? "" : g.buf.slice(0, -1);
-      return { type: "back", deleted, buf: g.buf };
+      const b = W.back(g, k === BACK_WORD);
+      return b && { type: "back", ...b, buf: g.buf };
     }
     if (k === " ") {
-      const dir = g.buf && DIRS.find((d) => g.words[d] === g.buf && target(g, d));
+      const dir = g.buf && DIRS.find((d) => W.ready(g, g.words[d]) && target(g, d));
       if (dir) {
         g.keys++;
         return hop(g, dir, t, provider);
@@ -355,17 +342,17 @@
       }
       return { type: "space", ok: false, buf: g.buf, empty: !g.buf };
     }
-    g.keys++;
-    const cand = g.buf + k;
     const open = DIRS.filter((d) => target(g, d)).map((d) => g.words[d]);
-    if (!open.some((w) => w.startsWith(cand))) {
-      g.stepMisses.push({ pos: g.buf.length, typed: k });
+    const r = W.letter(g, k, (s) => open.some((w) => w.startsWith(s)), g.v < 4);
+    if (!r) return null;
+    g.keys++;
+    if (!r.ok) {
+      g.stepMisses.push({ pos: r.pos, typed: k });
       g.mistakes++;
-      return { type: "miss", typed: k, pos: g.buf.length, buf: g.buf };
+      return { type: "miss", typed: k, pos: r.pos, buf: g.buf };
     }
     g.correct++;
-    g.buf = cand;
-    return { type: "letter", typed: k, pos: cand.length - 1, buf: cand };
+    return { type: "letter", typed: k, pos: r.pos, buf: g.buf };
   }
 
   function gameStats(g, ms) {
@@ -563,7 +550,8 @@
     }
 
     // hop targets: faint dashed squares; the one you're typing toward turns solid
-    const matches = g.words ? DIRS.filter((d) => g.buf && g.words[d].startsWith(g.buf) && target(g, d)) : [];
+    const typed = W.good(g);
+    const matches = g.words ? DIRS.filter((d) => typed && g.words[d].startsWith(typed) && target(g, d)) : [];
     if (!g.over && g.words) {
       for (const d of DIRS) {
         const to = target(g, d);
@@ -622,10 +610,11 @@
       const to = target(g, d);
       if (!to) continue;
       const word = g.words[d];
-      const match = !!g.buf && word.startsWith(g.buf);
-      const ready = word === g.buf;
+      const good = W.good(g);
+      const match = !!good && word.startsWith(good);
+      const ready = W.ready(g, word);
       const dim = !!g.buf && !match;
-      const typed = match ? g.buf.length : 0;
+      const typed = match ? good.length : 0;
       const tw = ctx.measureText(word).width;
       const bw = tw + fs * 1.1;
       const bh = fs * 1.7;
@@ -761,7 +750,7 @@
           <div class="fh-chip" data-f="animal"></div>
           <div class="fh-chip fh-threat" data-f="threat" hidden></div>
         </div>
-        <div class="fh-typed" data-f="typed" aria-hidden="true"></div>
+        <div class="word-box fh-typed" data-f="typed" aria-hidden="true"></div>
         <div class="fh-over" data-f="over" hidden></div>
       </div>
       <p class="visually-hidden" data-f="sr" aria-live="polite"></p>
@@ -861,7 +850,7 @@
       const best = Math.max(record().best, score(g));
       const treats = replay ? g.treats : record().treats + g.treats;
       const left = g.v >= 2 && g.threatStart != null && !g.over ? Math.max(0, Math.ceil((g.threatGrace - (viewT - g.threatStart)) / 1000)) : null;
-      const sig = [score(g), best, treats, g.animal, left, g.buf].join("|");
+      const sig = [score(g), best, treats, g.animal, left, g.buf, g.bad].join("|");
       if (sig === hudSig) return;
       hudSig = sig;
       el.score.textContent = score(g);
@@ -871,7 +860,7 @@
       el.animal.innerHTML = `${TT.sprites.svg(g.animal, 26)}<span>${g.animal.toUpperCase()}</span>`;
       el.threat.hidden = left == null;
       if (left != null) el.threat.innerHTML = `${TT.sprites.svg(th.predator, 26)}<span>${th.name} · ${left}</span>`;
-      el.typed.textContent = g.buf;
+      el.typed.innerHTML = W.html(g);
       el.typed.hidden = !g.buf || g.over;
     }
 
@@ -879,7 +868,7 @@
     function renderSr() {
       if (!g.words) return;
       const NAMES = { up: "forward", left: "left", right: "right", down: "back" };
-      const text = DIRS.map((d) => `${NAMES[d]}: ${target(g, d) ? g.words[d] : "blocked"}`).join(", ") + (g.buf ? `. Typed ${g.buf}` : "");
+      const text = DIRS.map((d) => `${NAMES[d]}: ${target(g, d) ? g.words[d] : "blocked"}`).join(", ") + (g.buf ? `. Typed ${g.buf}` : "") + (W.clean(g) ? "" : `, wrong from letter ${g.bad + 1}`);
       if (text === srSig) return;
       srSig = text;
       el.sr.textContent = text;
@@ -957,7 +946,9 @@
       viewT = g.endT;
 
       // A half-typed word counts only if it matches just one direction.
-      if (g.buf && DIRS.filter((d) => g.words[d].startsWith(g.buf)).length === 1) attribute(g, g.buf);
+      const good = W.good(g);
+      const cands = good ? DIRS.map((d) => g.words[d]).filter((w) => w.startsWith(good)) : [];
+      if (cands.length === 1) W.attribute(g, good, cands[0]);
 
       const th = theme(g.animal);
       const s = score(g);

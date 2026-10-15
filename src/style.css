@@ -423,19 +423,28 @@ body:not(.typing) .caret.caret-block { animation-name: blink-block; }
 .pr-player { width: 48px; height: 48px; background: var(--accent); }
 .pr-trail { width: 14px; height: 14px; background: var(--ink); opacity: 0.4; }
 
-.pr-input {
-  margin-top: 20px;
-  min-height: 52px;
-  font-family: var(--type-font);
-  font-size: 34px;
-  color: var(--ink);
-  display: flex;
+/* What you've typed in a game. Every game uses this box, so they all look and feel the same:
+   correct letters in the ground color, wrong ones on the accent until they're backspaced. */
+.word-box {
+  display: inline-flex;
   align-items: center;
+  min-height: 1.6em;
+  padding: 4px 16px;
+  background: var(--ink);
+  color: var(--ground);
+  font-family: var(--type-font);
+  font-size: 24px;
+  line-height: 1.2;
+  white-space: pre;
 }
-.pr-caret { display: inline-block; width: 3px; height: 1.05em; background: var(--accent); margin-left: 2px; animation: blink 1s step-end infinite; }
-.pr-placeholder { color: var(--sub); font-size: 22px; margin-left: 12px; }
-.pr-input.shake { animation: shake 0.25s; }
-.pr-input.shake .pr-caret { background: var(--accent); }
+.word-box::after { content: ""; display: inline-block; width: 3px; height: 0.9em; margin-left: 2px; background: var(--accent); animation: blink 1s step-end infinite; }
+.word-box .wb-bad { background: var(--accent); color: var(--on-accent); }
+.word-box.empty { background: none; color: var(--ink); outline: 2px dashed color-mix(in srgb, var(--ink) 40%, transparent); outline-offset: -2px; }
+.word-box.empty::after { order: -1; margin: 0 2px 0 0; }
+.word-box.shake { animation: shake 0.25s; }
+
+.pr-input { margin-top: 20px; align-self: flex-start; font-size: 30px; }
+.pr-placeholder { color: var(--sub); font-family: var(--ui-font); font-size: 18px; margin-left: 10px; }
 @keyframes shake {
   20% { transform: translateX(-6px); color: var(--accent); }
   50% { transform: translateX(6px); color: var(--accent); }
@@ -517,15 +526,8 @@ body:not(.typing) .caret.caret-block { animation-name: blink-block; }
   left: 50%;
   top: 12px;
   transform: translateX(-50%);
-  padding: 4px 14px;
-  background: var(--ink);
-  color: var(--ground);
-  font-family: var(--type-font);
-  font-size: 22px;
-  min-width: 48px;
-  text-align: center;
 }
-.fh-typed::after { content: ""; display: inline-block; width: 3px; height: 0.9em; margin-left: 2px; background: var(--accent); vertical-align: -0.1em; animation: blink 1s step-end infinite; }
+.fh-typed[hidden] { display: none; }
 
 /* the predator countdown */
 .fh-threat { background: var(--ink); color: var(--ground); border-color: var(--ink); animation: fh-pulse 1s ease-in-out infinite; }
@@ -896,18 +898,7 @@ body:not(.typing) .caret.caret-block { animation-name: blink-block; }
 .tl-judge.miss { color: var(--accent); }
 
 .tl-typed-row { display: flex; justify-content: center; margin-top: 14px; min-height: 44px; }
-.tl-typed {
-  padding: 4px 16px;
-  background: var(--ink);
-  color: var(--ground);
-  font-family: var(--type-font);
-  font-size: 24px;
-  min-width: 56px;
-  text-align: center;
-}
-.tl-typed::after { content: ""; display: inline-block; width: 3px; height: 0.9em; margin-left: 2px; background: var(--accent); vertical-align: -0.1em; animation: blink 1s step-end infinite; }
-.tl-typed.empty { background: none; border: 2px dashed color-mix(in srgb, var(--ink) 40%, transparent); }
-.tl-typed.shake { animation: shake 0.25s; }
+.tl-typed { min-width: 56px; justify-content: center; }
 
 .tl-meter { position: relative; height: 30px; border: var(--rule); margin-top: 8px; }
 .tl-meter::after { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; border-left: 2px dashed var(--accent); }

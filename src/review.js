@@ -79,8 +79,9 @@
 
   function analyzeGame(rec) {
     const P = TT.pathCore;
-    const g = P.newCore(structuredClone(rec.rows));
+    const g = P.newCore(structuredClone(rec.rows), rec.v || 1);
     const a = newAnalysis();
+    a.typedErrors = g.v >= 2; // wrong letters stay typed, so a Backspace can be told to fix one
     let prevT = null;
     let prevChar = null;
     let stepStart = 0;
@@ -100,7 +101,7 @@
         pending.push({ t, typed: d.typed, pos: d.pos });
         prevChar = null;
       } else if (d.type === "back") {
-        a.backs.push({ t, gap, word: `${bufAt}…`, deleted: d.deleted, fixedError: false, crossed: false, whole: k === TT.typingCore.BACK_WORD });
+        a.backs.push({ t, gap, word: `${bufAt}…`, deleted: d.deleted, fixedError: d.fixedError, crossed: false, whole: k === TT.typingCore.BACK_WORD });
         prevChar = null;
       } else {
         time(a.keyTimes, d.typed, gap);
@@ -133,6 +134,7 @@
     const provider = F.recordedWords(rec);
     F.assignWords(g, provider);
     const a = newAnalysis();
+    a.typedErrors = g.v >= 4;
     let prevT = null;
     let prevChar = null;
     let stepStart = 0;
@@ -144,6 +146,7 @@
       const gap = prevT == null ? null : t - prevT;
       prevT = t;
       const bufAt = g.buf;
+      const typoAt = g.bad >= 0;
       if (gap != null && gap >= HESITATION_MS) a.hesitations.push({ t, gap, word: bufAt ? `${bufAt}…` : "(choosing a direction)", pos: bufAt.length });
 
       const d = F.applyKey(g, k, t, provider);
@@ -152,7 +155,7 @@
         pending.push({ t, typed: d.typed, pos: d.pos });
         prevChar = null;
       } else if (d.type === "back") {
-        a.backs.push({ t, gap, word: `${bufAt}…`, deleted: d.deleted, fixedError: false, crossed: false, whole: k === TT.typingCore.BACK_WORD });
+        a.backs.push({ t, gap, word: `${bufAt}…`, deleted: d.deleted, fixedError: d.fixedError, crossed: false, whole: k === TT.typingCore.BACK_WORD });
         prevChar = null;
       } else if (d.type === "letter") {
         time(a.keyTimes, d.typed, gap);
@@ -161,7 +164,7 @@
         prevChar = d.typed;
       } else if (d.type === "space") {
         a.spaces.push({ t, gap, ok: false, ignored: d.empty, word: bufAt, typed: bufAt, next: "", skipped: 0,
-          note: d.empty ? "Space with nothing typed" : `Space before finishing a word (typed "${bufAt}")` });
+          note: d.empty ? "Space with nothing typed" : typoAt ? `Space with a typo (typed "${bufAt}")` : `Space before finishing a word (typed "${bufAt}")` });
         prevChar = null;
       } else if (d.type === "hop") {
         a.spaces.push({ t, gap, ok: true, word: d.word, typed: d.word, next: "", skipped: 0 });
@@ -185,9 +188,10 @@
 
   function analyzeTiles(rec) {
     const C = TT.tilesCore;
-    const g = C.newCore({ hits: rec.hits, fall: rec.fall, endT: rec.endT, diff: rec.diff });
+    const g = C.newCore({ hits: rec.hits, fall: rec.fall, endT: rec.endT, diff: rec.diff, v: rec.v || 1 });
     const provider = C.recordedTiles(rec);
     const a = newAnalysis();
+    a.typedErrors = g.v >= 2;
     a.extra = []; // missed tiles and early presses, for the moments list
     let prevT = null;
     let prevChar = null;
@@ -211,6 +215,7 @@
       C.advance(g, t, provider);
       noteMisses(t);
       const bufAt = g.buf;
+      const typoAt = g.bad >= 0;
       // Waiting for a tile is part of the game, so only pauses in the middle of a word count.
       if (gap != null && gap >= HESITATION_MS && bufAt && k !== " ") a.hesitations.push({ t, gap, word: `${bufAt}…`, pos: bufAt.length });
 
@@ -220,7 +225,7 @@
         pending.push({ t, typed: d.typed, pos: d.pos });
         prevChar = null;
       } else if (d.type === "back") {
-        a.backs.push({ t, gap, word: `${bufAt}…`, deleted: d.deleted, fixedError: false, crossed: false, whole: k === TT.typingCore.BACK_WORD });
+        a.backs.push({ t, gap, word: `${bufAt}…`, deleted: d.deleted, fixedError: d.fixedError, crossed: false, whole: k === TT.typingCore.BACK_WORD });
         prevChar = null;
       } else if (d.type === "letter") {
         time(a.keyTimes, d.typed, gap);
@@ -231,7 +236,7 @@
         a.extra.push({ t, kind: "space", text: `Enter ${Math.round(-d.d)} ms too early on "${d.word}"` });
       } else if (d.type === "strike") {
         a.spaces.push({ t, gap, ok: false, ignored: d.empty, word: bufAt, typed: bufAt, next: "", skipped: 0,
-          note: d.empty ? "Enter with nothing typed" : `Enter before finishing a word (typed "${bufAt}")` });
+          note: d.empty ? "Enter with nothing typed" : typoAt ? `Enter with a typo (typed "${bufAt}")` : `Enter before finishing a word (typed "${bufAt}")` });
         prevChar = null;
       } else if (d.type === "hit") {
         a.spaces.push({ t, gap, ok: true, word: d.word, typed: d.word, next: "", skipped: 0 });
