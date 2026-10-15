@@ -101,6 +101,7 @@
     if (!SIZES[s.size]) s.size = "m";
     if (!CARETS[s.caret]) s.caret = "line";
     s.second = !!s.second;
+    s.autoUpdate = !!s.autoUpdate;
   }
 
   const isDark = () => S().theme === "night";
@@ -277,7 +278,7 @@
   const HINTS = {
     test: [["TAB", "RESTART", "restart"], ["ESC", "MENU", "menu"]],
     practice: [["TAB", "NEW WORDS", "restart"], ["ESC", "MENU", "menu"]],
-    results: [["TAB", "NEXT TEST", "restart"], ["P", "PRACTICE WEAK KEYS", "practice"], ["ESC", "MENU", "menu"]],
+    results: [["TAB / ENTER", "NEXT TEST", "restart"], ["P", "PRACTICE WEAK KEYS", "practice"], ["ESC", "MENU", "menu"]],
     games: [["ESC", "CLOSE MENU", "close"]],
     game: [["TAB", "RESTART", "play"], ["ESC", "MENU", "menu"]],
     stats: [["P", "PRACTICE WEAK KEYS", "practice"], ["ESC", "CLOSE MENU", "close"]],
@@ -294,8 +295,12 @@
   };
 
   function renderHints() {
-    let hints = HINTS[ui.view].map(([key, label, act]) =>
-      [key, ui.view === "results" && act === "restart" && ui.lastTyping === "practice" ? "PRACTICE AGAIN" : label, act]);
+    let hints = HINTS[ui.view];
+    // After practice, only Tab/Enter start the next round, so a stray "p" can't kick one off.
+    if (ui.view === "results" && ui.lastTyping === "practice") {
+      hints = hints.filter(([, , act]) => act !== "practice").map(([key, label, act]) =>
+        [key, act === "restart" ? "PRACTICE AGAIN" : label, act]);
+    }
     if (ui.view === "games" && selectedGame().playable) hints = [["ENTER", "PLAY", "play"], ...hints];
     els.hints.innerHTML = hints.map(([key, label, act]) => `<button data-act="${act}"><kbd>${key}</kbd>${label}</button>`).join("");
     els.statusLine.textContent = STATUS[ui.view];
@@ -607,7 +612,6 @@
       const n = TT.store.history.length;
       return `<div class="cols">
         <section class="col-main"><div class="settings-rows">
-          ${srow("Version", `<strong style="padding: 0 4px; font-size: 18px">${ui.version ? `v${ui.version}` : "Web version"}</strong>`)}
           ${srow("Saved results", `<strong style="padding: 0 4px; font-size: 18px">${n} ${n === 1 ? "test" : "tests"}</strong>`)}
           ${srow("Reset", `<button class="opt danger" data-act="reset-data">DELETE ALL DATA</button><span class="hint-text">Settings are kept.</span>`)}
         </div>
@@ -617,17 +621,58 @@
     },
   };
 
+  const UPDATE_TEXT = {
+    idle: () => "Not checked yet.",
+    checking: () => "Checking for updates…",
+    none: () => "You have the latest version.",
+    available: (u) => `Version ${esc(u.version)} is available.`,
+    downloading: (u) => `Downloading version ${esc(u.version)}… ${u.percent}%`,
+    downloaded: (u) => `Version ${esc(u.version)} is downloaded and ready to install.`,
+    error: (u) => `Couldn't reach the update server: ${esc(u.error)}`,
+  };
+
+  SETTINGS_VIEWS.updates = () => {
+    const version = (v) => `<strong style="padding: 0 4px; font-size: 18px">${v}</strong>`;
+    if (!window.touchType) {
+      return `<div class="cols"><section class="col-main">
+        <div class="settings-rows">${srow("Version", version("Web version"))}</div>
+        <p class="note">Updates are only available in the desktop app.</p>
+      </section></div>`;
+    }
+
+    const u = ui.update;
+    let action = "";
+    if (!u.supported) action = "";
+    else if (u.status === "available") action = `<button class="opt on" data-act="update:download">DOWNLOAD ${esc(u.version)}</button>`;
+    else if (u.status === "downloaded") action = `<button class="opt on" data-act="update:install">RESTART AND INSTALL</button>`;
+    else if (u.status !== "checking" && u.status !== "downloading") action = `<button class="opt outline" data-act="update:check">CHECK FOR UPDATES</button>`;
+    const status = u.supported ? UPDATE_TEXT[u.status](u) : "Updates only work in the installed app.";
+
+    return `<div class="cols">
+      <section class="col-main">
+        <div class="settings-rows">
+          ${srow("Version", version(ui.version ? `v${esc(ui.version)}` : "…"))}
+          ${srow("Automatic updates", optButtons("autoUpdate", { false: "Off", true: "On" }) +
+            `<span class="hint-text">Checks when the app starts and downloads updates in the background.</span>`)}
+          ${srow("Updates", `${action}<span class="hint-text" aria-live="polite">${status}</span>`)}
+        </div>
+        <p class="note">Touch Type only connects to the internet when you check for updates or turn on automatic updates. It looks for new releases on GitHub (github.com/silent-diffusion/Touch-Type).</p>
+      </section>
+    </div>`;
+  };
+
   function renderSettings() {
-    const tabs = [["appearance", "Appearance"], ["practice", "Practice"], ["data", "Data"]];
+    const tabs = [["appearance", "Appearance"], ["practice", "Practice"], ["updates", "Updates"], ["data", "Data"]];
     $("view-settings").innerHTML = subtabs(tabs, ui.settingsTab, "settab") + SETTINGS_VIEWS[ui.settingsTab]();
   }
 
   function setSetting(key, raw) {
     const s = S();
-    if (key === "second") s.second = raw === "true";
+    if (key === "second" || key === "autoUpdate") s[key] = raw === "true";
     else if (key === "mix" || key === "practiceAmount") s[key] = Number(raw);
     else s[key] = raw;
     TT.save();
+    if (key === "autoUpdate" && window.touchType) window.touchType.update.setAuto(s.autoUpdate);
     applySettings();
     renderSettings();
   }
@@ -662,6 +707,9 @@
       case "gtab": ui.gamesTab = x; renderGames(); break;
       case "game": ui.game = x; renderGames(); break;
       case "set": setSetting(x, y); break;
+      case "update":
+        if (window.touchType && ["check", "download", "install"].includes(x)) window.touchType.update[x]();
+        break;
       case "reset-data":
         if (confirm("Delete all saved results and stats? This can't be undone.")) {
           TT.resetData();
@@ -700,10 +748,11 @@
       }
       engine.handleKey(e);
     } else if (v === "results") {
-      if (e.key === "Tab") {
+      // Only deliberate keys start a new round; anything typed past the end of a test is ignored.
+      if (e.key === "Tab" || e.key === "Enter") {
         e.preventDefault();
         act("restart");
-      } else if (plainKey(e, "p")) {
+      } else if (plainKey(e, "p") && ui.lastTyping === "test") {
         act("practice");
       }
     } else if (v === "game") {
@@ -728,12 +777,17 @@
   // ---------- start ----------
 
   TT.ui = { statusRows, keyTiles };
-  // Only the desktop app provides this; in a plain browser the version shows as "Web version".
+  // Only the desktop app provides window.touchType; in a plain browser there are no updates.
   if (window.touchType) {
-    window.touchType.getVersion().then((v) => {
-      ui.version = v;
-      if (ui.view === "settings") renderSettings();
-    });
+    const refresh = () => {
+      if (ui.view === "settings" && ui.settingsTab === "updates") renderSettings();
+    };
+    ui.update = { status: "idle", supported: false };
+    window.touchType.getVersion().then((v) => { ui.version = v; refresh(); });
+    window.touchType.update.getState().then((st) => { ui.update = st; refresh(); });
+    window.touchType.update.onState((st) => { ui.update = st; refresh(); });
+    // Nothing goes online unless automatic updates are on.
+    window.touchType.update.setAuto(S().autoUpdate);
   }
   sanitizeSettings();
   applySettings();

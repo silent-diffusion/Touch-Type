@@ -17,6 +17,7 @@ window.TT = window.TT || {};
     size: "m",
     caret: "line",
     mix: 60,
+    autoUpdate: false, // desktop app only; off means the app never goes online by itself
   };
 
   function load() {

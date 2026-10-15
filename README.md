@@ -27,6 +27,7 @@ Your data stays on your computer.
 | Key | Action |
 |---|---|
 | Tab | Restart the test or game |
+| Tab / Enter | Start the next round from the results screen |
 | Esc | Open or close the menu |
 | P | Practice weak keys (on the results and stats screens) |
 | Enter | Play the selected game |

@@ -524,6 +524,7 @@ body:not(.typing) #caret.caret-block { animation-name: blink-block; }
   letter-spacing: 0.06em;
 }
 .opt.on, .opt.on:hover { background: var(--ink); color: var(--ground); }
+.opt.outline { border: var(--rule); }
 .opt.danger { border: 2px solid var(--accent); color: var(--accent); }
 .opt.danger:hover { background: var(--accent); color: var(--on-accent); }
 .swatches { display: flex; flex-wrap: wrap; gap: 14px; padding: 0 4px; }
