@@ -1,5 +1,5 @@
 // Desktop shell: one window showing the web app in ../src, plus automatic updates from GitHub Releases.
-const { app, BrowserWindow, Menu, dialog, screen, shell } = require("electron");
+const { app, BrowserWindow, Menu, dialog, ipcMain, screen, shell } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const path = require("path");
 
@@ -19,6 +19,7 @@ function createWindow() {
       contextIsolation: true,
       sandbox: true,
       nodeIntegration: false,
+      preload: path.join(__dirname, "preload.js"),
     },
   });
 
@@ -69,6 +70,7 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   Menu.setApplicationMenu(null);
+  ipcMain.handle("app-version", () => app.getVersion());
   app.whenReady().then(() => {
     createWindow();
     if (app.isPackaged) setUpUpdates();

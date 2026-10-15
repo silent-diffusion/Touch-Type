@@ -607,6 +607,7 @@
       const n = TT.store.history.length;
       return `<div class="cols">
         <section class="col-main"><div class="settings-rows">
+          ${srow("Version", `<strong style="padding: 0 4px; font-size: 18px">${ui.version ? `v${ui.version}` : "Web version"}</strong>`)}
           ${srow("Saved results", `<strong style="padding: 0 4px; font-size: 18px">${n} ${n === 1 ? "test" : "tests"}</strong>`)}
           ${srow("Reset", `<button class="opt danger" data-act="reset-data">DELETE ALL DATA</button><span class="hint-text">Settings are kept.</span>`)}
         </div>
@@ -727,6 +728,13 @@
   // ---------- start ----------
 
   TT.ui = { statusRows, keyTiles };
+  // Only the desktop app provides this; in a plain browser the version shows as "Web version".
+  if (window.touchType) {
+    window.touchType.getVersion().then((v) => {
+      ui.version = v;
+      if (ui.view === "settings") renderSettings();
+    });
+  }
   sanitizeSettings();
   applySettings();
   startTyping("test");
