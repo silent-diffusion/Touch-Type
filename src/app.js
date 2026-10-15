@@ -635,7 +635,7 @@
   });
 
   const DIFF_HINT = {
-    easy: "Two columns and short words, with a tile every few bars.",
+    easy: "Three columns and short words, with a tile every few bars, falling slowest.",
     medium: "Three columns, a tile every bar or two.",
     hard: "Four columns and longer words, a tile about every bar, falling faster.",
     expert: "Four columns, the longest words, tiles on most beats, falling fastest.",

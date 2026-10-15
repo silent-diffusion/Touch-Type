@@ -18,9 +18,9 @@
   // gap: seconds between tiles the chart aims for (it snaps to the song's beats)
   // min: the closest two tiles can ever be, in seconds
   // fall: milliseconds a tile takes to fall from the top to the line
-  // cols: how many columns (from rules v4); len: word lengths
+  // cols: how many columns (from rules v4, never fewer than three); len: word lengths
   const DIFFS = {
-    easy:   { name: "EASY",   gap: 4.0, min: 2.0,  fall: 4200, cols: 2, len: [3, 4], missHp: 8 },
+    easy:   { name: "EASY",   gap: 5.0, min: 2.5,  fall: 5000, cols: 3, len: [3, 4], missHp: 8 },
     medium: { name: "MEDIUM", gap: 2.4, min: 1.2,  fall: 3400, cols: 3, len: [3, 5], missHp: 10 },
     hard:   { name: "HARD",   gap: 1.4, min: 0.7,  fall: 2700, cols: 4, len: [4, 6], missHp: 12 },
     expert: { name: "EXPERT", gap: 0.9, min: 0.55, fall: 2100, cols: 4, len: [4, 7], missHp: 14 },
