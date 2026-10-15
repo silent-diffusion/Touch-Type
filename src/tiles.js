@@ -491,7 +491,8 @@
   // ---------- screen ----------
 
   const TILE_H = 52;     // tile height in px
-  const HIT_BOTTOM = 90; // the line's center, in px from the bottom of the field (the words sit under it)
+  const HIT_BOTTOM = 42; // the line's center, in px from the bottom of the field: the words sit on it
+  const PUSH_MS = 200;   // how long a word card takes to push up into a tile it hit and settle back
 
   const TEMPLATE = `
     <div class="tl">
@@ -507,12 +508,14 @@
           <div class="tl-progress"><i data-t="prog"></i></div>
         </div>
         <div class="tl-hw" data-t="hw">
-          <div data-t="divs"></div>
           <div class="tl-band" data-t="band"></div>
-          <div class="tl-flash" data-t="flash"></div>
-          <div class="tl-tiles" data-t="tiles"></div>
-          <div class="tl-judge" data-t="judge"></div>
           <div class="tl-words" data-t="words"></div>
+          <div class="tl-track" data-t="track">
+            <div data-t="divs"></div>
+            <div class="tl-flash" data-t="flash"></div>
+            <div class="tl-tiles" data-t="tiles"></div>
+          </div>
+          <div class="tl-judge" data-t="judge"></div>
         </div>
         <div class="tl-typed-row"><span class="word-box tl-typed" data-t="typed"></span></div>
       </div>
@@ -544,11 +547,13 @@
     let shakeT = -1000;
     const tileEls = new Map();
 
+    // The tiles fall down a track tilted back in 3D, like a Guitar Hero highway. It pivots on the
+    // line, so a tile at the line sits exactly on its word.
     const measure = () => {
-      H = el.hw.clientHeight;
+      H = el.track.clientHeight;
       render();
     };
-    new ResizeObserver(measure).observe(el.hw);
+    new ResizeObserver(measure).observe(el.track);
 
     const progress = () => {
       const d = (TT.store.games.tiles ||= { best: 0, plays: 0, history: [], bestBy: {} });
@@ -606,7 +611,7 @@
         let e = tileEls.get(t.i);
         if (!e) {
           e = document.createElement("div");
-          e.className = "tl-tile";
+          e.className = g.v >= 4 ? "tl-tile blank" : "tl-tile";
           e.style.left = colLeft(t.l);
           e.style.width = `calc(${100 / colCount()}% - 12px)`;
           e.sig = "";
@@ -661,8 +666,8 @@
       if (el.judge.textContent !== text) el.judge.textContent = text;
       el.judge.classList.toggle("miss", !!show && "MEX".includes(last.grade));
       // a flash in the lane of a hit
-      const flash = last && "PGO".includes(last.grade) && age >= 0 && age < 220;
-      el.flash.style.opacity = flash ? (1 - age / 220).toFixed(2) : "0";
+      const flash = last && "PGO".includes(last.grade) && age >= 0 && age < 320;
+      el.flash.style.opacity = flash ? (1 - age / 320).toFixed(2) : "0";
       if (flash) el.flash.style.left = colLeft(last.l);
       // the line pulses on each beat
       let beat = null;
@@ -679,6 +684,15 @@
       if (el.typed.innerHTML !== typed) el.typed.innerHTML = typed;
       el.typed.classList.toggle("empty", !g.buf);
       el.typed.classList.toggle("shake", viewT - shakeT < 250);
+      // v4: a word card pushes up into the tile it hit, then settles back
+      const cards = el.words.children;
+      const push = g.v >= 4 && last && "PGO".includes(last.grade) && age >= 0 && age < PUSH_MS ? last.l : -1;
+      for (let i = 0; i < cards.length; i++) {
+        const p = i === push ? Math.sin((Math.PI * age) / PUSH_MS) : 0;
+        const tf = p ? `translateY(${(-16 * p).toFixed(1)}px) scale(${(1 + 0.1 * p).toFixed(3)})` : "";
+        if (cards[i].style.transform !== tf) cards[i].style.transform = tf;
+        cards[i].classList.toggle("hit", !!p);
+      }
     }
 
     function renderHud() {

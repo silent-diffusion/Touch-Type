@@ -849,21 +849,33 @@ body:not(.typing) .caret.caret-block { animation-name: blink-block; }
   background: color-mix(in srgb, var(--ink) 5%, transparent);
 }
 .tl-div { position: absolute; top: 0; bottom: 0; border-left: 2px dashed color-mix(in srgb, var(--ink) 30%, transparent); }
-/* the line: its center is 90px from the bottom (HIT_BOTTOM in tiles.js); the words sit under it */
+/* the line: its center is 42px from the bottom (HIT_BOTTOM in tiles.js); the words sit on it */
 .tl-band {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 64px;
-  height: 52px;
+  bottom: 12px;
+  height: 60px;
   border-top: 4px solid var(--ink);
   border-bottom: 4px solid var(--ink);
   transition: background 0.08s;
 }
-.tl-band::after { content: ""; position: absolute; left: 0; right: 0; top: 50%; border-top: 2px dashed var(--accent); }
 .tl-band.beat { background: color-mix(in srgb, var(--ink) 10%, transparent); }
 .tl-band.beat.down { background: color-mix(in srgb, var(--accent) 22%, transparent); }
-.tl-flash { position: absolute; bottom: 64px; height: 52px; width: 25%; background: var(--accent); opacity: 0; pointer-events: none; }
+/* The highway: tilted back in 3D around the line, taller than the field so its far end fills the top. */
+.tl-hw { perspective: 900px; }
+.tl-track {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -45%;
+  bottom: 0;
+  transform-origin: 50% calc(100% - 42px);
+  transform: rotateX(32deg);
+  pointer-events: none;
+}
+/* a burst of light that rises up the column from a word that hit */
+.tl-flash { position: absolute; bottom: 42px; height: 260px; width: 25%; background: linear-gradient(to top, var(--accent), transparent); opacity: 0; pointer-events: none; }
 .tl-tiles { position: absolute; inset: 0; }
 .tl-tile {
   position: absolute;
@@ -882,12 +894,15 @@ body:not(.typing) .caret.caret-block { animation-name: blink-block; }
 }
 .tl-tile span { white-space: nowrap; }
 .tl-tile.on { background: var(--ink); color: var(--ground); }
+/* from rules v4, tiles are frames that line up around their column's word */
+.tl-tile.blank { background: color-mix(in srgb, var(--ink) 12%, transparent); border-width: 4px; }
+.tl-tile.blank.on { background: color-mix(in srgb, var(--accent) 16%, transparent); border-color: var(--accent); }
 .tl-tile b { font-weight: inherit; color: var(--accent); }
 .tl-judge {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 132px;
+  bottom: 96px;
   text-align: center;
   font-size: 24px;
   font-weight: 800;
@@ -897,10 +912,10 @@ body:not(.typing) .caret.caret-block { animation-name: blink-block; }
 }
 .tl-judge.miss { color: var(--accent); }
 
-/* the word under each column (rules v4) */
-.tl-words { position: absolute; left: 0; right: 0; bottom: 0; height: 64px; }
+/* the word in the line for each column (rules v4): a tile hits when it lines up with its word */
+.tl-words { position: absolute; left: 0; right: 0; bottom: 16px; height: 52px; }
 .tl-words[hidden] { display: none; }
-.tl-word { position: absolute; top: 8px; bottom: 8px; padding: 0 6px; }
+.tl-word { position: absolute; top: 0; bottom: 0; padding: 0 6px; }
 .tl-word span {
   display: flex;
   align-items: center;
@@ -918,9 +933,10 @@ body:not(.typing) .caret.caret-block { animation-name: blink-block; }
 .tl-word.ready span { background: var(--ink); color: var(--ground); }
 .tl-word.ready b { text-decoration: none; }
 .tl-word.dim { opacity: 0.45; }
+.tl-word.hit span { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
 
-.tl-typed-row { display: flex; justify-content: center; margin-top: 14px; min-height: 44px; }
-.tl-typed { min-width: 56px; justify-content: center; }
+.tl-typed-row { display: flex; justify-content: center; margin-top: 18px; min-height: 60px; }
+.tl-typed { min-width: 80px; justify-content: center; font-size: 34px; padding: 6px 20px; }
 
 .tl-meter { position: relative; height: 30px; border: var(--rule); margin-top: 8px; }
 .tl-meter::after { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; border-left: 2px dashed var(--accent); }
@@ -972,6 +988,7 @@ body:not(.typing) .caret.caret-block { animation-name: blink-block; }
 .rp-stage.rp-tiles { height: 520px; display: flex; flex-direction: column; padding: 16px 0 8px; }
 .rp-tiles .tl { min-height: 0; grid-template-columns: 150px minmax(0, 1fr) 150px; gap: 16px; }
 .rp-tiles .tl-big { font-size: 28px; }
+.rp-tiles .tl-word span { font-size: 15px; }
 
 /* narrow windows: the side panels move above and below the lanes */
 @media (max-width: 1000px) {
@@ -979,6 +996,7 @@ body:not(.typing) .caret.caret-block { animation-name: blink-block; }
   .tl-side { flex-direction: row; flex-wrap: wrap; }
   .tl-side .tl-box { flex: 1 1 120px; padding: 6px 10px 8px; }
   .tl-big { font-size: 26px; }
+  .tl-word span { font-size: 16px; }
   .tl-right { order: 3; }
   .rp-tiles .tl { grid-template-columns: minmax(0, 1fr); }
 }
