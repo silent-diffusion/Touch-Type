@@ -8,7 +8,9 @@
   const A = TT.analysis;
   const W = TT.wordInput;
   const BACK = "<", BACK_WORD = "{";
-  const RULES = 2; // v2: wrong letters are typed and must be backspaced
+  // v2: wrong letters are typed and must be backspaced. v3: a missed tile clears the typing unless
+  // it's a correct start on another tile.
+  const RULES = 3;
   const LANES = 4;
 
   // gap: seconds between words the chart aims for (it snaps to the song's beats)
@@ -150,10 +152,18 @@
 
   function miss(g, tile, t) {
     g.tiles = g.tiles.filter((x) => x !== tile);
-    // What was typed of a missed word still counts toward key stats.
+    // The typing starts fresh for the next word, unless it's a correct start on another tile.
+    // What was typed for the missed word (wrong keys too) still counts toward key stats.
     const typed = W.good(g);
-    if (typed && tile.w.startsWith(typed) && !g.tiles.some((x) => x.w.startsWith(typed))) {
+    const forThis = !!typed && tile.w.startsWith(typed);
+    const forOther = !!typed && g.tiles.some((x) => x.w.startsWith(typed));
+    if (forOther) {
+      // keep typing toward the other tile
+    } else if (forThis) {
       attribute(g, typed, tile.w);
+      W.reset(g);
+    } else if (g.v >= 3 && g.buf) {
+      attribute(g, "", tile.w); // nothing fitted a word, so the wrong keys were for the missed one
       W.reset(g);
     }
     g.res[tile.i] = { grade: "M", t };
