@@ -190,10 +190,20 @@
     }
 
     function backspace(wholeWord) {
-      const i = s.index;
-      const t = s.typed[i];
-      if (!t) return;
-      s.typed[i] = wholeWord ? "" : t.slice(0, -1);
+      let i = s.index;
+      if (!s.typed[i]) {
+        // At the start of a word, step back into the previous one, but only if it has a mistake.
+        // Correctly typed words stay locked.
+        if (i === 0 || s.typed[i - 1] === s.words[i - 1]) return;
+        s.index = --i;
+        tick();
+        if (!wholeWord) {
+          renderWord(i);
+          updateCaret();
+          return;
+        }
+      }
+      s.typed[i] = wholeWord ? "" : s.typed[i].slice(0, -1);
       renderWord(i);
       updateCaret();
     }
