@@ -946,6 +946,14 @@ body:not(.typing) .caret.caret-block { animation-name: blink-block; }
 .tl-diffs button { min-width: 96px; }
 .tl-play { margin-top: 28px; }
 .tl-toggles { display: flex; gap: 8px; padding: 14px 0 20px; flex-wrap: wrap; }
+.tl-songs .tl-group { padding: 18px 0 6px; border-top: var(--rule); margin-top: 10px; }
+.tl-add { justify-content: center !important; border: 2px dashed var(--ink) !important; font-weight: 700; letter-spacing: 0.1em; }
+.tl-add:disabled { opacity: 0.5; cursor: progress; }
+.tl-msg { margin: 16px 0 0; padding: 10px 14px; border-left: 4px solid var(--accent); background: color-mix(in srgb, var(--ink) 6%, transparent); font-size: 16px; }
+.tl-own { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; align-items: center; }
+.tl-own .fh-play { margin: 0; }
+.tl-tapcount { display: flex; align-items: baseline; gap: 14px; margin-top: 24px; }
+.tl-tapcount span:first-child { font-size: 96px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
 
 /* replays */
 .rp-stage.rp-tiles { height: 520px; display: flex; flex-direction: column; padding: 16px 0 8px; }

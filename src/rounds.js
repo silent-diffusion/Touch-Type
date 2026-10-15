@@ -10,13 +10,15 @@
   const STORE = "rounds";
   let dbPromise = null;
 
+  // Version 2 added the "music" store for songs added to Tiles (see music.js).
   function open() {
     if (!dbPromise) {
       dbPromise = new Promise((resolve, reject) => {
-        const req = indexedDB.open(DB_NAME, 1);
+        const req = indexedDB.open(DB_NAME, 2);
         req.onupgradeneeded = () => {
-          const store = req.result.createObjectStore(STORE, { keyPath: "id" });
-          store.createIndex("date", "date");
+          const db = req.result;
+          if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE, { keyPath: "id" }).createIndex("date", "date");
+          if (!db.objectStoreNames.contains("music")) db.createObjectStore("music", { keyPath: "id" });
         };
         req.onsuccess = () => resolve(req.result);
         req.onerror = () => reject(req.error);
@@ -35,6 +37,7 @@
     });
   }
 
+  TT.openDB = open;
   TT.newRoundId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 
   // Each recording belongs to a profile. Ones saved before profiles existed belong to the first one.

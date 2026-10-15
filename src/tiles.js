@@ -49,7 +49,8 @@
   // difficulty's target, and sparser than the next harder difficulty whenever the song allows it.
   const levelCache = new Map();
   function levels(song) {
-    if (levelCache.has(song.id)) return levelCache.get(song.id);
+    const cacheKey = song.key || song.id; // an added song's key changes when its beat is redone
+    if (levelCache.has(cacheKey)) return levelCache.get(cacheKey);
     const beatLen = song.beats.length ? song.beats[0].len : 0.5;
     const cands = patterns(song.bar).sort((a, b) => b.beats - a.beats);
     const out = {};
@@ -66,7 +67,7 @@
       out[id] = pick;
       prev = pick;
     }
-    levelCache.set(song.id, out);
+    levelCache.set(cacheKey, out);
     return out;
   }
 
@@ -83,6 +84,7 @@
     let last = -Infinity;
     for (let j = Math.max(0, first); first >= 0 && j < beats.length && beats[j].t <= end; j++) {
       if (!p.pos.includes((j - first) % p.cycle)) continue;
+      if (song.user && !beats[j].any) continue; // no words while an added song is silent
       if (beats[j].t - last < D.min * 0.9) continue;
       last = beats[j].t;
       out.push(Math.round(last * 1000));
@@ -249,6 +251,8 @@
   // A provider that hands out the words and lanes saved in a recording.
   const recordedTiles = (rec) => (g, i) => rec.tiles[i] || { w: "word", l: i % LANES };
 
+  TT.tilesAudio = { get: () => getAudio() };
+
   TT.tilesCore = {
     DIFFS, DIFF_IDS, WIN, RULES, GRADE_NAMES,
     chart, newCore, applyKey, advance, gameStats, target, attribute, recordedTiles, multiplier, letterGrade,
@@ -326,6 +330,7 @@
     let ci = 0;
     let sync = null;
     let stopped = false;
+    let source = null;
     return {
       pump() {
         if (stopped) return;
@@ -335,6 +340,16 @@
         const lat = ctx.outputLatency || ctx.baseLatency || 0;
         const zero = startPerf / 1000 + sync - lat; // song time 0 on the audio clock
         const horizon = ctx.currentTime + 0.3;
+        if (music && song.buffer && !source && zero < horizon) {
+          // an added song: the whole file, started so its time 0 lines up with the game
+          source = ctx.createBufferSource();
+          source.buffer = song.buffer;
+          const gain = ctx.createGain();
+          gain.gain.value = 0.85;
+          source.connect(gain).connect(bus);
+          const late = Math.max(0, ctx.currentTime - zero);
+          source.start(Math.max(zero, ctx.currentTime), late);
+        }
         if (music) {
           for (; ni < song.notes.length && zero + song.notes[ni].t < horizon; ni++) {
             const at = zero + song.notes[ni].t;
@@ -351,7 +366,10 @@
         stopped = true;
         try {
           bus.gain.setTargetAtTime(0, ctx.currentTime, 0.03);
-          setTimeout(() => bus.disconnect(), 300);
+          setTimeout(() => {
+            bus.disconnect();
+            if (source) source.stop();
+          }, 300);
         } catch {}
       },
     };
@@ -681,7 +699,7 @@
       TT.save();
       TT.rounds.save({
         id, date, kind: "game", game: "tiles", mode: live.diff, amount: g.score, song: live.song, title: song.title,
-        v: RULES, diff: live.diff, fall: g.fall, hits: g.hits, endT: g.endT, tiles: live.tiles,
+        songKey: song.key, v: RULES, diff: live.diff, fall: g.fall, hits: g.hits, endT: g.endT, tiles: live.tiles,
         keys: live.keys, times: live.times, duration: g.endAt,
       });
 
@@ -732,7 +750,9 @@
       replay = { rec, pos: 0, lastT: 0, provider: recordedTiles(rec) };
       resetReplayCore(rec);
       song = TT.songs.get(rec.song);
-      const offset = rec.hits.length && song ? rec.hits[0] - chart(song, rec.diff)[0] : null;
+      // The beat pulse needs the song as it was played; an added song's beat may have been redone.
+      const same = song && (!song.user || song.key === rec.songKey);
+      const offset = rec.hits.length && same ? rec.hits[0] - chart(song, rec.diff)[0] : null;
       beatTimes = song && offset != null ? song.beats.map((b) => ({ t: offset + b.t * 1000, down: b.down })) : [];
       viewT = 0;
       hudSig = "";

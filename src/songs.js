@@ -155,9 +155,11 @@
   }
 
   const cache = new Map();
+  const added = new Map(); // songs added from files (music.js), already in built form
   TT.songs = {
     list: SONGS,
     get(id) {
+      if (added.has(id)) return added.get(id);
       const song = SONGS.find((s) => s.id === id);
       if (!song) return null;
       if (!cache.has(id)) cache.set(id, build(song));
@@ -165,5 +167,7 @@
     },
     build,
     parse,
+    register: (song) => added.set(song.id, song),
+    unregister: (id) => added.delete(id),
   };
 })();

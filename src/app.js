@@ -35,7 +35,7 @@
     { id: "forest", name: "Forest Hop", cat: "arcade", kind: "ARCADE GAME", playable: true,
       desc: "Pick an animal and get as far through the forest as you can. Type a direction's word, then press Space or Enter to hop. Dodge deer, ride logs, collect treats, and keep moving before your predator catches up." },
     { id: "tiles", name: "Tiles", cat: "rhythm", kind: "RHYTHM GAME", playable: true,
-      desc: "Words fall down four lanes in time with the music. Type a word, then press Enter or Space as its tile crosses the line. Pick a song and a difficulty from easy to expert." },
+      desc: "Words fall down four lanes in time with the music. Type a word, then press Enter or Space as its tile crosses the line. Pick a song, or add your own music, and a difficulty from easy to expert." },
     { id: "path", name: "Path Runner", cat: "arcade", kind: "ARCADE GAME", playable: true,
       desc: "Type a path's word to step onto it. The words come from your weak keys. The clock keeps draining, so keep moving." },
     { id: "falling", name: "Falling Words", cat: "arcade", kind: "ARCADE GAME",
@@ -116,7 +116,8 @@
     if (!CARETS[s.caret]) s.caret = "line";
     s.second = !!s.second;
     s.autoUpdate = !!s.autoUpdate;
-    if (!TT.songs.get(s.tilesSong)) s.tilesSong = TT.songs.list[0].id;
+    // Added songs load a moment after start-up, so their ids are kept here.
+    if (!TT.songs.get(s.tilesSong) && !TT.music.isUser(s.tilesSong)) s.tilesSong = TT.songs.list[0].id;
     if (!TT.tilesCore.DIFFS[s.tilesDiff]) s.tilesDiff = "medium";
     s.tilesMusic = s.tilesMusic !== false;
     s.tilesMetronome = !!s.tilesMetronome;
@@ -312,7 +313,7 @@
     "forest-select": [["← →", "CHOOSE", "fh:next"], ["ENTER", "PLAY", "fh:play"], ["H", "HOW TO PLAY", "fh:guide"], ["ESC", "MENU", "menu"]],
     "forest-guide": [["ENTER", "PLAY", "fh:play"], ["ESC", "BACK", "fh:select"]],
     tiles: [["ENTER / SPACE", "HIT", "noop"], ["TAB", "RESTART", "tl:play"], ["ESC", "SONGS", "tl:select"]],
-    "tiles-select": [["↑ ↓", "SONG", "tl:next"], ["← →", "DIFFICULTY", "tl:harder"], ["ENTER", "PLAY", "tl:play"], ["M", "MUSIC", "tl:music"], ["T", "METRONOME", "tl:metronome"], ["ESC", "MENU", "menu"]],
+    "tiles-select": [["↑ ↓", "SONG", "tl:next"], ["← →", "DIFFICULTY", "tl:harder"], ["ENTER", "PLAY", "tl:play"], ["A", "ADD A SONG", "tl:import"], ["M", "MUSIC", "tl:music"], ["T", "METRONOME", "tl:metronome"], ["ESC", "MENU", "menu"]],
     replay: [["SPACE", "PLAY / PAUSE", "rp:toggle"], ["← →", "SKIP 2S", "rp:skip:2000"], ["ESC", "BACK", "rp:back"]],
     stats: [["P", "PRACTICE WEAK KEYS", "practice"], ["ESC", "CLOSE MENU", "close"]],
     settings: [["ESC", "CLOSE MENU", "close"]],
@@ -357,6 +358,7 @@
     if (view !== "forest" && forest) forest.stop();
     for (const v of TILES_VIEWS) $(`view-${v}`).hidden = v !== view;
     if (view !== "tiles" && tiles) tiles.stop();
+    if (view !== "tiles-select" && ui.tap) stopTap();
     $("view-replay").hidden = view !== "replay";
     if (view !== "replay") pauseReplay();
     for (const v of MENU_VIEWS) $(`view-${v}`).hidden = v !== view;
@@ -660,13 +662,18 @@
     const s = S();
     const C = TT.tilesCore;
     const d = tilesData();
-    const song = TT.songs.get(s.tilesSong);
+    const song = TT.songs.get(s.tilesSong) || TT.songs.get(TT.songs.list[0].id);
     const best = (id, diff) => d.bestBy[`${id}:${diff}`];
-    const songs = TT.songs.list.map((x) => {
+    const item = (x) => {
       const b = best(x.id, s.tilesDiff);
       const on = x.id === song.id;
-      return `<li><button class="${on ? "on" : ""}" aria-pressed="${on}" data-act="tl:song:${x.id}">${esc(x.title)}<span class="tag">${b ? b.grade : x.tempo}</span></button></li>`;
-    }).join("");
+      const tag = b ? b.grade : x.user ? `${Math.round(x.bpm)} BPM` : x.tempo;
+      return `<li><button class="${on ? "on" : ""}" aria-pressed="${on}" data-act="tl:song:${x.id}">${esc(x.title)}<span class="tag">${tag}</span></button></li>`;
+    };
+    const mine = TT.music.list();
+    const songs = TT.songs.list.map(item).join("") +
+      `<li class="tl-group caps-label">YOUR MUSIC</li>` + mine.map(item).join("") +
+      `<li><button class="tl-add" data-act="tl:import" ${ui.tlBusy ? "disabled" : ""}>+ ADD A SONG</button></li>`;
     const words = C.chart(song, s.tilesDiff).length;
     const rows = C.DIFF_IDS.map((id) => {
       const b = best(song.id, id);
@@ -675,19 +682,35 @@
     rows[rows.length - 1][2] = true;
     const toggle = (label, on, act) => `<button class="opt ${on ? "on" : ""}" aria-pressed="${on}" data-act="${act}">${label} ${on ? "ON" : "OFF"}</button>`;
 
+    const tapPanel = ui.tap && `
+        <section class="col-main">
+          <div class="title-row"><h1>TAP THE BEAT</h1><span class="title-meta">${esc(song.title.toUpperCase())}</span></div>
+          <p class="tl-blurb">Tap <strong>Space</strong> or <strong>T</strong> on every beat while the song plays. Start on a strong beat, the "one" of a bar, and keep going for at least 8 taps. More taps make it more exact.</p>
+          <div class="tl-tapcount"><span>${ui.tap.taps.length}</span><span class="caps-label">TAPS${ui.tap.bpm ? ` · ABOUT ${ui.tap.bpm} BPM` : ""}</span></div>
+          ${ui.tlNote ? `<p class="tl-msg" role="status">${esc(ui.tlNote)}</p>` : ""}
+          <div class="tl-own">
+            <button class="fh-play" data-act="tl:tapsave">SAVE <kbd>ENTER</kbd></button>
+            <button class="outline-btn" data-act="tl:tapcancel">CANCEL <kbd>ESC</kbd></button>
+          </div>
+        </section>`;
     $("view-tiles-select").innerHTML = `
       <div class="cols">
         <ul class="list col-list tl-songs">${songs}</ul>
-        <section class="col-main">
-          <div class="title-row"><h1>${esc(song.title.toUpperCase())}</h1><span class="title-meta">${esc(song.composer.toUpperCase())} · ${song.year}</span></div>
-          <div class="kind-line">${song.tempo} · ${fmtLength(song.duration)} · ${words} WORDS</div>
+        ${tapPanel || `<section class="col-main">
+          <div class="title-row"><h1>${esc(song.title.toUpperCase())}</h1><span class="title-meta">${esc(song.composer.toUpperCase())}${song.year ? ` · ${song.year}` : ""}</span></div>
+          <div class="kind-line">${song.tempo} · ${fmtLength(song.duration)}${song.user ? ` · ${Math.round(song.bpm)} BPM` : ""} · ${words} WORDS</div>
+          ${ui.tlNote ? `<p class="tl-msg" role="status">${esc(ui.tlNote)}</p>` : ""}
           <p class="tl-blurb">${esc(song.blurb)}</p>
+          ${song.user ? `<div class="tl-own">
+            <button class="outline-btn" data-act="tl:tap">TAP THE BEAT</button>
+            <button class="outline-btn" data-act="tl:delete">DELETE</button>
+          </div>` : ""}
           <div class="side-label">Difficulty:</div>
           <div class="seg tl-diffs" aria-label="Difficulty">${C.DIFF_IDS.map((id) =>
             `<button class="${id === s.tilesDiff ? "on" : ""}" aria-pressed="${id === s.tilesDiff}" data-act="tl:diff:${id}">${C.DIFFS[id].name}</button>`).join("")}</div>
           <p class="note">${DIFF_HINT[s.tilesDiff]} The music plays at the same speed on every difficulty.</p>
           <button class="fh-play tl-play" data-act="tl:play">PLAY <kbd>ENTER</kbd></button>
-        </section>
+        </section>`}
         <aside class="col-side">
           <div class="rule-head">SOUND</div>
           <div class="tl-toggles">${toggle("MUSIC", s.tilesMusic, "tl:music")}${toggle("METRONOME", s.tilesMetronome, "tl:metronome")}</div>
@@ -703,8 +726,21 @@
       </div>`;
   }
 
-  function startTiles() {
+  async function startTiles() {
     const s = S();
+    const song = TT.songs.get(s.tilesSong);
+    if (!song) return;
+    // An added song's audio is loaded from disk the first time it's played.
+    if (song.user && s.tilesMusic && !song.buffer) {
+      els.statusLine.textContent = "Loading the song…";
+      try {
+        await TT.music.buffer(song.id);
+      } catch (err) {
+        ui.tlNote = err.message;
+        openTilesSelect();
+        return;
+      }
+    }
     engine.stop();
     runner.stop();
     forest.stop();
@@ -714,12 +750,118 @@
     tiles.newGame(s.tilesSong, s.tilesDiff, { music: s.tilesMusic, metronome: s.tilesMetronome });
   }
 
+  // ---- your own music ----
+
+  const fileInput = document.createElement("input");
+  fileInput.type = "file";
+  fileInput.accept = "audio/*,.mp3,.m4a,.aac,.wav,.ogg,.flac";
+  fileInput.hidden = true;
+  document.body.appendChild(fileInput);
+  fileInput.addEventListener("change", async () => {
+    const file = fileInput.files[0];
+    fileInput.value = "";
+    if (!file) return;
+    const refresh = () => { if (ui.view === "tiles-select") renderTilesSelect(); };
+    ui.tlBusy = true;
+    try {
+      const id = await TT.music.importFile(file, (text) => { ui.tlNote = text; refresh(); });
+      S().tilesSong = id;
+      TT.save();
+      const song = TT.songs.get(id);
+      ui.tlNote = `Added "${song.title}". Its beat is about ${Math.round(song.bpm)} BPM.`;
+    } catch (err) {
+      ui.tlNote = err.message;
+    }
+    ui.tlBusy = false;
+    refresh();
+  });
+
+  async function startTap() {
+    const song = TT.songs.get(S().tilesSong);
+    if (!song || !song.user) return;
+    ui.tlNote = "Loading the song…";
+    ui.tap = { id: song.id, taps: [], bpm: 0, src: null, zeroPerf: 0 };
+    renderTilesSelect();
+    let buffer;
+    try {
+      buffer = await TT.music.buffer(song.id);
+    } catch (err) {
+      ui.tap = null;
+      ui.tlNote = err.message;
+      renderTilesSelect();
+      return;
+    }
+    if (!ui.tap) return; // cancelled while loading
+    const ctx = TT.tilesAudio.get();
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    src.connect(ctx.destination);
+    const lead = 0.25;
+    const lat = ctx.outputLatency || ctx.baseLatency || 0;
+    src.start(ctx.currentTime + lead);
+    // when the start of the song is heard, on the performance.now() clock (taps use the same clock)
+    ui.tap.zeroPerf = performance.now() + (lead + lat) * 1000;
+    ui.tap.src = src;
+    ui.tlNote = "";
+    renderTilesSelect();
+  }
+
+  function stopTap() {
+    if (!ui.tap) return;
+    try { if (ui.tap.src) ui.tap.src.stop(); } catch {}
+    ui.tap = null;
+  }
+
+  function tapBeat(stamp) {
+    const tap = ui.tap;
+    if (!tap || !tap.src) return;
+    const t = (stamp - tap.zeroPerf) / 1000;
+    if (t < 0) return;
+    tap.taps.push(t);
+    const gaps = tap.taps.slice(1).map((v, i) => v - tap.taps[i]).filter((g) => g > 0.2 && g < 2).sort((a, b) => a - b);
+    tap.bpm = gaps.length >= 3 ? Math.round(60 / gaps[Math.floor(gaps.length / 2)]) : 0;
+    renderTilesSelect();
+  }
+
+  async function saveTap() {
+    const tap = ui.tap;
+    if (!tap) return;
+    if (tap.taps.length < 8) {
+      ui.tlNote = `Tap at least 8 beats first (${tap.taps.length} so far).`;
+      renderTilesSelect();
+      return;
+    }
+    const ok = await TT.music.setTaps(tap.id, tap.taps);
+    stopTap();
+    const song = TT.songs.get(tap.id);
+    ui.tlNote = ok ? `Beat saved: about ${Math.round(song.bpm)} BPM.` : "Those taps were too uneven to use. Try again, tapping on every beat.";
+    renderTilesSelect();
+  }
+
+  async function deleteSong() {
+    const song = TT.songs.get(S().tilesSong);
+    if (!song || !song.user) return;
+    if (!confirm(`Remove "${song.title}" from Tiles? Its scores stay in your history.`)) return;
+    await TT.music.remove(song.id);
+    S().tilesSong = TT.songs.list[0].id;
+    TT.save();
+    ui.tlNote = `Removed "${song.title}".`;
+    renderTilesSelect();
+  }
+
   function tilesAct(x, y) {
     const s = S();
-    const ids = TT.songs.list.map((z) => z.id);
+    const ids = [...TT.songs.list, ...TT.music.list()].map((z) => z.id);
     const diffs = TT.tilesCore.DIFF_IDS;
     if (x === "select") { tiles.stop(); openTilesSelect(); return; }
-    if (x === "play") { startTiles(); return; }
+    if (x === "play") { if (!ui.tap) startTiles(); return; }
+    if (x === "import") { if (!ui.tlBusy) fileInput.click(); return; }
+    if (x === "tap") { startTap(); return; }
+    if (x === "tapsave") { saveTap(); return; }
+    if (x === "tapcancel") { stopTap(); ui.tlNote = ""; renderTilesSelect(); return; }
+    if (x === "delete") { deleteSong(); return; }
+    if (ui.tap) return; // the rest waits until tapping is done
+    ui.tlNote = "";
     if (x === "song") s.tilesSong = y;
     else if (x === "next" || x === "prev") s.tilesSong = ids[(ids.indexOf(s.tilesSong) + (x === "next" ? 1 : -1) + ids.length) % ids.length];
     else if (x === "diff") s.tilesDiff = y;
@@ -1329,7 +1471,8 @@
   // ---------- actions ----------
 
   function act(action) {
-    const [type, x, y] = action.split(":");
+    const [type, x, ...rest] = action.split(":");
+    const y = rest.join(":"); // song ids like "u:abc" have a colon of their own
     const s = S();
     switch (type) {
       case "mode":
@@ -1435,8 +1578,13 @@
         else if (e.key === "Escape") { e.preventDefault(); act("tl:select"); }
         else if (tiles.isOver()) { if (plainKey(e, "r")) act("replay:last"); }
         else tiles.handleKey(e);
+      } else if (ui.tap) {
+        // tapping along: Space or T taps, Enter saves, Esc cancels
+        if (e.key === " " || plainKey(e, "t")) { e.preventDefault(); if (!e.repeat) tapBeat(e.timeStamp || performance.now()); }
+        else if (e.key === "Enter") { e.preventDefault(); act("tl:tapsave"); }
+        else if (e.key === "Escape") { e.preventDefault(); act("tl:tapcancel"); }
       } else {
-        const keys = { ArrowDown: "tl:next", ArrowUp: "tl:prev", ArrowRight: "tl:harder", ArrowLeft: "tl:easier", Enter: "tl:play", m: "tl:music", t: "tl:metronome", Escape: "menu" };
+        const keys = { ArrowDown: "tl:next", ArrowUp: "tl:prev", ArrowRight: "tl:harder", ArrowLeft: "tl:easier", Enter: "tl:play", a: "tl:import", m: "tl:music", t: "tl:metronome", Escape: "menu" };
         if (keys[e.key] && !e.ctrlKey && !e.altKey && !e.metaKey) { e.preventDefault(); act(keys[e.key]); }
       }
       return;
@@ -1505,6 +1653,9 @@
   sanitizeSettings();
   applySettings();
   startTyping("test");
+  TT.music.load().then(() => {
+    if (ui.view === "tiles-select") renderTilesSelect();
+  });
   document.fonts.ready.then(() => {
     if (ui.view === "test" || ui.view === "practice") engine.relayout();
   });
