@@ -13,9 +13,12 @@
   const STEP = 20;          // simulation step, ms
   const START_LANE = 2;
   const START_COL = 6;
-  const RULES = 2;          // current rules version
+  const RULES = 3;          // current rules version
   const WARN_MS = 20000;    // v2: this long without reaching a new row brings the predator
   const GRACE_MS = 10000;   // v2: then this long to reach a new row before it strikes
+  // v3: the predator is patient early on and gets quicker as your score grows
+  const warnMs = (g) => (g.v >= 3 ? Math.max(10000, 24000 - score(g) * 100) : WARN_MS);
+  const graceMs = (g) => (g.v >= 3 ? Math.max(5000, 12000 - score(g) * 50) : GRACE_MS);
   const V1_IDLE_MS = 9000;  // v1: the hawk struck after 9 s without progress
   const HAWK_BACK = 3;      // this many rows back from your best brings the predator
   const SPAN = COLS + 6;    // moving things loop over this many tiles (3 off each side)
@@ -69,8 +72,8 @@
   const mod = (a, n) => ((a % n) + n) % n;
   const pick = (r, list) => list[Math.floor(r() * list.length)];
 
-  function newWorld(seed) {
-    return { rng: rngFrom(seed), lanes: [], queue: [] };
+  function newWorld(seed, v) {
+    return { rng: rngFrom(seed), lanes: [], queue: [], v };
   }
 
   function laneAt(w, k) {
@@ -119,7 +122,11 @@
       }
     } else if (type === "trail") {
       lane.dir = r() < 0.5 ? 1 : -1;
-      lane.speed = 1.6 + r() * (1.4 + d * 2.4); // tiles per second
+      // tiles per second. v3: deer start slow (a quarter to a third of before) and speed up
+      // over the first 150 lanes, ending a little faster than v1/v2 at their fastest
+      lane.speed = w.v >= 3
+        ? 0.4 + r() * 0.4 + Math.min(1, k / 150) * (1.4 + r() * 2)
+        : 1.6 + r() * (1.4 + d * 2.4);
       lane.things = [];
       let x = r() * 4;
       const herds = 2 + (r() < 0.35 + d * 0.4 ? 1 : 0);
@@ -180,10 +187,10 @@
   function newCore(seed, animal, v = RULES) {
     return {
       v, seed, animal,
-      world: newWorld(seed),
+      world: newWorld(seed, v),
       lane: START_LANE, x: START_COL,
       from: { lane: START_LANE, x: START_COL }, hopT: -1000,
-      maxLane: START_LANE, lastProgressT: 0, threatStart: null,
+      maxLane: START_LANE, lastProgressT: 0, threatStart: null, threatGrace: GRACE_MS,
       simT: 0, over: false, endT: null, cause: null,
       words: null, wordSets: 0, buf: "",
       keys: 0, correct: 0, mistakes: 0, spaceErrors: 0, chars: 0, treats: 0,
@@ -245,13 +252,16 @@
       return;
     }
     const behind = g.maxLane - g.lane >= HAWK_BACK;
-    const idle = t - g.lastProgressT >= WARN_MS;
+    const idle = t - g.lastProgressT >= warnMs(g);
     if (g.threatStart == null) {
-      if (idle || behind) g.threatStart = t;
+      if (idle || behind) {
+        g.threatStart = t;
+        g.threatGrace = graceMs(g);
+      }
     } else if (!idle && !behind) {
       g.threatStart = null; // reached a new row: the predator gives up for now
     }
-    if (g.threatStart != null && t - g.threatStart >= GRACE_MS) die(g, t, "predator");
+    if (g.threatStart != null && t - g.threatStart >= g.threatGrace) die(g, t, "predator");
   }
 
   function tick(g, t) {
@@ -381,7 +391,7 @@
 
   TT.forestCore = {
     newCore, applyKey, advance, assignWords, recordedWords, gameStats, attribute, score, probe, target, laneAt,
-    CAUSES, THEMES, theme, causeText, START_LANE, RULES, WARN_MS, GRACE_MS,
+    CAUSES, THEMES, theme, causeText, START_LANE, RULES, WARN_MS, GRACE_MS, warnMs, graceMs,
   };
 
   // ---------- drawing ----------
@@ -681,7 +691,7 @@
     if (g.threatStart == null && !caught) return;
     const { viewT, w, h, cam, colors } = view;
     const since = viewT - g.threatStart;
-    const p = Math.min(1, since / GRACE_MS);
+    const p = Math.min(1, since / g.threatGrace);
     const cx = X(px) + T / 2, cy = laneY(pl) + T / 2;
     const size = T * 1.15;
 
@@ -850,7 +860,7 @@
       const th = theme(g.animal);
       const best = Math.max(record().best, score(g));
       const treats = replay ? g.treats : record().treats + g.treats;
-      const left = g.v >= 2 && g.threatStart != null && !g.over ? Math.max(0, Math.ceil((GRACE_MS - (viewT - g.threatStart)) / 1000)) : null;
+      const left = g.v >= 2 && g.threatStart != null && !g.over ? Math.max(0, Math.ceil((g.threatGrace - (viewT - g.threatStart)) / 1000)) : null;
       const sig = [score(g), best, treats, g.animal, left, g.buf].join("|");
       if (sig === hudSig) return;
       hudSig = sig;
@@ -921,7 +931,7 @@
       let k;
       if (e.key === "Backspace") k = e.ctrlKey || e.altKey ? BACK_WORD : BACK;
       else if (e.ctrlKey || e.altKey || e.metaKey) return;
-      else if (e.key === " ") k = " ";
+      else if (e.key === " " || e.key === "Enter") k = " "; // either one jumps (recorded as a space)
       else if (/^[a-zA-Z]$/.test(e.key)) k = e.key;
       else return;
       e.preventDefault();

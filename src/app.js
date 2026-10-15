@@ -33,7 +33,7 @@
 
   const GAMES = [
     { id: "forest", name: "Forest Hop", cat: "arcade", kind: "ARCADE GAME", playable: true,
-      desc: "Pick an animal and get as far through the forest as you can. Type a direction's word, then press Space to hop. Dodge deer, ride logs, collect treats, and keep moving before your predator catches up." },
+      desc: "Pick an animal and get as far through the forest as you can. Type a direction's word, then press Space or Enter to hop. Dodge deer, ride logs, collect treats, and keep moving before your predator catches up." },
     { id: "path", name: "Path Runner", cat: "arcade", kind: "ARCADE GAME", playable: true,
       desc: "Type a path's word to step onto it. The words come from your weak keys. The clock keeps draining, so keep moving." },
     { id: "falling", name: "Falling Words", cat: "arcade", kind: "ARCADE GAME",
@@ -290,7 +290,7 @@
     results: [["TAB / ENTER", "NEXT TEST", "restart"], ["R", "REPLAY", "replay:last"], ["P", "PRACTICE WEAK KEYS", "practice"], ["ESC", "MENU", "menu"]],
     games: [["ESC", "CLOSE MENU", "close"]],
     game: [["TAB", "RESTART", "play"], ["ESC", "MENU", "menu"]],
-    forest: [["SPACE", "JUMP", "noop"], ["TAB", "RESTART", "fh:play"], ["ESC", "ANIMALS", "fh:select"]],
+    forest: [["SPACE / ENTER", "JUMP", "noop"], ["TAB", "RESTART", "fh:play"], ["ESC", "ANIMALS", "fh:select"]],
     "forest-select": [["← →", "CHOOSE", "fh:next"], ["ENTER", "PLAY", "fh:play"], ["H", "HOW TO PLAY", "fh:guide"], ["ESC", "MENU", "menu"]],
     "forest-guide": [["ENTER", "PLAY", "fh:play"], ["ESC", "BACK", "fh:select"]],
     replay: [["SPACE", "PLAY / PAUSE", "rp:toggle"], ["← →", "SKIP 2S", "rp:skip:2000"], ["ESC", "BACK", "rp:back"]],
@@ -303,7 +303,7 @@
     results: "Result saved.",
     games: "Select a game.",
     game: "Type a word to move.",
-    forest: "Type a word, then press Space to hop.",
+    forest: "Type a word, then press Space or Enter to hop.",
     "forest-select": "Collect treats on your runs to unlock more animals.",
     "forest-guide": "Lanes get more dangerous the further you go.",
     replay: "Click a moment to jump to it.",
@@ -521,7 +521,7 @@
       ["MEADOW", "SAFE", lane("#B7BC95", sp("pine", 0) + sp("rock", 2) + sp("stump", 3) + sp(TT.forestCore.theme(fhData().animal).treat, 5)),
         "Safe ground. Trees, rocks and stumps block your way, so that direction shows BLOCKED."],
       ["GAME TRAIL", "DANGER", lane("#C4AF88", sp("deer", 1) + sp("deer", 2)),
-        "Deer herds run across the trail. Wait for a gap, then press Space. Each trail runs one way."],
+        "Deer herds run across the trail. Wait for a gap, then jump. They amble along at first and run faster the further you go."],
       ["CREEK", "DANGER", lane("#8EA5A3", log(0, 2) + pad(3) + log(4, 3)),
         "Hop onto drifting logs or lily pads. Logs carry you sideways. Miss and you fall in."],
       ["RAPIDS", "FURTHER IN", lane("#7F989A", log(1, 2) + log(4, 2)),
@@ -529,7 +529,7 @@
       ["ROCKSLIDE", "WARNING FIRST", lane("#BCB199", `<span class="fh-warn" style="left: 6px">!</span><span class="fh-boulder" style="left: ${2 * 56 + 5}px"></span>`),
         "The ! markers flash, then a boulder rolls straight through. Wait for it, then hop."],
       ["PREDATORS", "KEEP MOVING", lane("#AFB48C", sp(TT.forestCore.theme(fhData().animal).predator, 2) + sp(fhData().animal, 4)),
-        "Go 20 seconds without reaching a new row, or hop 3 rows back, and your predator shows up. A countdown starts: reach a new row within 10 seconds to shake it off."],
+        "Stop making progress, or hop 3 rows back, and your predator shows up with a countdown. Reach a new row to shake it off. It's patient at first (about 24 seconds, then 12 more) and gets quicker the further you go."],
     ];
     $("view-forest-guide").innerHTML = `
       <div class="title-row"><h1>HOW TO PLAY</h1><span class="title-meta">GET AS FAR AS YOU CAN</span></div>
@@ -543,7 +543,7 @@
           </div>
           <ol class="fh-rules">
             <li>A word sits beside each tile around your animal: forward, back, left and right.</li>
-            <li>Type the word, then press <strong>Space</strong> to hop. You can type ahead and wait for the right moment.</li>
+            <li>Type the word, then press <strong>Space</strong> or <strong>Enter</strong> to hop. You can type ahead and wait for the right moment.</li>
             <li>Keys that don't fit any word are ignored and counted as mistakes. Backspace works.</li>
             <li>If a tree or rock is in the way, that direction has no word.</li>
             <li>Only the word you used changes after a hop. New words lean toward your target keys and get longer the further you go.</li>
