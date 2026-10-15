@@ -1,3 +1,11 @@
 node_modules/
 dist/
 .claude/
+
+# Local-only notes: AI instructions, specs and release/update how-tos never go to GitHub.
+SPEC.md
+RELEASING.md
+CLAUDE.md
+AGENTS.md
+*.local.md
+dist-test/
