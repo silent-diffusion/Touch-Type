@@ -38,7 +38,7 @@
         <div class="live"><span id="live-num" class="live-num"></span><span id="live-label" class="caps-label"></span></div>
         <div id="targets" class="targets" hidden></div>
       </div>
-      <div id="words-box"><div id="words"></div></div>
+      <div id="words-box" class="words-box"><div id="words" class="words"></div></div>
       <p id="typing-note" class="note"></p>
       <div id="capslock" class="capslock" hidden>CAPS LOCK IS ON</div>
     </main>
@@ -74,6 +74,7 @@
     </main>
 
     <main id="view-game" class="view" hidden></main>
+    <main id="view-replay" class="view" hidden></main>
     <main id="view-games" class="view menu-view" hidden></main>
     <main id="view-stats" class="view menu-view" hidden></main>
     <main id="view-settings" class="view menu-view" hidden></main>
@@ -85,10 +86,12 @@
   </div>
 
   <script src="store.js"></script>
+  <script src="rounds.js"></script>
   <script src="words.js"></script>
   <script src="analysis.js"></script>
   <script src="typing.js"></script>
   <script src="pathrunner.js"></script>
+  <script src="review.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

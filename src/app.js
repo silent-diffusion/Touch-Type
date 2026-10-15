@@ -177,11 +177,11 @@
     const s = S();
     const btn = (label, on, act) => `<button class="${on ? "on" : ""}" aria-pressed="${on}" data-act="${act}">${label}</button>`;
     const divider = `<span class="divider" aria-hidden="true"></span>`;
-    const game = ui.view === "game";
-    els.config.hidden = game;
-    els.badge.hidden = !game && ui.lastTyping !== "practice";
-    els.badge.textContent = game ? "PATH RUNNER" : "PRACTICE";
-    if (game) return;
+    const special = ui.view === "game" || ui.view === "replay";
+    els.config.hidden = special;
+    els.badge.hidden = !special && ui.lastTyping !== "practice";
+    els.badge.textContent = ui.view === "replay" ? "REPLAY" : ui.view === "game" ? "PATH RUNNER" : "PRACTICE";
+    if (special) return;
 
     if (ui.lastTyping === "practice") {
       els.config.innerHTML =
@@ -202,9 +202,14 @@
     const prior = store.history.filter((h) => (h.kind || "test") === kind && h.mode === r.mode && h.amount === r.amount);
     const best = prior.reduce((m, h) => Math.max(m, h.wpm), 0);
     const round = (x) => Math.round(x * 100) / 100;
+    const id = TT.newRoundId();
+    const date = new Date().toISOString();
+    ui.lastRoundId = id;
+    TT.rounds.save({ id, date, kind, ...r.recording });
 
     store.history.push({
-      date: new Date().toISOString(),
+      id,
+      date,
       kind,
       mode: r.mode,
       amount: r.amount,
@@ -278,9 +283,10 @@
   const HINTS = {
     test: [["TAB", "RESTART", "restart"], ["ESC", "MENU", "menu"]],
     practice: [["TAB", "NEW WORDS", "restart"], ["ESC", "MENU", "menu"]],
-    results: [["TAB / ENTER", "NEXT TEST", "restart"], ["P", "PRACTICE WEAK KEYS", "practice"], ["ESC", "MENU", "menu"]],
+    results: [["TAB / ENTER", "NEXT TEST", "restart"], ["R", "REPLAY", "replay:last"], ["P", "PRACTICE WEAK KEYS", "practice"], ["ESC", "MENU", "menu"]],
     games: [["ESC", "CLOSE MENU", "close"]],
     game: [["TAB", "RESTART", "play"], ["ESC", "MENU", "menu"]],
+    replay: [["SPACE", "PLAY / PAUSE", "rp:toggle"], ["← →", "SKIP 2S", "rp:skip:2000"], ["ESC", "BACK", "rp:back"]],
     stats: [["P", "PRACTICE WEAK KEYS", "practice"], ["ESC", "CLOSE MENU", "close"]],
     settings: [["ESC", "CLOSE MENU", "close"]],
   };
@@ -290,6 +296,7 @@
     results: "Result saved.",
     games: "Select a game.",
     game: "Type a word to move.",
+    replay: "Click a moment to jump to it.",
     stats: "Select a view.",
     settings: "Changes save automatically.",
   };
@@ -314,6 +321,8 @@
     els.typing.hidden = view !== "test" && view !== "practice";
     els.results.hidden = view !== "results";
     $("view-game").hidden = view !== "game";
+    $("view-replay").hidden = view !== "replay";
+    if (view !== "replay") pauseReplay();
     for (const v of MENU_VIEWS) $(`view-${v}`).hidden = v !== view;
     for (const b of els.menuNav.querySelectorAll("button")) {
       const on = b.dataset.view === view;
@@ -391,8 +400,9 @@
     onStart() {
       els.statusLine.textContent = "Keep moving.";
     },
-    onEnd() {
-      els.statusLine.textContent = "Run saved.";
+    onEnd(id) {
+      ui.lastGameId = id;
+      els.statusLine.textContent = "Run saved. Press R to replay it.";
     },
   });
 
@@ -402,6 +412,161 @@
     show("game");
     renderBar();
     runner.newGame();
+  }
+
+  // ---------- replay ----------
+
+  const rp = { rec: null, a: null, T: 0, playing: false, speed: 1, raf: 0, last: 0, returnTo: "results", player: null };
+  const SPEEDS = [0.5, 1, 2, 4];
+  const fmtSec = (ms) => `${(ms / 1000).toFixed(1)}s`;
+
+  async function openReplay(id, returnTo) {
+    const rec = await TT.rounds.get(id);
+    if (!rec) {
+      els.statusLine.textContent = "No recording for that round (rounds are recorded from v1.1 on).";
+      return;
+    }
+    engine.stop();
+    runner.stop();
+    document.body.classList.remove("typing");
+    Object.assign(rp, { rec, a: TT.review.analyze(rec), T: 0, playing: false, returnTo });
+    show("replay");
+    renderBar();
+    renderReplayScreen();
+    seekReplay(0);
+  }
+
+  function renderReplayScreen() {
+    const { rec, a } = rp;
+    const game = rec.kind === "game";
+    const fmtDate = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+    const R = TT.review;
+    const cons = R.consistency(a.gaps);
+    const avgGap = a.gaps.length ? a.gaps.reduce((s, x) => s + x, 0) / a.gaps.length : 0;
+    const confusions = R.topConfusions(a.confusions, 6);
+    const slow = R.ranked(a.keyTimes).slice(0, 5);
+    const spaceBad = a.spaces.filter((s) => !s.ok).length;
+    const fixed = a.backs.filter((b) => b.fixedError).length;
+    const moments = R.moments(a);
+    const list = (items, fn, none) => (items.length ? `<dl class="status mono">${items.map(fn).join("")}</dl>` : `<p class="muted rp-none">${none}</p>`);
+
+    $("view-replay").innerHTML = `
+      <div class="cols">
+        <section class="col-main">
+          <div class="title-row"><h1>REPLAY</h1><span class="title-meta">${testName(rec.kind, rec.mode, rec.amount).toUpperCase()}</span></div>
+          <div class="kind-line">${fmtDate.format(new Date(rec.date))}</div>
+          <div id="rp-stage" class="rp-stage">${game ? "" : `
+            <div class="live"><span id="rp-live-num" class="live-num"></span><span id="rp-live-label" class="caps-label"></span></div>
+            <div id="rp-words-box" class="words-box"><div id="rp-words" class="words"></div></div>`}
+          </div>
+          <div class="rp-controls">
+            <button id="rp-play" class="outline-btn" data-act="rp:toggle">PLAY</button>
+            <input id="rp-scrub" type="range" min="0" max="${rec.duration}" step="10" value="0" aria-label="Replay position">
+            <span id="rp-time" class="rp-time"></span>
+            <div class="seg" aria-label="Playback speed">${SPEEDS.map((s) =>
+              `<button class="${s === rp.speed ? "on" : ""}" aria-pressed="${s === rp.speed}" data-act="rp:speed:${s}">${s}×</button>`).join("")}</div>
+          </div>
+        </section>
+        <aside class="col-side rp-side">
+          <div class="rule-head">AT THIS MOMENT</div>
+          <dl id="rp-now" class="status"></dl>
+          <div class="rule-head">WHOLE ROUND</div>
+          <dl class="status">${statusRows([
+            ["Avg time per key:", `${Math.round(avgGap)} ms`],
+            ["Rhythm consistency:", cons ? `${Math.round(cons.pct)}%` : "—"],
+            [game ? "Backspaces:" : "Backspaces (fixed typos):", game ? a.backs.length : `${a.backs.length} (${fixed})`],
+            ...(game ? [["Slowest step:", a.steps.length ? fmtSec(Math.max(...a.steps.map((s) => s.ms))) : "—"]] : [["Space errors:", spaceBad]]),
+            ["Pauses over 1s:", a.hesitations.length, true],
+          ])}</dl>
+          <div class="side-label">Wrong keys (expected → pressed):</div>
+          ${list(confusions, (c) => `<div><dt>${esc(c.expected)} → ${esc(c.typed)}</dt><dd>×${c.n}</dd></div>`, "None.")}
+          <div class="side-label">Slowest keys:</div>
+          ${list(slow, (k) => `<div><dt>${esc(k.key)}</dt><dd>${Math.round(k.avg)} ms</dd></div>`, "Not enough keys yet.")}
+          <div class="side-label">Moments:</div>
+          ${moments.length ? `<ol class="moments">${moments.map((m) =>
+            `<li><button data-act="rp:seek:${Math.max(0, m.t - 600)}" data-kind="${m.kind}"><span class="m-time">${fmtSec(m.t)}</span>${esc(m.text)}</button></li>`).join("")}</ol>`
+            : `<p class="muted rp-none">A clean round: no mistakes, backspaces or long pauses.</p>`}
+        </aside>
+      </div>`;
+
+    if (game) {
+      rp.player = TT.createPathRunner({ root: $("rp-stage"), replayOnly: true });
+    } else {
+      rp.player = TT.createTyping({ box: $("rp-words-box"), wordsEl: $("rp-words") });
+    }
+    rp.player.loadReplay(rec);
+    $("rp-scrub").addEventListener("input", (e) => {
+      pauseReplay();
+      seekReplay(Number(e.target.value));
+    });
+  }
+
+  function seekReplay(T) {
+    const { rec } = rp;
+    rp.T = Math.max(0, Math.min(rec.duration, T));
+    const state = rp.player.replayTo(rp.T);
+    $("rp-scrub").value = rp.T;
+    $("rp-time").textContent = `${fmtSec(rp.T)} / ${fmtSec(rec.duration)}`;
+
+    let rows;
+    // Speeds over a fraction of a second are meaningless, so they appear after the first second.
+    const speed = (x) => (rp.T < 1000 && rec.duration >= 1000 ? "—" : Math.round(x));
+    if (rec.kind === "game") {
+      const st = TT.pathCore.gameStats(state, Math.max(rp.T, 1));
+      rows = [["Steps:", state.n], ["WPM:", speed(st.wpm)], ["Accuracy:", `${Math.round(st.acc)}%`], ["Mistakes:", state.mistakes, true]];
+    } else {
+      const st = TT.typingCore.computeStats(state, Math.max(rp.T, 1));
+      rows = [["WPM:", speed(st.wpm)], ["Raw WPM:", speed(st.raw)], ["Accuracy:", `${Math.round(st.acc)}%`], ["Words typed:", state.index, true]];
+      if (rec.mode === "time") {
+        $("rp-live-num").textContent = Math.max(0, Math.ceil(rec.amount - rp.T / 1000));
+        $("rp-live-label").textContent = "SECONDS LEFT";
+      } else {
+        $("rp-live-num").textContent = `${state.index}/${rec.amount}`;
+        $("rp-live-label").textContent = "WORDS";
+      }
+    }
+    $("rp-now").innerHTML = statusRows(rows);
+  }
+
+  function playReplay() {
+    if (rp.T >= rp.rec.duration) seekReplay(0);
+    rp.playing = true;
+    rp.last = performance.now();
+    $("rp-play").textContent = "PAUSE";
+    const frame = (now) => {
+      if (!rp.playing) return;
+      seekReplay(rp.T + (now - rp.last) * rp.speed);
+      rp.last = now;
+      if (rp.T >= rp.rec.duration) return pauseReplay();
+      rp.raf = requestAnimationFrame(frame);
+    };
+    rp.raf = requestAnimationFrame(frame);
+  }
+
+  function pauseReplay() {
+    rp.playing = false;
+    cancelAnimationFrame(rp.raf);
+    const btn = $("rp-play");
+    if (btn) btn.textContent = rp.rec && rp.T >= rp.rec.duration ? "REPLAY" : "PLAY";
+  }
+
+  function replayAct(x, y) {
+    if (x === "toggle") rp.playing ? pauseReplay() : playReplay();
+    else if (x === "seek") { pauseReplay(); seekReplay(Number(y)); }
+    else if (x === "skip") seekReplay(rp.T + Number(y));
+    else if (x === "speed") {
+      rp.speed = Number(y);
+      for (const b of document.querySelectorAll("#view-replay [data-act^='rp:speed']")) {
+        const on = b.dataset.act === `rp:speed:${y}`;
+        b.classList.toggle("on", on);
+        b.setAttribute("aria-pressed", on);
+      }
+    } else if (x === "back") {
+      pauseReplay();
+      if (rp.returnTo === "stats") openMenu("stats");
+      else show(rp.returnTo);
+      if (rp.returnTo !== "stats") renderBar();
+    }
   }
 
   // ---------- stats ----------
@@ -527,26 +692,89 @@
       const rows = TT.store.history.slice(-50).reverse();
       const fmt = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
       return `<table class="table">
-        <thead><tr><th>DATE</th><th>TEST</th><th class="num">WPM</th><th class="num">ACCURACY</th><th class="num">RAW</th></tr></thead>
+        <thead><tr><th>DATE</th><th>TEST</th><th class="num">WPM</th><th class="num">ACCURACY</th><th class="num">RAW</th><th class="num">REPLAY</th></tr></thead>
         <tbody>${rows.map((h) => `<tr>
           <td>${fmt.format(new Date(h.date))}</td>
           <td>${testName(h.kind || "test", h.mode, h.amount)}</td>
           <td class="num"><strong>${Math.round(h.wpm)}</strong></td>
           <td class="num">${Math.round(h.acc)}%</td>
           <td class="num">${Math.round(h.raw)}</td>
+          <td class="num">${h.id ? `<button class="opt outline sm" data-act="replay:${h.id}" aria-label="Replay this round">▶</button>` : `<span class="muted">—</span>`}</td>
         </tr>`).join("")}</tbody>
-      </table>`;
+      </table>
+      <p class="caps-label foot-caption">ROUNDS ARE RECORDED FROM v1.1 ON. OLDER ROUNDS CAN'T BE REPLAYED.</p>`;
     },
+
+    // Filled in asynchronously from the recordings (see renderKeystrokes).
+    keystrokes: () => `<p class="note">Analyzing recordings…</p>`,
   };
+
+  // Keystroke stats come from re-analyzing recent recordings, weighted toward recent rounds.
+  let keystrokeToken = 0;
+  async function renderKeystrokes() {
+    const token = ++keystrokeToken;
+    const recs = await TT.rounds.recent(150);
+    if (token !== keystrokeToken || ui.view !== "stats" || ui.statsTab !== "keystrokes") return;
+    const body = $("stats-body");
+    if (!recs.length) {
+      body.innerHTML = empty("No recordings yet", "Every test, practice round and game is recorded from v1.1 on. Finish one and its keystrokes will be analyzed here.");
+      return;
+    }
+    const R = TT.review;
+    const weights = recs.map((_, i) => Math.pow(0.5, i / A.HALF_LIFE));
+    const all = R.combine(recs.map(R.analyze), weights);
+    const conf = R.topConfusions(all.confusions, 12);
+    const slowKeys = R.ranked(all.keyTimes, 8).slice(0, 10);
+    const slowPairs = R.ranked(all.bigrams, 5).slice(0, 10);
+    const avgKey = Object.values(all.keyTimes).reduce((s, o) => s + o.sum, 0) / (Object.values(all.keyTimes).reduce((s, o) => s + o.n, 0) || 1);
+    const pct = (a, b) => (b ? `${Math.round((a / b) * 100)}%` : "—");
+    const n1 = (x) => (x >= 10 ? Math.round(x) : Math.round(x * 10) / 10);
+    const table = (head, rows, none) => rows.length
+      ? `<table class="table"><thead><tr>${head.map((h, i) => `<th class="${i ? "num" : ""}">${h}</th>`).join("")}</tr></thead><tbody>${rows.join("")}</tbody></table>`
+      : `<p class="muted">${none}</p>`;
+
+    body.innerHTML = `<div class="cols">
+      <section class="col-main stack">
+        <div>
+          <div class="rule-head">WRONG KEYS</div>
+          ${table(["EXPECTED → PRESSED", "WEIGHTED COUNT"], conf.map((c) => `<tr><td class="mono">${esc(c.expected)} → ${esc(c.typed)}</td><td class="num">${n1(c.n)}</td></tr>`), "No wrong keys recorded.")}
+        </div>
+        <div class="two-col">
+          <div>
+            <div class="rule-head">SLOWEST KEYS</div>
+            ${table(["KEY", "AVG MS"], slowKeys.map((k) => `<tr><td class="mono">${esc(k.key)}</td><td class="num">${Math.round(k.avg)}</td></tr>`), "Not enough data yet.")}
+          </div>
+          <div>
+            <div class="rule-head">SLOWEST LETTER PAIRS</div>
+            ${table(["PAIR", "AVG MS"], slowPairs.map((k) => `<tr><td class="mono">${esc(k.key)}</td><td class="num">${Math.round(k.avg)}</td></tr>`), "Not enough data yet.")}
+          </div>
+        </div>
+      </section>
+      <aside class="col-side">
+        <div class="rule-head">SUMMARY</div>
+        <dl class="status">${statusRows([
+          ["Rounds analyzed:", recs.length],
+          ["Avg time per key:", `${Math.round(avgKey)} ms`, true],
+          ["Space errors:", pct(all.spaces.bad, all.spaces.n)],
+          ["Pause before space:", all.spaces.pauseN ? `${Math.round(all.spaces.pause / all.spaces.pauseN)} ms` : "—", true],
+          ["Backspaces per 100 keys:", all.letters ? n1((all.backs.n / all.letters) * 100) : "—"],
+          ["Backspaces fixing a typo:", pct(all.backs.fixed, all.backs.n)],
+          ["Pauses over 1s per round:", n1(all.hesitations / recs.length), true],
+        ])}</dl>
+        <div class="caps-label foot-caption">RECENT ROUNDS COUNT MORE. OPEN A ROUND'S REPLAY FROM HISTORY FOR DETAIL.</div>
+      </aside>
+    </div>`;
+  }
 
   const empty = (title, text) => `<div class="empty"><h2>${title}</h2><p>${text}</p></div>`;
 
   function renderStats() {
-    const tabs = [["overview", "Overview"], ["keys", "Keys"], ["words", "Words"], ["history", "History"]];
+    const tabs = [["overview", "Overview"], ["keys", "Keys"], ["keystrokes", "Keystrokes"], ["words", "Words"], ["history", "History"]];
     const body = TT.store.history.length
       ? STATS_VIEWS[ui.statsTab]()
       : empty("No results yet", "Finish a speed test and your stats will show up here.");
-    $("view-stats").innerHTML = subtabs(tabs, ui.statsTab, "stab") + body;
+    $("view-stats").innerHTML = subtabs(tabs, ui.statsTab, "stab") + `<div id="stats-body">${body}</div>`;
+    if (TT.store.history.length && ui.statsTab === "keystrokes") renderKeystrokes();
   }
 
   // ---------- settings ----------
@@ -702,6 +930,12 @@
       case "restart": startTyping(ui.lastTyping); break;
       case "practice": startTyping("practice"); break;
       case "play": startGame(); break;
+      case "replay": {
+        const id = x === "last" ? (ui.view === "game" ? ui.lastGameId : ui.lastRoundId) : x;
+        if (id) openReplay(id, ui.view === "stats" ? "stats" : ui.view);
+        break;
+      }
+      case "rp": replayAct(x, y); break;
       case "stab": ui.statsTab = x; renderStats(); break;
       case "settab": ui.settingsTab = x; renderSettings(); break;
       case "gtab": ui.gamesTab = x; renderGames(); break;
@@ -735,6 +969,14 @@
     if (e.getModifierState) els.capslock.hidden = !e.getModifierState("CapsLock");
     const v = ui.view;
 
+    if (v === "replay") {
+      const keys = { " ": "rp:toggle", ArrowLeft: "rp:skip:-2000", ArrowRight: "rp:skip:2000", Escape: "rp:back" };
+      if (keys[e.key]) {
+        e.preventDefault();
+        act(keys[e.key]);
+      }
+      return;
+    }
     if (e.key === "Escape") {
       e.preventDefault();
       act(MENU_VIEWS.includes(v) ? "close" : "menu");
@@ -754,11 +996,17 @@
         act("restart");
       } else if (plainKey(e, "p") && ui.lastTyping === "test") {
         act("practice");
+      } else if (plainKey(e, "r")) {
+        act("replay:last");
       }
     } else if (v === "game") {
       if (e.key === "Tab") {
         e.preventDefault();
         act("play");
+        return;
+      }
+      if (runner.isOver()) {
+        if (plainKey(e, "r")) act("replay:last");
         return;
       }
       runner.handleKey(e);
@@ -772,6 +1020,7 @@
 
   window.addEventListener("resize", () => {
     if (ui.view === "test" || ui.view === "practice") engine.relayout();
+    if (ui.view === "replay" && rp.player && rp.player.relayout) rp.player.relayout();
   });
 
   // ---------- start ----------

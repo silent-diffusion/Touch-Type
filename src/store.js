@@ -52,5 +52,6 @@ window.TT = window.TT || {};
     TT.store.weakWords = {};
     TT.store.games = {};
     TT.save();
+    if (TT.rounds) TT.rounds.clear(); // recordings
   };
 })();
