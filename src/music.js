@@ -2,7 +2,7 @@
 // (never uploaded) and shared by every profile; scores stay with each profile.
 //
 // A saved song: { id, name, type, size, added, blob, analysis }
-//   analysis — from TT.beatTrack: { method: "auto" | "tap", bpm, beats, down, quiet, duration, rev }
+//   analysis — from TT.beatTrack: { method: "auto" | "tap", bpm, beats, down, quiet, strength, duration, rev }
 // In the song list an added song's id is "u:" + its saved id.
 (() => {
   const STORE = "music";
@@ -143,6 +143,15 @@
       if (!rec || !rec.blob) throw new Error("That song's file is missing.");
       const buffer = await decode(rec.blob);
       keep(id, buffer);
+      // Songs added before beats had strengths get them now, so their words follow the music too.
+      const meta = metas.get(id);
+      if (!meta.analysis.strength) {
+        const an = meta.analysis;
+        an.strength = TT.beatTrack.beatStrength(channelsOf(buffer), buffer.sampleRate, an.beats, an.quiet);
+        rec.analysis = an;
+        await tx("readwrite", (s) => s.put(rec));
+        register(meta);
+      }
       return buffer;
     },
 
@@ -154,6 +163,7 @@
       const buffer = await this.buffer(songId);
       const an = TT.beatTrack.fromTaps(taps, buffer.duration, (beats) => TT.beatTrack.quietBeats(channelsOf(buffer), buffer.sampleRate, beats));
       if (!an) return false;
+      an.strength = TT.beatTrack.beatStrength(channelsOf(buffer), buffer.sampleRate, an.beats, an.quiet);
       an.rev = (meta.analysis.rev || 1) + 1;
       const rec = await tx("readonly", (s) => s.get(id));
       if (!rec) return false;

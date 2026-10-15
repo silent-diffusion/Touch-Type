@@ -35,63 +35,70 @@
 
   // ---------- chart ----------
 
-  // Rhythm patterns a difficulty can use: a word on these beats of every `cycle` beats. They all
-  // line up with the bar, so words land on the first beat of a bar (and sometimes halfway through).
-  function patterns(bar) {
-    const out = [];
-    for (const n of [4, 3, 2, 1]) out.push({ cycle: bar * n, pos: [0] });
-    if (bar % 2 === 0 && bar > 2) out.push({ cycle: bar, pos: [0, bar / 2] });
-    if (bar === 3) out.push({ cycle: 3, pos: [0, 2] });
-    if (bar > 1) out.push({ cycle: 1, pos: [0] });
-    return out.map((p) => ({ ...p, beats: p.cycle / p.pos.length }));
-  }
+  // How a chart weighs a beat: how much it stands out (w, 0 to 1) plus a little for starting a bar.
+  const DOWN_BONUS = 0.15;
+  // How much a gap away from the difficulty's target spacing costs, against a beat's weight.
+  const SPACING = 2.5;
+  const WORD_COST = 0.3;
+  const beatValue = (b) => (b.w > 0 ? Math.min(1, b.w + (b.down ? DOWN_BONUS : 0)) : 0);
 
-  // Picks each difficulty's pattern for a song: the one whose spacing is closest to the
-  // difficulty's target, and sparser than the next harder difficulty whenever the song allows it.
-  const levelCache = new Map();
-  function levels(song) {
-    const cacheKey = song.key || song.id; // an added song's key changes when its beat is redone
-    if (levelCache.has(cacheKey)) return levelCache.get(cacheKey);
-    const beatLen = song.beats.length ? song.beats[0].len : 0.5;
-    const cands = patterns(song.bar).sort((a, b) => b.beats - a.beats);
-    const out = {};
-    let prev = null;
-    for (const id of DIFF_IDS) {
-      const D = DIFFS[id];
-      const dist = (p) => Math.abs(Math.log((p.beats * beatLen) / D.gap));
-      const allowed = cands.filter((p) => p.beats * beatLen >= D.min && (!prev || p.beats <= prev.beats));
-      let pick = allowed.slice().sort((a, b) => dist(a) - dist(b))[0] || prev || cands[cands.length - 1];
-      if (prev && pick.beats === prev.beats) {
-        const sparser = allowed.filter((p) => p.beats < prev.beats).sort((a, b) => dist(a) - dist(b))[0];
-        if (sparser && dist(sparser) < 0.6) pick = sparser;
-      }
-      out[id] = pick;
-      prev = pick;
-    }
-    levelCache.set(cacheKey, out);
-    return out;
-  }
-
-  // The hit times (ms of song time) for a song at a difficulty. Words start on the first bar and
-  // follow the difficulty's pattern; where the song speeds up, words that would come too close
-  // together are skipped.
+  // The hit times (ms of song time) for a song at a difficulty. Of the beats where something
+  // happens, it picks the set with the most total weight while keeping the gaps close to the
+  // difficulty's spacing and never under its minimum, so words land on the music's important
+  // moments: long and phrase-starting melody notes in built-in songs, the hardest hits in added ones.
+  // (Dynamic programming, like the beat tracker in beats.js.) If a difficulty comes out about as
+  // sparse as the easier one, it aims tighter, so a harder one has more words whenever it can.
   function chart(song, diff) {
-    const D = DIFFS[diff];
-    const p = levels(song)[diff];
-    const beats = song.beats;
-    const end = song.duration - 0.25;
-    const first = beats.findIndex((b) => b.down && b.t >= 0.5);
-    const out = [];
-    let last = -Infinity;
-    for (let j = Math.max(0, first); first >= 0 && j < beats.length && beats[j].t <= end; j++) {
-      if (!p.pos.includes((j - first) % p.cycle)) continue;
-      if (song.user && !beats[j].any) continue; // no words while an added song is silent
-      if (beats[j].t - last < D.min * 0.9) continue;
-      last = beats[j].t;
-      out.push(Math.round(last * 1000));
+    if (!song.charts) {
+      song.charts = {};
+      const meanGap = (h) => (h.length > 1 ? (h[h.length - 1] - h[0]) / 1000 / (h.length - 1) : Infinity);
+      let prev = Infinity;
+      for (const id of DIFF_IDS) {
+        const D = DIFFS[id];
+        let hits = pick(song, D, D.gap);
+        if (meanGap(hits) > prev * 0.9) hits = pick(song, D, prev * 0.7);
+        song.charts[id] = hits;
+        prev = meanGap(hits);
+      }
     }
-    return out;
+    return song.charts[diff];
   }
+
+  function pick(song, D, target) {
+    const end = song.duration - 0.25;
+    const c = song.beats.filter((b) => b.t >= 0.5 && b.t <= end && beatValue(b) > 0);
+    const n = c.length;
+    // Each word costs the average beat's weight, so only beats that stand out are worth crowding in.
+    const cost = WORD_COST * c.reduce((sum, b) => sum + beatValue(b), 0) / Math.max(1, n);
+    const score = new Float64Array(n);
+    const back = new Int32Array(n).fill(-1);
+    for (let i = 0; i < n; i++) {
+      const v = beatValue(c[i]) - cost;
+      score[i] = c[i].t <= c[0].t + target ? v : -Infinity; // the chart starts near the song's start
+      for (let j = i - 1; j >= 0; j--) {
+        const gap = c[i].t - c[j].t;
+        if (gap < D.min * 0.95) continue;
+        const s = score[j] + v - SPACING * Math.log(gap / target) ** 2;
+        if (s > score[i]) {
+          score[i] = s;
+          back[i] = j;
+        }
+      }
+    }
+    // The chart ends on the best beat near the end of the song, then follows the picks back.
+    let last = -1;
+    for (let i = 0; i < n; i++) if (c[i].t >= c[n - 1].t - target && (last < 0 || score[i] > score[last])) last = i;
+    const out = [];
+    for (let i = last; i >= 0; i = back[i]) out.push(Math.round(c[i].t * 1000));
+    return out.reverse();
+  }
+
+  // The first hit of the charts before they followed the music, for older recordings that didn't
+  // save where the song started: the first bar (with sound, in an added song) half a second in.
+  const oldFirstHit = (song) => {
+    const b = song.beats.find((x) => x.down && x.t >= 0.5 && (!song.user || x.any));
+    return b ? Math.round(b.t * 1000) : 0;
+  };
 
   // ---------- core ----------
 
@@ -693,7 +700,7 @@
       TT.save();
       TT.rounds.save({
         id, date, kind: "game", game: "tiles", mode: live.diff, amount: g.score, song: live.song, title: song.title,
-        songKey: song.key, v: RULES, diff: live.diff, fall: g.fall, hits: g.hits, endT: g.endT, tiles: live.tiles,
+        songKey: song.key, offset: live.offset, v: RULES, diff: live.diff, fall: g.fall, hits: g.hits, endT: g.endT, tiles: live.tiles,
         keys: live.keys, times: live.times, duration: g.endAt,
       });
 
@@ -746,7 +753,7 @@
       song = TT.songs.get(rec.song);
       // The beat pulse needs the song as it was played; an added song's beat may have been redone.
       const same = song && (!song.user || song.key === rec.songKey);
-      const offset = rec.hits.length && same ? rec.hits[0] - chart(song, rec.diff)[0] : null;
+      const offset = !same ? null : rec.offset ?? (rec.hits.length ? rec.hits[0] - oldFirstHit(song) : null);
       beatTimes = song && offset != null ? song.beats.map((b) => ({ t: offset + b.t * 1000, down: b.down })) : [];
       viewT = 0;
       hudSig = "";

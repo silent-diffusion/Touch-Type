@@ -125,8 +125,23 @@
 
   // ---------- building ----------
 
-  // Works out every note's time and every beat. Beats know whether they start a bar (down) and
-  // whether a melody note (mel) or any note (any) starts on them, so words can land on real notes.
+  // How much a beat stands out, 0 to 1, from the notes that start on it (i = step in the section).
+  // A melody note counts most, more when it's long or starts a phrase (after a rest or a long note);
+  // the bass adds a little. Nothing starting on the beat is 0, so it never gets a word.
+  function weight(song, mel, bass, i) {
+    const note = mel.notes.find((n) => n.s === i);
+    let w = bass.notes.some((n) => n.s === i) ? 0.2 : 0;
+    if (note) {
+      const prev = mel.notes[mel.notes.indexOf(note) - 1];
+      const phrase = !prev || prev.s + prev.n < i || prev.n >= 2 * song.beat;
+      w += 0.5 + 0.2 * Math.min(1, note.n / (2 * song.beat)) + (phrase ? 0.1 : 0);
+    }
+    return Math.min(1, w);
+  }
+
+  // Works out every note's time and every beat. Beats know whether they start a bar (down),
+  // whether a melody note (mel) or any note (any) starts on them, and how much they stand out (w),
+  // so words land on the music's important moments.
   function build(song) {
     const notes = [];
     const beats = [];
@@ -145,7 +160,7 @@
       for (let i = 0; i < len; i++) {
         const g = step + i - song.pickup;
         if (mod(g, song.beat)) continue;
-        beats.push({ t: t + i * dt, down: mod(g, perBar) === 0, mel: starts[0].has(i), any: starts[0].has(i) || starts[1].has(i), len: song.beat * dt });
+        beats.push({ t: t + i * dt, down: mod(g, perBar) === 0, mel: starts[0].has(i), any: starts[0].has(i) || starts[1].has(i), w: weight(song, ...voices, i), len: song.beat * dt });
       }
       step += len;
       t += len * dt;

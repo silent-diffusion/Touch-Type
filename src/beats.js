@@ -194,10 +194,12 @@
     return out;
   }
 
-  const median = (arr) => {
+  // The value a share q (0 to 1) of the numbers are below.
+  const quantile = (arr, q) => {
     const s = Float64Array.from(arr).sort();
-    return s.length ? s[Math.floor(s.length / 2)] : 0;
+    return s.length ? s[Math.min(s.length - 1, Math.floor(s.length * q))] : 0;
   };
+  const median = (arr) => quantile(arr, 0.5);
 
   // The strongest value of an envelope within a couple of frames of time t.
   function near(arr, t, fps) {
@@ -260,6 +262,22 @@
     return { down, quiet };
   }
 
+  // How hard each beat hits, 0 to 1: the onset plus the low-end punch right at it, against the
+  // song's strong beats (the top tenth count as 1). Beats in near silence are 0. Tiles puts words
+  // on the beats that hit hardest.
+  function strengths(times, env, quiet) {
+    const q = new Set(quiet);
+    const raw = times.map((t) => near(env.onset, t, env.fps) + near(env.low, t, env.fps));
+    const top = quantile(raw.filter((_, k) => !q.has(k)), 0.9) || 1;
+    return raw.map((v, k) => (q.has(k) ? 0 : Math.round(Math.min(1, v / top) * 100) / 100));
+  }
+
+  // The same, straight from the samples (for tapped beats and songs added before strengths).
+  function beatStrength(channels, sampleRate, beats, quiet) {
+    const { x, rate } = mono(channels, sampleRate);
+    return strengths(beats, envelope(x, rate), quiet);
+  }
+
   // The whole analysis. channels: Float32Arrays of samples. Returns what gets saved with a song.
   function analyze(channels, sampleRate) {
     const { x, rate } = mono(channels, sampleRate);
@@ -279,6 +297,7 @@
       beats: times.map((t) => Math.round(t * 1000) / 1000),
       down,
       quiet,
+      strength: strengths(times, env, quiet),
       duration,
     };
   }
@@ -329,9 +348,10 @@
     return an.beats.map((t, k) => {
       const next = an.beats[k + 1] ?? t + (t - (an.beats[k - 1] ?? t - 0.5));
       const loud = !quiet.has(k);
-      return { t, down: k >= an.down && (k - an.down) % BAR === 0, mel: loud, any: loud, len: next - t };
+      const w = !loud ? 0 : an.strength ? an.strength[k] : 0.5;
+      return { t, down: k >= an.down && (k - an.down) % BAR === 0, mel: loud, any: loud, w, len: next - t };
     });
   }
 
-  TT.beatTrack = { analyze, fromTaps, quietBeats, toSongBeats, BAR, _internal: { mono, envelope, period, track } };
+  TT.beatTrack = { analyze, fromTaps, quietBeats, beatStrength, toSongBeats, BAR, _internal: { mono, envelope, period, track } };
 })();
