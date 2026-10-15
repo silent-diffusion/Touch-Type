@@ -380,8 +380,26 @@
       if (live && live.state === "running") live.state = "stopped";
     }
 
+    // Pausing stops the clock; on resume the start time moves on by the length of the pause.
+    function pause() {
+      if (!live || live.state !== "running") return;
+      live.state = "paused";
+      live.pausedAt = performance.now();
+      cancelAnimationFrame(raf);
+      el.over.innerHTML = TT.pausedHtml("play", "menu", "MENU");
+      el.over.hidden = false;
+    }
+
+    function resume() {
+      if (!live || live.state !== "paused") return;
+      live.startedAt += performance.now() - live.pausedAt;
+      live.state = "running";
+      el.over.hidden = true;
+      raf = requestAnimationFrame(frame);
+    }
+
     function handleKey(e) {
-      if (!live || live.state === "over" || live.state === "stopped") return;
+      if (!live || live.state === "over" || live.state === "stopped" || live.state === "paused") return;
       let k;
       if (e.key === "Backspace") k = e.ctrlKey || e.altKey ? BACK_WORD : BACK;
       else if (e.ctrlKey || e.altKey || e.metaKey) return;
@@ -456,6 +474,11 @@
       return g;
     }
 
-    return { newGame, stop, handleKey, loadReplay, replayTo, isOver: () => !!live && live.state === "over" };
+    return {
+      newGame, stop, handleKey, loadReplay, replayTo, pause, resume,
+      isOver: () => !!live && live.state === "over",
+      isRunning: () => !!live && live.state === "running",
+      isPaused: () => !!live && live.state === "paused",
+    };
   };
 })();

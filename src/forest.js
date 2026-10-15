@@ -899,7 +899,7 @@
     }
 
     function frame() {
-      if (!live || live.state === "stopped") return;
+      if (!live || live.state === "stopped" || live.state === "paused") return;
       if (live.state === "running") {
         viewT = performance.now() - live.startedAt;
         if (advance(g, viewT)) return end();
@@ -915,8 +915,27 @@
       onStart && onStart();
     }
 
+    // Pausing stops the clock: on resume the start time moves on by however long the pause was,
+    // so the round (and its recording) carries on as if no time had passed.
+    function pause() {
+      if (!live || live.state !== "running") return;
+      live.state = "paused";
+      live.pausedAt = performance.now();
+      cancelAnimationFrame(raf);
+      el.over.innerHTML = TT.pausedHtml("fh:play", "fh:select", "ANIMALS");
+      el.over.hidden = false;
+    }
+
+    function resume() {
+      if (!live || live.state !== "paused") return;
+      live.startedAt += performance.now() - live.pausedAt;
+      live.state = "running";
+      el.over.hidden = true;
+      raf = requestAnimationFrame(frame);
+    }
+
     function handleKey(e) {
-      if (!live || live.state === "over" || live.state === "stopped") return;
+      if (!live || live.state === "over" || live.state === "stopped" || live.state === "paused") return;
       let k;
       if (e.key === "Backspace") k = e.ctrlKey || e.altKey ? BACK_WORD : BACK;
       else if (e.ctrlKey || e.altKey || e.metaKey) return;
@@ -1056,6 +1075,9 @@
       newGame, stop, handleKey, loadReplay, replayTo,
       relayout: () => { colors = themeColors(); hudSig = ""; render(); },
       isOver: () => !!live && live.state === "over",
+      isRunning: () => !!live && live.state === "running",
+      isPaused: () => !!live && live.state === "paused",
+      pause, resume,
     };
   };
 })();

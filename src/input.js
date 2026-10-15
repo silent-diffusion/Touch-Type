@@ -66,4 +66,14 @@
     `<span class="wb-ok">${good(g)}</span>${clean(g) ? "" : `<span class="wb-bad">${wrong(g)}</span>`}`;
 
   TT.wordInput = { MAX_WRONG, reset, clean, good, wrong, ready, letter, back, attribute, html };
+
+  // The pause screen every game shows. restart and quit are the game's own actions.
+  TT.pausedHtml = (restart, quit, quitLabel) => `
+    <h2>PAUSED</h2>
+    <p>The clock is stopped. Nothing you type counts until you resume.</p>
+    <div class="hints">
+      <button data-act="pause"><kbd>ESC</kbd>RESUME</button>
+      <button data-act="${restart}"><kbd>TAB</kbd>RESTART</button>
+      <button data-act="${quit}"><kbd>Q</kbd>${quitLabel}</button>
+    </div>`;
 })();

@@ -20,10 +20,10 @@
   // fall: milliseconds a tile takes to fall from the top to the line
   // cols: how many columns (from rules v4, never fewer than three); len: word lengths
   const DIFFS = {
-    easy:   { name: "EASY",   gap: 5.0, min: 2.5,  fall: 5000, cols: 3, len: [3, 4], missHp: 8 },
-    medium: { name: "MEDIUM", gap: 2.4, min: 1.2,  fall: 3400, cols: 3, len: [3, 5], missHp: 10 },
-    hard:   { name: "HARD",   gap: 1.4, min: 0.7,  fall: 2700, cols: 4, len: [4, 6], missHp: 12 },
-    expert: { name: "EXPERT", gap: 0.9, min: 0.55, fall: 2100, cols: 4, len: [4, 7], missHp: 14 },
+    easy:   { name: "EASY",   gap: 5.0,  min: 2.5,  fall: 5000, cols: 3, len: [3, 4], missHp: 8 },
+    medium: { name: "MEDIUM", gap: 3.0,  min: 1.8,  fall: 4400, cols: 3, len: [3, 4], missHp: 10 },
+    hard:   { name: "HARD",   gap: 2.6,  min: 1.4,  fall: 3600, cols: 4, len: [3, 5], missHp: 12 },
+    expert: { name: "EXPERT", gap: 1.25, min: 0.75, fall: 2600, cols: 4, len: [4, 6], missHp: 14 },
   };
   const DIFF_IDS = Object.keys(DIFFS);
   // Timing windows in ms. Early presses get more room than late ones.
@@ -52,8 +52,8 @@
   // happens, it picks the set with the most total weight while keeping the gaps close to the
   // difficulty's spacing and never under its minimum, so words land on the music's important
   // moments: long and phrase-starting melody notes in built-in songs, the hardest hits in added ones.
-  // (Dynamic programming, like the beat tracker in beats.js.) If a difficulty comes out about as
-  // sparse as the easier one, it aims tighter, so a harder one has more words whenever it can.
+  // (Dynamic programming, like the beat tracker in beats.js.) If a difficulty comes out as sparse
+  // as the easier one, it aims a little tighter, so a harder one has more tiles whenever it can.
   function chart(song, diff) {
     if (!song.charts) {
       song.charts = {};
@@ -62,7 +62,7 @@
       for (const id of DIFF_IDS) {
         const D = DIFFS[id];
         let hits = pick(song, D, D.gap);
-        if (meanGap(hits) > prev * 0.9) hits = pick(song, D, prev * 0.7);
+        if (meanGap(hits) > prev * 0.97) hits = pick(song, D, prev * 0.85);
         song.charts[id] = hits;
         prev = meanGap(hits);
       }
@@ -824,8 +824,31 @@
       raf = requestAnimationFrame(frame);
     }
 
+    // Pausing stops the clock and the music. On resume the start time moves on by the length of the
+    // pause and the music picks up where it was, so the round carries on as if no time had passed.
+    function pause() {
+      if (!live || live.state !== "running") return;
+      live.state = "paused";
+      live.pausedAt = performance.now();
+      cancelAnimationFrame(raf);
+      if (live.player) live.player.stop();
+      live.player = null;
+      el.over.innerHTML = TT.pausedHtml("tl:play", "tl:select", "SONGS");
+      el.over.hidden = false;
+    }
+
+    function resume() {
+      if (!live || live.state !== "paused") return;
+      live.startedAt += performance.now() - live.pausedAt;
+      live.state = "running";
+      live.player = createPlayer({ song, startPerf: live.startedAt + live.offset, ...live.sound });
+      live.player.pump();
+      el.over.hidden = true;
+      raf = requestAnimationFrame(frame);
+    }
+
     function handleKey(e) {
-      if (!live || live.state === "over" || live.state === "stopped") return;
+      if (!live || live.state === "over" || live.state === "stopped" || live.state === "paused") return;
       let k;
       if (e.key === "Backspace") k = e.ctrlKey || e.altKey ? BACK_WORD : BACK;
       else if (e.ctrlKey || e.altKey || e.metaKey) return;
@@ -982,6 +1005,8 @@
       relayout: () => { hudSig = ""; measure(); },
       isOver: () => !!live && live.state === "over",
       isRunning: () => !!live && live.state === "running",
+      isPaused: () => !!live && live.state === "paused",
+      pause, resume,
     };
   };
 })();

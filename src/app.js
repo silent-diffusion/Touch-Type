@@ -308,11 +308,11 @@
     practice: [["TAB", "NEW WORDS", "restart"], ["ESC", "MENU", "menu"]],
     results: [["TAB / ENTER", "NEXT TEST", "restart"], ["R", "REPLAY", "replay:last"], ["P", "PRACTICE WEAK KEYS", "practice"], ["ESC", "MENU", "menu"]],
     games: [["ESC", "CLOSE MENU", "close"]],
-    game: [["TAB", "RESTART", "play"], ["ESC", "MENU", "menu"]],
-    forest: [["SPACE / ENTER", "JUMP", "noop"], ["TAB", "RESTART", "fh:play"], ["ESC", "ANIMALS", "fh:select"]],
+    game: [["TAB", "RESTART", "play"], ["ESC", "PAUSE", "pause"]],
+    forest: [["SPACE / ENTER", "JUMP", "noop"], ["TAB", "RESTART", "fh:play"], ["ESC", "PAUSE", "pause"]],
     "forest-select": [["← →", "CHOOSE", "fh:next"], ["ENTER", "PLAY", "fh:play"], ["H", "HOW TO PLAY", "fh:guide"], ["ESC", "MENU", "menu"]],
     "forest-guide": [["ENTER", "PLAY", "fh:play"], ["ESC", "BACK", "fh:select"]],
-    tiles: [["ENTER / SPACE", "HIT", "noop"], ["TAB", "RESTART", "tl:play"], ["ESC", "SONGS", "tl:select"]],
+    tiles: [["ENTER / SPACE", "HIT", "noop"], ["TAB", "RESTART", "tl:play"], ["ESC", "PAUSE", "pause"]],
     "tiles-select": [["↑ ↓", "SONG", "tl:next"], ["← →", "DIFFICULTY", "tl:harder"], ["ENTER", "PLAY", "tl:play"], ["A", "ADD A SONG", "tl:import"], ["M", "MUSIC", "tl:music"], ["T", "METRONOME", "tl:metronome"], ["ESC", "MENU", "menu"]],
     replay: [["SPACE", "PLAY / PAUSE", "rp:toggle"], ["← →", "SKIP 2S", "rp:skip:2000"], ["ESC", "BACK", "rp:back"]],
     stats: [["P", "PRACTICE WEAK KEYS", "practice"], ["ESC", "CLOSE MENU", "close"]],
@@ -636,9 +636,9 @@
 
   const DIFF_HINT = {
     easy: "Three columns and short words, with a tile every few bars, falling slowest.",
-    medium: "Three columns, a tile every bar or two.",
-    hard: "Four columns and longer words, a tile about every bar, falling faster.",
-    expert: "Four columns, the longest words, tiles on most beats, falling fastest.",
+    medium: "Three columns and short words, with tiles a little closer together.",
+    hard: "Four columns and slightly longer words, a tile every couple of seconds.",
+    expert: "Four columns and the longest words, a tile about every second, falling fastest.",
   };
   const tilesData = () => {
     const d = (TT.store.games.tiles ||= { best: 0, plays: 0, history: [], bestBy: {} });
@@ -1472,6 +1472,34 @@
 
   // ---------- actions ----------
 
+  // ---------- pausing games ----------
+
+  // The game on screen, with where Q (quit) takes you from it.
+  function activeGame() {
+    if (ui.view === "forest") return { g: forest, quit: "fh:select" };
+    if (ui.view === "tiles") return { g: tiles, quit: "tl:select" };
+    if (ui.view === "game") return { g: runner, quit: "menu" };
+    return null;
+  }
+
+  // Esc: pauses a running game and resumes a paused one. Before a round starts or after it ends
+  // it goes back, as it always did.
+  function togglePause() {
+    const a = activeGame();
+    if (!a) return;
+    if (a.g.isPaused()) a.g.resume();
+    else if (a.g.isRunning()) a.g.pause();
+    else act(a.quit);
+  }
+
+  // Switching to another window pauses a running game, so a round isn't lost while you're away.
+  const pauseIfRunning = () => {
+    const a = activeGame();
+    if (a && a.g.isRunning()) a.g.pause();
+  };
+  window.addEventListener("blur", pauseIfRunning);
+  document.addEventListener("visibilitychange", () => { if (document.hidden) pauseIfRunning(); });
+
   function act(action) {
     const [type, x, ...rest] = action.split(":");
     const y = rest.join(":"); // song ids like "u:abc" have a colon of their own
@@ -1492,6 +1520,7 @@
         else openMenu(x);
         break;
       case "menu": openMenu(ui.menuView); break;
+      case "pause": togglePause(); break;
       case "close":
       case "restart": startTyping(ui.lastTyping); break;
       case "practice": startTyping("practice"); break;
@@ -1562,7 +1591,8 @@
     if (FOREST_VIEWS.includes(v)) {
       if (v === "forest") {
         if (e.key === "Tab") { e.preventDefault(); act("fh:play"); }
-        else if (e.key === "Escape") { e.preventDefault(); act("fh:select"); }
+        else if (e.key === "Escape") { e.preventDefault(); act("pause"); }
+        else if (forest.isPaused()) { if (plainKey(e, "q")) act("fh:select"); }
         else if (forest.isOver()) { if (plainKey(e, "r")) act("replay:last"); }
         else forest.handleKey(e);
       } else if (v === "forest-select") {
@@ -1577,7 +1607,8 @@
     if (TILES_VIEWS.includes(v)) {
       if (v === "tiles") {
         if (e.key === "Tab") { e.preventDefault(); act("tl:play"); }
-        else if (e.key === "Escape") { e.preventDefault(); act("tl:select"); }
+        else if (e.key === "Escape") { e.preventDefault(); act("pause"); }
+        else if (tiles.isPaused()) { if (plainKey(e, "q")) act("tl:select"); }
         else if (tiles.isOver()) { if (plainKey(e, "r")) act("replay:last"); }
         else tiles.handleKey(e);
       } else if (ui.tap) {
@@ -1589,6 +1620,11 @@
         const keys = { ArrowDown: "tl:next", ArrowUp: "tl:prev", ArrowRight: "tl:harder", ArrowLeft: "tl:easier", Enter: "tl:play", a: "tl:import", m: "tl:music", t: "tl:metronome", Escape: "menu" };
         if (keys[e.key] && !e.ctrlKey && !e.altKey && !e.metaKey) { e.preventDefault(); act(keys[e.key]); }
       }
+      return;
+    }
+    if (v === "game" && (e.key === "Escape" || (runner.isPaused() && plainKey(e, "q")))) {
+      e.preventDefault();
+      act(e.key === "Escape" ? "pause" : "menu");
       return;
     }
     if (e.key === "Escape") {
