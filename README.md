@@ -20,6 +20,7 @@ A desktop app for improving your touch typing. It has a quick speed test, practi
 - **Replays and keystroke analysis:** every round is recorded and can be replayed. See which wrong key you pressed, how long each key takes, the slowest letter pairs, and every space, backspace and pause in context.
 - **Forest Hop:** a Crossy Road–style game. Pick a pixel-art animal and hop as far into the forest as you can: a word sits beside each tile around your animal, so type one and press Space or Enter to jump that way. Dodge deer herds, ride logs across creeks and wait out rockslides. Every animal has its own treats to collect (spent on unlocking more animals) and its own predator, which turns up if you stop making progress.
 - **Path Runner:** choose a path by typing its word before the clock runs out.
+- **Profiles:** separate profiles, each with its own results, stats, replays and game progress. Create, rename, switch and delete them in Settings → Profiles.
 - **Settings:** three themes, five accent colors, interface and typing fonts, text size and caret style.
 
 Your data stays on your computer.

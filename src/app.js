@@ -183,6 +183,8 @@
     const special = ui.view === "game" || ui.view === "replay" || FOREST_VIEWS.includes(ui.view);
     els.config.hidden = special;
     els.badge.hidden = !special && ui.lastTyping !== "practice";
+    $("profile-chip").textContent = TT.profiles.active().name;
+    $("profile-chip").setAttribute("aria-label", `Profile: ${TT.profiles.active().name}. Manage profiles`);
     els.badge.textContent = ui.view === "replay" ? "REPLAY" : ui.view === "game" ? "PATH RUNNER"
       : FOREST_VIEWS.includes(ui.view) ? "FOREST HOP" : "PRACTICE";
     if (special) return;
@@ -1025,16 +1027,105 @@
 
     data() {
       const n = TT.store.history.length;
+      const name = esc(TT.profiles.active().name);
       return `<div class="cols">
         <section class="col-main"><div class="settings-rows">
-          ${srow("Saved results", `<strong style="padding: 0 4px; font-size: 18px">${n} ${n === 1 ? "test" : "tests"}</strong>`)}
-          ${srow("Reset", `<button class="opt danger" data-act="reset-data">DELETE ALL DATA</button><span class="hint-text">Settings are kept.</span>`)}
+          ${srow("Profile", `<strong style="padding: 0 4px; font-size: 18px">${name}</strong>`)}
+          ${srow("Saved results", `<strong style="padding: 0 4px; font-size: 18px">${n} ${n === 1 ? "round" : "rounds"}</strong>`)}
+          ${srow("Reset", `<button class="opt danger" data-act="reset-data">DELETE THIS PROFILE'S DATA</button><span class="hint-text">Only ${name}. Settings and other profiles are kept.</span>`)}
         </div>
-        <p class="note">Everything is stored on this computer, in this browser. Nothing is uploaded.</p>
+        <p class="note">Everything is stored on this computer. Nothing is uploaded.</p>
+        </section>
+      </div>`;
+    },
+
+    profiles() {
+      const P = TT.profiles;
+      const active = P.activeId();
+      const list = P.list();
+      const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+      const rows = list.map((p) => {
+        const s = P.summary(p.id);
+        const isActive = p.id === active;
+        const renaming = ui.renaming === p.id;
+        const name = renaming
+          ? `<form class="profile-form" data-form="rename:${p.id}">
+               <input class="text-input" name="name" value="${esc(p.name)}" maxlength="${P.MAX_NAME}" aria-label="New name for ${esc(p.name)}" required>
+               <button class="opt on" type="submit">SAVE</button>
+               <button class="opt" type="button" data-act="profile:cancel">CANCEL</button>
+             </form>`
+          : `<span class="profile-name">${esc(p.name)}</span>${isActive ? `<span class="tag">ACTIVE</span>` : ""}`;
+        const actions = renaming ? "" :
+          (isActive ? "" : `<button class="opt outline" data-act="profile:switch:${p.id}">SWITCH</button>`) +
+          `<button class="opt" data-act="profile:rename:${p.id}" aria-label="Rename ${esc(p.name)}">RENAME</button>` +
+          (isActive || list.length < 2 ? "" : `<button class="opt danger" data-act="profile:delete:${p.id}" aria-label="Delete ${esc(p.name)}">DELETE</button>`);
+        return `<div class="profile-row ${isActive ? "active" : ""}">
+          <div class="profile-main">${name}<span class="hint-text">${plural(s.tests, "test")} · ${plural(s.games, "game")} · best ${Math.round(s.best)} wpm</span></div>
+          <div class="controls">${actions}</div>
+        </div>`;
+      }).join("");
+      return `<div class="cols">
+        <section class="col-main">
+          <div class="settings-rows profiles">${rows}</div>
+          <form class="new-profile" data-form="create">
+            <label for="new-profile-name">New profile</label>
+            <input id="new-profile-name" class="text-input" name="name" maxlength="${P.MAX_NAME}" placeholder="Name" required>
+            <button class="opt outline" type="submit">CREATE</button>
+          </form>
+          <p class="note">Each profile keeps its own results, stats, replays and Forest Hop progress. Appearance and the other settings are shared.</p>
         </section>
       </div>`;
     },
   };
+
+  function profileAct(x, id) {
+    const P = TT.profiles;
+    if (x === "switch") {
+      if (P.switchTo(id)) onProfileChanged();
+    } else if (x === "rename") {
+      ui.renaming = id;
+      renderSettings();
+      const input = document.querySelector(`[data-form="rename:${id}"] input`);
+      if (input) { input.focus(); input.select(); }
+    } else if (x === "cancel") {
+      ui.renaming = null;
+      renderSettings();
+    } else if (x === "delete") {
+      const p = P.list().find((z) => z.id === id);
+      if (p && confirm(`Delete the profile "${p.name}" and all of its results, replays and game progress? This can't be undone.`)) {
+        P.remove(id);
+        renderSettings();
+      }
+    }
+  }
+
+  // After switching profiles: forget anything that pointed at the old profile's rounds.
+  function onProfileChanged() {
+    ui.lastRoundId = ui.lastGameId = ui.lastForestId = null;
+    ui.fhPick = null;
+    ui.renaming = null;
+    renderBar();
+    renderSettings();
+    els.statusLine.textContent = `Switched to ${TT.profiles.active().name}.`;
+  }
+
+  document.addEventListener("submit", (e) => {
+    const form = e.target.closest("[data-form]");
+    if (!form) return;
+    e.preventDefault();
+    const name = new FormData(form).get("name");
+    const [kind, id] = form.dataset.form.split(":");
+    if (kind === "rename") {
+      if (TT.profiles.rename(id, name)) {
+        ui.renaming = null;
+        renderSettings();
+        renderBar();
+      }
+    } else if (kind === "create") {
+      const newId = TT.profiles.create(name);
+      if (newId && TT.profiles.switchTo(newId)) onProfileChanged();
+    }
+  });
 
   const UPDATE_TEXT = {
     idle: () => "Not checked yet.",
@@ -1077,7 +1168,7 @@
   };
 
   function renderSettings() {
-    const tabs = [["appearance", "Appearance"], ["practice", "Practice"], ["updates", "Updates"], ["data", "Data"]];
+    const tabs = [["appearance", "Appearance"], ["practice", "Practice"], ["profiles", "Profiles"], ["updates", "Updates"], ["data", "Data"]];
     $("view-settings").innerHTML = subtabs(tabs, ui.settingsTab, "settab") + SETTINGS_VIEWS[ui.settingsTab]();
   }
 
@@ -1132,8 +1223,13 @@
       case "update":
         if (window.touchType && ["check", "download", "install"].includes(x)) window.touchType.update[x]();
         break;
+      case "profile": profileAct(x, y); break;
+      case "profiles":
+        ui.settingsTab = "profiles";
+        openMenu("settings");
+        break;
       case "reset-data":
-        if (confirm("Delete all saved results and stats? This can't be undone.")) {
+        if (confirm(`Delete all of ${TT.profiles.active().name}'s results, stats, replays and game progress? This can't be undone.`)) {
           TT.resetData();
           renderSettings();
         }
@@ -1155,6 +1251,15 @@
 
   document.addEventListener("keydown", (e) => {
     if (e.getModifierState) els.capslock.hidden = !e.getModifierState("CapsLock");
+    // Typing in a text field (like a profile name) shouldn't trigger shortcuts.
+    if (e.target.closest && e.target.closest("input, textarea, select")) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        if (ui.renaming) profileAct("cancel");
+        else e.target.blur();
+      }
+      return;
+    }
     const v = ui.view;
 
     if (v === "replay") {
