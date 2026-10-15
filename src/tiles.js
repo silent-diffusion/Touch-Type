@@ -212,9 +212,11 @@
       // keep typing toward the other tile
     } else if (forThis) {
       attribute(g, typed, tile.w);
+      W.drop(g);
       W.reset(g);
     } else if (g.v >= 3 && g.buf) {
       attribute(g, "", tile.w); // nothing fitted a word, so the wrong keys were for the missed one
+      W.drop(g);
       W.reset(g);
     }
     missed(g, tile, t, tile.w);
@@ -227,6 +229,7 @@
     const c = column(g);
     if (g.buf && (c === tile.l || c < 0)) {
       attribute(g, c === tile.l ? W.good(g) : "", word);
+      W.drop(g);
       W.reset(g);
     }
     missed(g, tile, t, word);
@@ -255,6 +258,7 @@
     g.hp = Math.min(MAX_HP, g.hp + HEAL[grade]);
     g.chars += word.length + 1;
     g.offsets.push(d);
+    W.done(g, word);
     W.reset(g);
     g.last = { grade, t, i: tile.i, l: tile.l, d };
     return { type: "hit", grade, d, word, misses, i: tile.i };
@@ -275,6 +279,7 @@
     g.score += POINTS.S * multiplier(g.combo);
     g.chars += typed.length;
     g.offsets.push(d);
+    W.drop(g);
     W.reset(g);
     g.last = { grade: "S", t, i: tile.i, l: tile.l, d };
     return { type: "hit", grade: "S", d, word, misses, i: tile.i, sloppy: true };
@@ -300,6 +305,7 @@
     if (advance(g, t, provider)) return null;
     if (k === BACK || k === BACK_WORD) {
       const b = W.back(g, k === BACK_WORD);
+      if (b) W.mark(g, t);
       return b && { type: "back", ...b, buf: g.buf };
     }
     if (k === " " && g.v >= 4) return strikeColumn(g, t, provider);
@@ -322,6 +328,7 @@
     const fits = g.v >= 4 ? (s) => g.words.some((w) => w.startsWith(s)) : (s) => g.tiles.some((x) => x.w.startsWith(s));
     const r = W.letter(g, k, fits, g.v < 2);
     if (!r) return null;
+    W.mark(g, t);
     g.keys++;
     if (!r.ok) {
       g.stepMisses.push({ pos: r.pos, typed: k });
@@ -375,7 +382,7 @@
     const judged = c.P + c.G + c.O + (c.S || 0) + c.M;
     const avg = g.offsets.length ? g.offsets.reduce((s, x) => s + x, 0) / g.offsets.length : 0;
     return {
-      wpm: minutes > 1 / 60 ? g.chars / 5 / minutes : 0,
+      wpm: minutes > 1 / 60 ? W.wpm(g) : 0, // typing time only, scaled to the speed test (input.js)
       acc: g.keys ? (g.correct / g.keys) * 100 : 100,
       timing: judged ? ((c.P + c.G * 0.7 + c.O * 0.4 + (c.S || 0) * 0.2) / judged) * 100 : 100,
       judged,
@@ -391,6 +398,7 @@
   // A fresh core for a recording, ready to replay.
   function coreFor(rec) {
     const g = newCore({ hits: rec.hits, fall: rec.fall, endT: rec.endT, diff: rec.diff, v: rec.v || 1, lanes: rec.lanes, cols: rec.cols });
+    g.wpmScale = rec.wpmScale ?? W.scale();
     dealWords(g, recorded(rec));
     return g;
   }
@@ -790,6 +798,7 @@
         targets: A.weakKeys(), missed: A.weakWords(20),
       };
       g = newCore({ hits, fall: D.fall, endT, diff, lanes: columns(song, diff), cols: D.cols });
+      g.wpmScale = W.scale();
       dealWords(g, provide);
       beatTimes = song.beats.map((b) => ({ t: offset + b.t * 1000, down: b.down }));
       viewT = 0;
@@ -916,7 +925,7 @@
       TT.save();
       TT.rounds.save({
         id, date, kind: "game", game: "tiles", mode: live.diff, amount: g.score, song: live.song, title: song.title,
-        songKey: song.key, offset: live.offset, v: RULES, diff: live.diff, fall: g.fall, hits: g.hits, endT: g.endT, lanes: g.lanes, cols: g.cols, words: live.words,
+        songKey: song.key, offset: live.offset, wpmScale: g.wpmScale, v: RULES, diff: live.diff, fall: g.fall, hits: g.hits, endT: g.endT, lanes: g.lanes, cols: g.cols, words: live.words,
         keys: live.keys, times: live.times, duration: g.endAt,
       });
 

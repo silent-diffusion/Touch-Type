@@ -65,7 +65,41 @@
   const html = (g) =>
     `<span class="wb-ok">${good(g)}</span>${clean(g) ? "" : `<span class="wb-bad">${wrong(g)}</span>`}`;
 
-  TT.wordInput = { MAX_WRONG, reset, clean, good, wrong, ready, letter, back, attribute, html };
+  // ---------- typing speed in games ----------
+  // Games spend a lot of time waiting (for a tile, a gap, the next path), so their speed counts only
+  // the time spent typing each word: from its first key to its last. Like the speed test's net WPM,
+  // only words finished correctly add characters, while time spent on typos and backspaces (and on
+  // words that were missed or given up) still counts, so mistakes slow it down. A word of n letters
+  // has n - 1 gaps between its keys, and those are what's timed.
+  //
+  // That leaves out the gap between words (space, then the next first letter), so it reads a bit
+  // fast. A profile's own speed tests, replayed the same way, give the scale that brings it in line
+  // with their real WPM (see TT.review.speedScale). Until there are enough, DEFAULT_SCALE is used.
+  const DEFAULT_SCALE = 0.9;
+
+  // Every key typed toward a word (letters and backspaces) at time t.
+  const mark = (g, t) => {
+    if (g.wordT == null) g.wordT = t;
+    g.lastT = t;
+  };
+  // The word was finished correctly.
+  const done = (g, word) => {
+    if (g.wordT != null) {
+      g.typeMs = (g.typeMs || 0) + (g.lastT - g.wordT);
+      g.typeChars = (g.typeChars || 0) + Math.max(0, word.length - 1);
+    }
+    g.wordT = null;
+  };
+  // The word was missed or given up: its time counts, its letters don't.
+  const drop = (g) => {
+    if (g.wordT != null) g.typeMs = (g.typeMs || 0) + (g.lastT - g.wordT);
+    g.wordT = null;
+  };
+  const scale = () => (TT.store && TT.store.games && TT.store.games.speed ? TT.store.games.speed.scale : DEFAULT_SCALE);
+  // Words per minute so far, scaled to match the speed test (g.wpmScale, saved with each round).
+  const wpm = (g) => (g.typeMs > 0 ? (g.typeChars / 5 / (g.typeMs / 60000)) * (g.wpmScale ?? 1) : 0);
+
+  TT.wordInput = { MAX_WRONG, reset, clean, good, wrong, ready, letter, back, attribute, html, mark, done, drop, wpm, scale, DEFAULT_SCALE };
 
   // The pause screen every game shows. restart and quit are the game's own actions.
   TT.pausedHtml = (restart, quit, quitLabel) => `

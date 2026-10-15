@@ -227,7 +227,7 @@
     const id = TT.newRoundId();
     const date = new Date().toISOString();
     ui.lastRoundId = id;
-    TT.rounds.save({ id, date, kind, ...r.recording });
+    TT.rounds.save({ id, date, kind, ...r.recording }).then(refreshSpeedScale);
 
     store.history.push({
       id,
@@ -1390,6 +1390,7 @@
   function onProfileChanged() {
     ui.lastRoundId = ui.lastGameId = ui.lastForestId = ui.lastTilesId = null;
     ui.fhPick = null;
+    refreshSpeedScale();
     ui.renaming = null;
     renderBar();
     renderSettings();
@@ -1673,6 +1674,17 @@
     if (ui.view === "replay" && rp.player && rp.player.relayout) rp.player.relayout();
   });
 
+  // ---------- game speed ----------
+
+  // Games time only the typing of each word, so their WPM is scaled to match this profile's own
+  // speed tests (input.js, review.js). Worked out again after every test and on switching profiles.
+  async function refreshSpeedScale() {
+    const recs = await TT.rounds.recent(60);
+    const found = TT.review.speedScale(recs);
+    TT.store.games.speed = found || { scale: TT.wordInput.DEFAULT_SCALE, tests: 0 };
+    TT.save();
+  }
+
   // ---------- start ----------
 
   TT.ui = { statusRows, keyTiles };
@@ -1691,6 +1703,7 @@
   sanitizeSettings();
   applySettings();
   startTyping("test");
+  refreshSpeedScale();
   TT.music.load().then(() => {
     if (ui.view === "tiles-select") renderTilesSelect();
   });

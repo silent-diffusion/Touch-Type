@@ -49,6 +49,7 @@
     if (advance(g, t)) return null;
     if (k === BACK || k === BACK_WORD) {
       const b = W.back(g, k === BACK_WORD);
+      if (b) W.mark(g, t);
       return b && { type: "back", ...b, buf: g.buf };
     }
     if (k === " ") return null;
@@ -56,6 +57,7 @@
     const row = g.rows[g.n + 1];
     const r = W.letter(g, k, (s) => row.cells.some((c) => c.type === "open" && c.word.startsWith(s)), g.v < 2);
     if (!r) return null;
+    W.mark(g, t);
     g.keys++;
     if (!r.ok) {
       g.stepMisses.push({ pos: r.pos, typed: k });
@@ -80,6 +82,7 @@
     g.n++;
     g.lane = hit;
     g.rows[g.n].lane = hit;
+    W.done(g, cell.word);
     W.reset(g);
     if (onMove) onMove(g, cell.word);
     return { type: "move", typed: k, pos: r.pos, word: cell.word, lane: hit, bonus: !!cell.bonus, misses };
@@ -88,7 +91,7 @@
   function gameStats(g, ms) {
     const minutes = ms / 60000;
     return {
-      wpm: minutes > 1 / 60 ? g.chars / 5 / minutes : 0,
+      wpm: minutes > 1 / 60 ? W.wpm(g) : 0, // typing time only, scaled to the speed test (input.js)
       acc: g.keys ? (g.correct / g.keys) * 100 : 100,
     };
   }
@@ -279,6 +282,7 @@
       replay = null;
       live = { state: "ready", startedAt: 0, keys: "", times: [], recent: [], targets: A.weakKeys(), missed: A.weakWords(20) };
       g = newCore({ 0: { cells: [], lane: 1 } });
+      g.wpmScale = W.scale();
       g.rows[1] = layout(1);
       g.rows[2] = layout(2);
       assignWords(1);
@@ -354,7 +358,7 @@
       TT.save();
       TT.rounds.save({
         id, date, kind: "game", game: "path", mode: "steps", amount: g.n,
-        v: RULES, rows: g.rows, keys: live.keys, times: live.times, duration: g.endT,
+        v: RULES, wpmScale: g.wpmScale, rows: g.rows, keys: live.keys, times: live.times, duration: g.endT,
       });
 
       const line = g.n > prevBest && prevBest > 0
@@ -440,6 +444,7 @@
       live = null;
       replay = { rec, pos: 0, lastT: 0 };
       g = newCore(structuredClone(rec.rows), rec.v || 1);
+      g.wpmScale = rec.wpmScale ?? W.scale();
       viewT = 0;
       el.over.hidden = true;
       if (el.note) el.note.textContent = "";
@@ -453,6 +458,7 @@
       const rewind = T < replay.lastT;
       if (rewind) {
         g = newCore(structuredClone(rec.rows), rec.v || 1);
+        g.wpmScale = rec.wpmScale ?? W.scale();
         replay.pos = 0;
       }
       let moved = false, missed = false;

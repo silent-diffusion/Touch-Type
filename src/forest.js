@@ -303,6 +303,7 @@
     g.hopT = t;
     g.lane = to.lane;
     g.x = to.col;
+    W.done(g, word);
     W.reset(g);
     if (g.lane > g.maxLane) {
       g.maxLane = g.lane;
@@ -327,6 +328,7 @@
     if (advance(g, t)) return null;
     if (k === BACK || k === BACK_WORD) {
       const b = W.back(g, k === BACK_WORD);
+      if (b) W.mark(g, t);
       return b && { type: "back", ...b, buf: g.buf };
     }
     if (k === " ") {
@@ -345,6 +347,7 @@
     const open = DIRS.filter((d) => target(g, d)).map((d) => g.words[d]);
     const r = W.letter(g, k, (s) => open.some((w) => w.startsWith(s)), g.v < 4);
     if (!r) return null;
+    W.mark(g, t);
     g.keys++;
     if (!r.ok) {
       g.stepMisses.push({ pos: r.pos, typed: k });
@@ -358,7 +361,7 @@
   function gameStats(g, ms) {
     const minutes = ms / 60000;
     return {
-      wpm: minutes > 1 / 60 ? g.chars / 5 / minutes : 0,
+      wpm: minutes > 1 / 60 ? W.wpm(g) : 0, // typing time only, scaled to the speed test (input.js)
       acc: g.keys ? (g.correct / g.keys) * 100 : 100,
     };
   }
@@ -889,6 +892,7 @@
       live = { state: "ready", startedAt: 0, keys: "", times: [], words: [], recent: [], targets: A.weakKeys(), missed: A.weakWords(20) };
       const seed = (Math.random() * 2 ** 32) >>> 0;
       g = newCore(seed, animal, RULES);
+      g.wpmScale = W.scale();
       assignWords(g, makeWords);
       viewT = 0;
       cam = { lane: null };
@@ -1003,7 +1007,7 @@
       TT.save();
       TT.rounds.save({
         id, date, kind: "game", game: "forest", mode: "steps", amount: s, v: RULES,
-        seed: g.seed, animal: g.animal, words: live.words, keys: live.keys, times: live.times, duration: g.endT,
+        seed: g.seed, animal: g.animal, wpmScale: g.wpmScale, words: live.words, keys: live.keys, times: live.times, duration: g.endT,
       });
 
       const line = s > prevBest && prevBest > 0
@@ -1040,6 +1044,7 @@
       const provider = recordedWords(rec);
       replay = { rec, pos: 0, lastT: 0, provider };
       g = newCore(rec.seed, rec.animal || "frog", rec.v || 1);
+      g.wpmScale = rec.wpmScale ?? W.scale();
       assignWords(g, provider);
       viewT = 0;
       cam = { lane: null };
@@ -1053,6 +1058,7 @@
       const { rec, provider } = replay;
       if (T < replay.lastT) {
         g = newCore(rec.seed, rec.animal || "frog", rec.v || 1);
+        g.wpmScale = rec.wpmScale ?? W.scale();
         assignWords(g, provider);
         replay.pos = 0;
         cam = { lane: null };

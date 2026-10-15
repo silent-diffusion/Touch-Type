@@ -80,6 +80,7 @@
   function analyzeGame(rec) {
     const P = TT.pathCore;
     const g = P.newCore(structuredClone(rec.rows), rec.v || 1);
+    g.wpmScale = rec.wpmScale ?? TT.wordInput.scale();
     const a = newAnalysis();
     a.typedErrors = g.v >= 2; // wrong letters stay typed, so a Backspace can be told to fix one
     let prevT = null;
@@ -131,6 +132,7 @@
   function analyzeForest(rec) {
     const F = TT.forestCore;
     const g = F.newCore(rec.seed, rec.animal || "frog", rec.v || 1);
+    g.wpmScale = rec.wpmScale ?? TT.wordInput.scale();
     const provider = F.recordedWords(rec);
     F.assignWords(g, provider);
     const a = newAnalysis();
@@ -263,6 +265,41 @@
     return a;
   }
 
+  // ---------- game speed, calibrated against speed tests ----------
+
+  // A speed test counted the way games count speed (input.js): only each word's own typing time,
+  // only words typed right. Returns that and the test's real (net) WPM.
+  function gameStyleWpm(rec) {
+    const C = TT.typingCore, W = TT.wordInput;
+    const c = C.newCore(rec.words.slice(), rec.mode, rec.amount);
+    const g = { wordT: null, lastT: 0, typeMs: 0, typeChars: 0 };
+    for (let i = 0; i < rec.keys.length; i++) {
+      const d = C.applyKey(c, rec.keys[i]);
+      if (!d) continue;
+      if (d.type !== "space") W.mark(g, rec.times[i]);
+      else if (d.ok) W.done(g, rec.words[d.word]);
+      else W.drop(g);
+    }
+    return { game: W.wpm(g), real: C.computeStats(c, rec.duration).wpm };
+  }
+
+  // How much to scale game speeds so they match the player's speed tests: the median, over their
+  // latest tests, of real WPM ÷ game-style WPM. Null with fewer than 3 usable tests.
+  const SCALE_TESTS = 20;
+  function speedScale(recs) {
+    const ratios = [];
+    for (const rec of recs) {
+      if (ratios.length >= SCALE_TESTS) break;
+      if (rec.kind === "game" || !rec.words || !rec.keys || rec.duration < 10000) continue;
+      const { game, real } = gameStyleWpm(rec);
+      if (game > 0 && real > 0) ratios.push(real / game);
+    }
+    if (ratios.length < 3) return null;
+    ratios.sort((a, b) => a - b);
+    const mid = ratios[Math.floor(ratios.length / 2)];
+    return { scale: Math.round(Math.min(1.1, Math.max(0.5, mid)) * 1000) / 1000, tests: ratios.length };
+  }
+
   const cache = new Map();
   function analyze(rec) {
     if (!cache.has(rec.id)) {
@@ -345,5 +382,5 @@
     return list.sort((x, y) => x.t - y.t);
   }
 
-  TT.review = { analyze, combine, ranked, topConfusions, consistency, moments, MIN_SAMPLES };
+  TT.review = { analyze, combine, ranked, topConfusions, consistency, moments, gameStyleWpm, speedScale, MIN_SAMPLES };
 })();
