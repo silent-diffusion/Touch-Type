@@ -849,12 +849,12 @@ body:not(.typing) .caret.caret-block { animation-name: blink-block; }
   background: color-mix(in srgb, var(--ink) 5%, transparent);
 }
 .tl-div { position: absolute; top: 0; bottom: 0; border-left: 2px dashed color-mix(in srgb, var(--ink) 30%, transparent); }
-/* the line: its center is 70px from the bottom (HIT_BOTTOM in tiles.js) */
+/* the line: its center is 90px from the bottom (HIT_BOTTOM in tiles.js); the words sit under it */
 .tl-band {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 44px;
+  bottom: 64px;
   height: 52px;
   border-top: 4px solid var(--ink);
   border-bottom: 4px solid var(--ink);
@@ -863,7 +863,7 @@ body:not(.typing) .caret.caret-block { animation-name: blink-block; }
 .tl-band::after { content: ""; position: absolute; left: 0; right: 0; top: 50%; border-top: 2px dashed var(--accent); }
 .tl-band.beat { background: color-mix(in srgb, var(--ink) 10%, transparent); }
 .tl-band.beat.down { background: color-mix(in srgb, var(--accent) 22%, transparent); }
-.tl-flash { position: absolute; bottom: 44px; height: 52px; width: 25%; background: var(--accent); opacity: 0; pointer-events: none; }
+.tl-flash { position: absolute; bottom: 64px; height: 52px; width: 25%; background: var(--accent); opacity: 0; pointer-events: none; }
 .tl-tiles { position: absolute; inset: 0; }
 .tl-tile {
   position: absolute;
@@ -887,7 +887,7 @@ body:not(.typing) .caret.caret-block { animation-name: blink-block; }
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 112px;
+  bottom: 132px;
   text-align: center;
   font-size: 24px;
   font-weight: 800;
@@ -896,6 +896,28 @@ body:not(.typing) .caret.caret-block { animation-name: blink-block; }
   pointer-events: none;
 }
 .tl-judge.miss { color: var(--accent); }
+
+/* the word under each column (rules v4) */
+.tl-words { position: absolute; left: 0; right: 0; bottom: 0; height: 64px; }
+.tl-words[hidden] { display: none; }
+.tl-word { position: absolute; top: 8px; bottom: 8px; padding: 0 6px; }
+.tl-word span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  border: var(--rule);
+  background: var(--ground);
+  font-family: var(--type-font);
+  font-size: 21px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.tl-word b { font-weight: inherit; text-decoration: underline; text-decoration-color: var(--accent); text-underline-offset: 5px; }
+.tl-word.on span { border-color: var(--accent); }
+.tl-word.ready span { background: var(--ink); color: var(--ground); }
+.tl-word.ready b { text-decoration: none; }
+.tl-word.dim { opacity: 0.45; }
 
 .tl-typed-row { display: flex; justify-content: center; margin-top: 14px; min-height: 44px; }
 .tl-typed { min-width: 56px; justify-content: center; }

@@ -1,26 +1,28 @@
-// Tiles: a rhythm game. Words fall down four lanes in time with a song. Type a word, then press
-// Enter (or Space) as its tile crosses the line. Typing is judged for accuracy, the Enter press
-// for timing.
+// Tiles: a rhythm game. Blank tiles fall down columns in time with a song, and each column has a
+// word at the bottom. Type a column's word, then press Enter (or Space) as its tile crosses the
+// line. Higher notes fall in columns further right. Typing is judged for accuracy, the Enter press
+// for timing. (Before rules v4 the words were on the tiles themselves.)
 //
 // Like Forest Hop, the rules live in a pure core so replays re-run exactly. A recording keeps the
-// hit times, the words and lanes it was given, and the keys, so the song isn't needed to replay it.
+// hit times, the columns and words it was given, and the keys, so the song isn't needed to replay it.
 (() => {
   const A = TT.analysis;
   const W = TT.wordInput;
   const BACK = "<", BACK_WORD = "{";
   // v2: wrong letters are typed and must be backspaced. v3: a missed tile clears the typing unless
-  // it's a correct start on another tile.
-  const RULES = 3;
+  // it's a correct start on another tile. v4: blank tiles, a word under each column.
+  const RULES = 4;
   const LANES = 4;
 
-  // gap: seconds between words the chart aims for (it snaps to the song's beats)
-  // min: the closest two words can ever be, in seconds
+  // gap: seconds between tiles the chart aims for (it snaps to the song's beats)
+  // min: the closest two tiles can ever be, in seconds
   // fall: milliseconds a tile takes to fall from the top to the line
+  // cols: how many columns (from rules v4); len: word lengths
   const DIFFS = {
-    easy:   { name: "EASY",   gap: 4.0, min: 2.0,  fall: 4200, len: [3, 4], missHp: 8 },
-    medium: { name: "MEDIUM", gap: 2.4, min: 1.2,  fall: 3400, len: [3, 5], missHp: 10 },
-    hard:   { name: "HARD",   gap: 1.4, min: 0.7,  fall: 2700, len: [4, 6], missHp: 12 },
-    expert: { name: "EXPERT", gap: 0.9, min: 0.55, fall: 2100, len: [4, 7], missHp: 14 },
+    easy:   { name: "EASY",   gap: 4.0, min: 2.0,  fall: 4200, cols: 2, len: [3, 4], missHp: 8 },
+    medium: { name: "MEDIUM", gap: 2.4, min: 1.2,  fall: 3400, cols: 3, len: [3, 5], missHp: 10 },
+    hard:   { name: "HARD",   gap: 1.4, min: 0.7,  fall: 2700, cols: 4, len: [4, 6], missHp: 12 },
+    expert: { name: "EXPERT", gap: 0.9, min: 0.55, fall: 2100, cols: 4, len: [4, 7], missHp: 14 },
   };
   const DIFF_IDS = Object.keys(DIFFS);
   // Timing windows in ms. Early presses get more room than late ones.
@@ -28,7 +30,7 @@
   const POINTS = { P: 300, G: 200, O: 100 };
   const HEAL = { P: 4, G: 3, O: 2 };
   const TYPO_HP = 2, START_HP = 80, MAX_HP = 100;
-  const GRADE_NAMES = { P: "PERFECT", G: "GREAT", O: "GOOD", M: "MISS", E: "TOO EARLY" };
+  const GRADE_NAMES = { P: "PERFECT", G: "GREAT", O: "GOOD", M: "MISS", E: "TOO EARLY", X: "WRONG COLUMN" };
   const LEAD_MS = 1200; // quiet time before the first tile shows up
   const HISTORY_CAP = 200;
 
@@ -95,6 +97,23 @@
     return out.reverse();
   }
 
+  // The column of each of a chart's tiles: its note's pitch against the chart's other notes, so the
+  // lowest notes fall on the left and the highest on the right. Equal notes share a column.
+  function columns(song, diff) {
+    const cols = DIFFS[diff].cols;
+    const at = new Map(song.beats.map((b) => [Math.round(b.t * 1000), b.p]));
+    let last = null;
+    const ps = chart(song, diff).map((h) => (last = at.get(h) ?? last));
+    const known = ps.filter((p) => p != null).sort((a, b) => a - b);
+    if (!known.length) return ps.map((_, i) => i % cols);
+    const below = (p) => {
+      let lo = 0, eq = 0;
+      for (const q of known) { if (q < p) lo++; else if (q === p) eq++; }
+      return (lo + eq / 2) / known.length;
+    };
+    return ps.map((p) => (p == null ? Math.floor(cols / 2) : Math.min(cols - 1, Math.floor(below(p) * cols))));
+  }
+
   // The first hit of the charts before they followed the music, for older recordings that didn't
   // save where the song started: the first bar (with sound, in an added song) half a second in.
   const oldFirstHit = (song) => {
@@ -105,12 +124,15 @@
   // ---------- core ----------
 
   // hits: game-time ms at which each tile reaches the line. endT: when the round ends.
-  function newCore({ hits, fall, endT, diff, v = RULES }) {
+  // From v4, lanes: each tile's column, and cols: how many columns there are.
+  function newCore({ hits, fall, endT, diff, v = RULES, lanes = null, cols = 4 }) {
     return {
-      v, hits, fall, endT, diff,
+      v, hits, fall, endT, diff, lanes, cols,
+      words: null,      // v4: the word under each column
+      wordN: 0,         // v4: how many words have been dealt
       missHp: (DIFFS[diff] || DIFFS.medium).missHp,
       next: 0,          // index of the next tile to appear
-      tiles: [],        // on screen, oldest first: { i, w, l, born }
+      tiles: [],        // on screen, oldest first: { i, l, born } (and w, the word, before v4)
       res: [],          // per tile: { grade, d, t }
       buf: "", bad: -1,
       score: 0, combo: 0, maxCombo: 0, hp: START_HP,
@@ -123,11 +145,36 @@
     };
   }
 
-  // The tile you're typing: the first one the correctly typed letters fit.
+  // v4: the column whose word the correctly typed letters start, or -1. Its words all start with
+  // different letters, so the first one picks the column.
+  const column = (g) => {
+    const typed = W.good(g);
+    return typed && g.words ? g.words.findIndex((w) => w.startsWith(typed)) : -1;
+  };
+
+  // The tile you're typing toward: before v4, the first one whose word the typed letters fit;
+  // from v4, the lowest tile in the column you're typing.
   const target = (g) => {
+    if (g.v >= 4) {
+      const c = column(g);
+      return c < 0 ? null : g.tiles.find((x) => x.l === c) || null;
+    }
     const typed = W.good(g);
     return typed ? g.tiles.find((x) => x.w.startsWith(typed)) || null : null;
   };
+
+  // v4: deals a column a new word. provider(g, column, t) picks it live and replays it from a recording.
+  function deal(g, c, t, provider) {
+    g.words[c] = provider(g, c, t);
+    g.wordN++;
+  }
+
+  // Deals every column its first word (v4; nothing to do before that).
+  function dealWords(g, provider) {
+    if (g.v < 4) return;
+    g.words = [];
+    for (let c = 0; c < g.cols; c++) deal(g, c, 0, provider);
+  }
 
   // Wrong keys are tied to a letter once it's known which word they were for. `letters` is what
   // was typed correctly of `word`. Before v2, wrong keys past what was typed weren't counted.
@@ -146,12 +193,14 @@
 
   function spawn(g, t, provider) {
     const i = g.next++;
+    if (g.v >= 4) return g.tiles.push({ i, l: g.lanes[i], born: t });
     const { w, l } = provider(g, i, t);
     g.tiles.push({ i, w, l, born: t });
   }
 
   function miss(g, tile, t) {
     g.tiles = g.tiles.filter((x) => x !== tile);
+    if (g.v >= 4) return missColumn(g, tile, t);
     // The typing starts fresh for the next word, unless it's a correct start on another tile.
     // What was typed for the missed word (wrong keys too) still counts toward key stats.
     const typed = W.good(g);
@@ -166,31 +215,47 @@
       attribute(g, "", tile.w); // nothing fitted a word, so the wrong keys were for the missed one
       W.reset(g);
     }
-    g.res[tile.i] = { grade: "M", t };
+    missed(g, tile, t, tile.w);
+  }
+
+  // v4: the typing starts fresh unless it's a correct start on another column's word. What was typed
+  // for this column (or that fit no column) counts toward its word's key stats.
+  function missColumn(g, tile, t) {
+    const word = g.words[tile.l];
+    const c = column(g);
+    if (g.buf && (c === tile.l || c < 0)) {
+      attribute(g, c === tile.l ? W.good(g) : "", word);
+      W.reset(g);
+    }
+    missed(g, tile, t, word);
+  }
+
+  function missed(g, tile, t, word) {
+    g.res[tile.i] = { grade: "M", t, w: word };
     g.counts.M++;
     g.combo = 0;
     g.last = { grade: "M", t, i: tile.i, l: tile.l };
     hurt(g, g.missHp, t);
   }
 
-  function hit(g, tile, d, t) {
+  function hit(g, tile, d, t, word = tile.w) {
     const a = Math.abs(d);
     const grade = a <= WIN.perfect ? "P" : a <= WIN.great ? "G" : "O";
     g.tiles = g.tiles.filter((x) => x !== tile);
     g.keys++;
     g.correct++;
-    const misses = attribute(g, tile.w);
-    g.res[tile.i] = { grade, d, t };
+    const misses = attribute(g, word);
+    g.res[tile.i] = { grade, d, t, w: word };
     g.counts[grade]++;
     g.combo++;
     g.maxCombo = Math.max(g.maxCombo, g.combo);
     g.score += POINTS[grade] * multiplier(g.combo);
     g.hp = Math.min(MAX_HP, g.hp + HEAL[grade]);
-    g.chars += tile.w.length + 1;
+    g.chars += word.length + 1;
     g.offsets.push(d);
     W.reset(g);
     g.last = { grade, t, i: tile.i, l: tile.l, d };
-    return { type: "hit", grade, d, word: tile.w, misses, i: tile.i };
+    return { type: "hit", grade, d, word, misses, i: tile.i };
   }
 
   // Runs everything that happens on its own (tiles appearing, tiles passing the line, the song
@@ -215,6 +280,7 @@
       const b = W.back(g, k === BACK_WORD);
       return b && { type: "back", ...b, buf: g.buf };
     }
+    if (k === " " && g.v >= 4) return strikeColumn(g, t, provider);
     if (k === " ") {
       const tile = target(g);
       if (tile && W.ready(g, tile.w)) {
@@ -231,7 +297,8 @@
       }
       return { type: "strike", ok: false, buf: g.buf, empty: !g.buf };
     }
-    const r = W.letter(g, k, (s) => g.tiles.some((x) => x.w.startsWith(s)), g.v < 2);
+    const fits = g.v >= 4 ? (s) => g.words.some((w) => w.startsWith(s)) : (s) => g.tiles.some((x) => x.w.startsWith(s));
+    const r = W.letter(g, k, fits, g.v < 2);
     if (!r) return null;
     g.keys++;
     if (!r.ok) {
@@ -242,6 +309,33 @@
     }
     g.correct++;
     return { type: "letter", typed: k, pos: r.pos, buf: g.buf };
+  }
+
+  // v4: Enter or Space with a column's word typed hits the lowest tile in that column. With no tile
+  // there close enough, it's a mistake (too early, or the wrong column if another column's tile is
+  // at the line) and the typing stays, so you can still go on to hit it.
+  function strikeColumn(g, t, provider) {
+    const c = column(g);
+    if (c < 0 || !W.ready(g, g.words[c])) {
+      if (g.buf) {
+        g.keys++;
+        g.mistakes++;
+      }
+      return { type: "strike", ok: false, buf: g.buf, empty: !g.buf };
+    }
+    const word = g.words[c];
+    const tile = g.tiles.find((x) => x.l === c);
+    const d = tile ? t - g.hits[tile.i] : null;
+    if (!tile || d < -WIN.early) {
+      g.keys++;
+      g.mistakes++;
+      const wrong = g.tiles.some((x) => x.l !== c && t - g.hits[x.i] >= -WIN.early);
+      g.last = { grade: wrong ? "X" : "E", t, i: tile ? tile.i : -1, l: c, d };
+      return { type: "early", wrong, d, word, col: c };
+    }
+    const out = hit(g, tile, d, t, word);
+    deal(g, c, t, provider);
+    return out;
   }
 
   function gameStats(g, ms) {
@@ -258,14 +352,23 @@
     };
   }
 
-  // A provider that hands out the words and lanes saved in a recording.
+  // Providers that hand out what a recording saved: before v4 each tile's word and lane, from v4
+  // the column words in the order they were dealt.
   const recordedTiles = (rec) => (g, i) => rec.tiles[i] || { w: "word", l: i % LANES };
+  const recordedWords = (rec) => (g) => (rec.words && rec.words[g.wordN]) || "word";
+  const recorded = (rec) => ((rec.v || 1) >= 4 ? recordedWords(rec) : recordedTiles(rec));
+  // A fresh core for a recording, ready to replay.
+  function coreFor(rec) {
+    const g = newCore({ hits: rec.hits, fall: rec.fall, endT: rec.endT, diff: rec.diff, v: rec.v || 1, lanes: rec.lanes, cols: rec.cols });
+    dealWords(g, recorded(rec));
+    return g;
+  }
 
   TT.tilesAudio = { get: () => getAudio() };
 
   TT.tilesCore = {
     DIFFS, DIFF_IDS, WIN, RULES, GRADE_NAMES,
-    chart, newCore, applyKey, advance, gameStats, target, attribute, recordedTiles, multiplier, letterGrade,
+    chart, columns, newCore, dealWords, coreFor, applyKey, advance, gameStats, target, column, attribute, recorded, multiplier, letterGrade,
   };
 
   // ---------- sound ----------
@@ -388,7 +491,7 @@
   // ---------- screen ----------
 
   const TILE_H = 52;     // tile height in px
-  const HIT_BOTTOM = 70; // the line's center, in px from the bottom of the lanes
+  const HIT_BOTTOM = 90; // the line's center, in px from the bottom of the field (the words sit under it)
 
   const TEMPLATE = `
     <div class="tl">
@@ -404,11 +507,12 @@
           <div class="tl-progress"><i data-t="prog"></i></div>
         </div>
         <div class="tl-hw" data-t="hw">
-          <span class="tl-div" style="left: 25%"></span><span class="tl-div" style="left: 50%"></span><span class="tl-div" style="left: 75%"></span>
+          <div data-t="divs"></div>
           <div class="tl-band" data-t="band"></div>
           <div class="tl-flash" data-t="flash"></div>
           <div class="tl-tiles" data-t="tiles"></div>
           <div class="tl-judge" data-t="judge"></div>
+          <div class="tl-words" data-t="words"></div>
         </div>
         <div class="tl-typed-row"><span class="word-box tl-typed" data-t="typed"></span></div>
       </div>
@@ -455,13 +559,15 @@
 
     // ---------- words (live play only) ----------
 
-    function provide(state, i, t) {
+    // A new word for a column. The first letters of the column words all differ, so the first key
+    // picks the column. A word needed soon (its column's next tile is close) is kept short.
+    function provide(state, col, t) {
       const D = DIFFS[live.diff];
-      // Words that come quickly after the last one are kept short.
-      const gap = i > 0 ? (state.hits[i] - state.hits[i - 1]) / 1000 : 9;
+      const j = state.hits.findIndex((h, i) => state.lanes[i] === col && h > t + WIN.late && !state.res[i]);
+      const gap = j < 0 ? 9 : (state.hits[j] - t) / 1000;
       const maxLen = Math.min(D.len[1], Math.max(3, Math.round(gap * 8)));
       const minLen = Math.min(D.len[0], maxLen);
-      const taken = new Set(state.tiles.map((x) => x.w[0]));
+      const taken = new Set((state.words || []).filter((w, c) => w && c !== col).map((w) => w[0]));
       const ok = (w) => w.length >= minLen && w.length <= maxLen && !taken.has(w[0]) && !live.recent.includes(w);
       let pool = live.pool.filter(ok);
       if (pool.length < 5) {
@@ -474,17 +580,23 @@
       const at = live.pool.indexOf(w);
       if (at >= 0) live.pool.splice(at, 1);
       live.recent = [...live.recent, w].slice(-12);
-      // A different lane from the last tile, and away from tiles still near the top.
-      const crowded = (l) => state.tiles.some((x) => x.l === l && t - x.born < state.fall * 0.3);
-      let lanes = [0, 1, 2, 3].filter((l) => l !== live.prevLane && !crowded(l));
-      if (!lanes.length) lanes = [0, 1, 2, 3].filter((l) => l !== live.prevLane);
-      const l = lanes[Math.floor(Math.random() * lanes.length)];
-      live.prevLane = l;
-      live.tiles.push({ w, l });
-      return { w, l };
+      live.words.push(w);
+      return w;
     }
 
     // ---------- rendering ----------
+
+    const colCount = () => (g.v >= 4 ? g.cols : 4);
+    const colLeft = (l) => `${(l * 100) / colCount()}%`;
+
+    // The dashed lines between the columns.
+    function renderColumns() {
+      const n = colCount();
+      if (el.divs.n === n) return;
+      el.divs.n = n;
+      el.divs.innerHTML = Array.from({ length: n - 1 }, (_, k) => `<span class="tl-div" style="left: ${colLeft(k + 1)}"></span>`).join("");
+      el.flash.style.width = `${100 / n}%`;
+    }
 
     function renderTiles() {
       const hitY = H - HIT_BOTTOM;
@@ -495,7 +607,8 @@
         if (!e) {
           e = document.createElement("div");
           e.className = "tl-tile";
-          e.style.left = `${t.l * 25}%`;
+          e.style.left = colLeft(t.l);
+          e.style.width = `calc(${100 / colCount()}% - 12px)`;
           e.sig = "";
           el.tiles.appendChild(e);
           tileEls.set(t.i, e);
@@ -508,7 +621,8 @@
         if (e.sig !== sig) {
           e.sig = sig;
           e.classList.toggle("on", t === tg);
-          e.innerHTML = t === tg ? `<span><b>${typed}</b>${t.w.slice(typed.length)}</span>` : `<span>${t.w}</span>`;
+          // from v4 the tiles are blank; the words are under the columns
+          e.innerHTML = g.v >= 4 ? "" : t === tg ? `<span><b>${typed}</b>${t.w.slice(typed.length)}</span>` : `<span>${t.w}</span>`;
         }
       }
       for (const [i, e] of tileEls) {
@@ -519,18 +633,37 @@
       }
     }
 
+    // v4: the word under each column. The one you're typing shows your progress; once it's typed
+    // in full it's ready for Enter.
+    function renderWords() {
+      const show = g.v >= 4 && !!g.words;
+      el.words.hidden = !show;
+      if (!show) return;
+      const c = column(g);
+      const typed = W.good(g);
+      const sig = [g.words.join(" "), c, typed, g.bad].join("|");
+      if (el.words.sig === sig) return;
+      el.words.sig = sig;
+      el.words.innerHTML = g.words.map((w, i) => {
+        const on = i === c;
+        const n = on ? typed.length : 0;
+        const cls = ["tl-word", on ? "on" : "", on && W.ready(g, w) ? "ready" : "", !on && typed ? "dim" : ""].filter(Boolean).join(" ");
+        return `<div class="${cls}" style="left: ${colLeft(i)}; width: ${100 / colCount()}%"><span><b>${w.slice(0, n)}</b>${w.slice(n)}</span></div>`;
+      }).join("");
+    }
+
     function renderEffects() {
       const last = g.last;
       const age = last ? viewT - last.t : Infinity;
       // the judgment text
       const show = last && age >= 0 && age < 700;
-      const text = show ? GRADE_NAMES[last.grade] + (last.d != null && last.grade !== "E" ? ` ${last.d > 0 ? "+" : ""}${Math.round(last.d)}MS` : "") : "";
+      const text = show ? GRADE_NAMES[last.grade] + (last.d != null && "PGO".includes(last.grade) ? ` ${last.d > 0 ? "+" : ""}${Math.round(last.d)}MS` : "") : "";
       if (el.judge.textContent !== text) el.judge.textContent = text;
-      el.judge.classList.toggle("miss", !!show && (last.grade === "M" || last.grade === "E"));
+      el.judge.classList.toggle("miss", !!show && "MEX".includes(last.grade));
       // a flash in the lane of a hit
       const flash = last && "PGO".includes(last.grade) && age >= 0 && age < 220;
       el.flash.style.opacity = flash ? (1 - age / 220).toFixed(2) : "0";
-      if (flash) el.flash.style.left = `${last.l * 25}%`;
+      if (flash) el.flash.style.left = colLeft(last.l);
       // the line pulses on each beat
       let beat = null;
       for (let k = beatTimes.length - 1; k >= 0; k--) {
@@ -577,7 +710,9 @@
 
     function render() {
       if (!g || !H) return;
+      renderColumns();
       renderTiles();
+      renderWords();
       renderEffects();
       renderHud();
     }
@@ -590,6 +725,7 @@
     function clearTiles() {
       for (const e of tileEls.values()) e.remove();
       tileEls.clear();
+      el.words.sig = "";
     }
 
     // ---------- live play ----------
@@ -603,12 +739,13 @@
       const offset = Math.max(0, D.fall + LEAD_MS - (songHits[0] || 0));
       const hits = songHits.map((h) => h + offset);
       const endT = Math.round(offset + song.duration * 1000 + 800);
-      g = newCore({ hits, fall: D.fall, endT, diff });
       live = {
         state: "ready", diff, song: songId, offset, sound, startedAt: 0, player: null,
-        keys: "", times: [], tiles: [], recent: [], pool: [], prevLane: -1,
+        keys: "", times: [], words: [], recent: [], pool: [],
         targets: A.weakKeys(), missed: A.weakWords(20),
       };
+      g = newCore({ hits, fall: D.fall, endT, diff, lanes: columns(song, diff), cols: D.cols });
+      dealWords(g, provide);
       beatTimes = song.beats.map((b) => ({ t: offset + b.t * 1000, down: b.down }));
       viewT = 0;
       hudSig = "";
@@ -617,7 +754,7 @@
       el.over.innerHTML = `
         <h2>${song.title.toUpperCase()}</h2>
         <p class="tl-over-sub">${song.composer} · ${D.name.toLowerCase()} · ${Math.round(song.duration)} seconds</p>
-        <p>Type a word, then press <strong>Enter</strong> or <strong>Space</strong> as it crosses the line.</p>
+        <p>Type the word under a column, then press <strong>Enter</strong> or <strong>Space</strong> as that column's tile crosses the line.</p>
         <div class="tl-start"><kbd>ENTER</kbd>START</div>`;
       el.over.hidden = false;
       render();
@@ -675,8 +812,9 @@
       cancelAnimationFrame(raf);
       if (live.player) live.player.stop();
       viewT = g.endAt;
-      const tg = target(g);
-      if (tg) attribute(g, W.good(g), tg.w);
+      // a half-typed word counts toward its column's word
+      const col = column(g);
+      if (col >= 0) attribute(g, W.good(g), g.words[col]);
 
       const st = gameStats(g, g.endAt);
       const grade = letterGrade(st.timing);
@@ -710,7 +848,7 @@
       TT.save();
       TT.rounds.save({
         id, date, kind: "game", game: "tiles", mode: live.diff, amount: g.score, song: live.song, title: song.title,
-        songKey: song.key, offset: live.offset, v: RULES, diff: live.diff, fall: g.fall, hits: g.hits, endT: g.endT, tiles: live.tiles,
+        songKey: song.key, offset: live.offset, v: RULES, diff: live.diff, fall: g.fall, hits: g.hits, endT: g.endT, lanes: g.lanes, cols: g.cols, words: live.words,
         keys: live.keys, times: live.times, duration: g.endAt,
       });
 
@@ -751,14 +889,14 @@
     // ---------- replay ----------
 
     function resetReplayCore(rec) {
-      g = newCore({ hits: rec.hits, fall: rec.fall, endT: rec.endT, diff: rec.diff, v: rec.v || 1 });
+      g = coreFor(rec);
       replay.pos = 0;
     }
 
     function loadReplay(rec) {
       stop();
       live = null;
-      replay = { rec, pos: 0, lastT: 0, provider: recordedTiles(rec) };
+      replay = { rec, pos: 0, lastT: 0, provider: recorded(rec) };
       resetReplayCore(rec);
       song = TT.songs.get(rec.song);
       // The beat pulse needs the song as it was played; an added song's beat may have been redone.

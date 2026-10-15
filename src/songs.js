@@ -139,9 +139,16 @@
     return Math.min(1, w);
   }
 
+  // The pitch (MIDI number) of the note starting on a beat: the melody's, or the bass's if the
+  // melody has none there. Tiles uses it to put higher notes in columns further right.
+  function pitch(mel, bass, i) {
+    const note = mel.notes.find((n) => n.s === i) || bass.notes.find((n) => n.s === i);
+    return note ? note.midi : null;
+  }
+
   // Works out every note's time and every beat. Beats know whether they start a bar (down),
-  // whether a melody note (mel) or any note (any) starts on them, and how much they stand out (w),
-  // so words land on the music's important moments.
+  // whether a melody note (mel) or any note (any) starts on them, how much they stand out (w)
+  // and their pitch (p), so tiles land on the music's important moments and follow the tune.
   function build(song) {
     const notes = [];
     const beats = [];
@@ -160,7 +167,7 @@
       for (let i = 0; i < len; i++) {
         const g = step + i - song.pickup;
         if (mod(g, song.beat)) continue;
-        beats.push({ t: t + i * dt, down: mod(g, perBar) === 0, mel: starts[0].has(i), any: starts[0].has(i) || starts[1].has(i), w: weight(song, ...voices, i), len: song.beat * dt });
+        beats.push({ t: t + i * dt, down: mod(g, perBar) === 0, mel: starts[0].has(i), any: starts[0].has(i) || starts[1].has(i), w: weight(song, ...voices, i), p: pitch(...voices, i), len: song.beat * dt });
       }
       step += len;
       t += len * dt;

@@ -272,10 +272,41 @@
     return raw.map((v, k) => (q.has(k) ? 0 : Math.round(Math.min(1, v / top) * 100) / 100));
   }
 
-  // The same, straight from the samples (for tapped beats and songs added before strengths).
-  function beatStrength(channels, sampleRate, beats, quiet) {
+  // The main pitch just after each beat, as a MIDI number (null for quiet beats). It's the
+  // frequency whose harmonics are strongest, a little after the hit so drums matter less. With a
+  // full mix this is an estimate, but it's good enough to tell high notes from low ones.
+  const PITCH_N = 2048;
+  function pitches(x, rate, times, quiet) {
+    const q = new Set(quiet);
+    const re = new Float64Array(PITCH_N), im = new Float64Array(PITCH_N), mag = new Float64Array(PITCH_N / 2);
+    const hz = rate / PITCH_N;
+    const lo = Math.ceil(90 / hz), hi = Math.min(Math.floor(1400 / hz), Math.floor(PITCH_N / 6) - 1);
+    return times.map((t, k) => {
+      const o = Math.round((t + 0.06) * rate);
+      if (q.has(k) || o + PITCH_N > x.length) return null;
+      for (let i = 0; i < PITCH_N; i++) {
+        re[i] = x[o + i] * (0.5 - 0.5 * Math.cos((2 * Math.PI * i) / PITCH_N));
+        im[i] = 0;
+      }
+      fft(re, im);
+      for (let b = 0; b < PITCH_N / 2; b++) mag[b] = Math.hypot(re[b], im[b]);
+      let best = 0, bin = 0;
+      for (let b = lo; b <= hi; b++) {
+        const s = mag[b] + 0.5 * mag[2 * b] + 0.33 * mag[3 * b];
+        if (s > best) {
+          best = s;
+          bin = b;
+        }
+      }
+      return best > 0 ? Math.round((69 + 12 * Math.log2((bin * hz) / 440)) * 10) / 10 : null;
+    });
+  }
+
+  // Strengths and pitches straight from the samples (for tapped beats, and songs added before
+  // these existed).
+  function beatFeatures(channels, sampleRate, beats, quiet) {
     const { x, rate } = mono(channels, sampleRate);
-    return strengths(beats, envelope(x, rate), quiet);
+    return { strength: strengths(beats, envelope(x, rate), quiet), pitch: pitches(x, rate, beats, quiet) };
   }
 
   // The whole analysis. channels: Float32Arrays of samples. Returns what gets saved with a song.
@@ -298,6 +329,7 @@
       down,
       quiet,
       strength: strengths(times, env, quiet),
+      pitch: pitches(x, rate, times, quiet),
       duration,
     };
   }
@@ -349,9 +381,10 @@
       const next = an.beats[k + 1] ?? t + (t - (an.beats[k - 1] ?? t - 0.5));
       const loud = !quiet.has(k);
       const w = !loud ? 0 : an.strength ? an.strength[k] : 0.5;
-      return { t, down: k >= an.down && (k - an.down) % BAR === 0, mel: loud, any: loud, w, len: next - t };
+      const p = an.pitch ? an.pitch[k] : null;
+      return { t, down: k >= an.down && (k - an.down) % BAR === 0, mel: loud, any: loud, w, p, len: next - t };
     });
   }
 
-  TT.beatTrack = { analyze, fromTaps, quietBeats, beatStrength, toSongBeats, BAR, _internal: { mono, envelope, period, track } };
+  TT.beatTrack = { analyze, fromTaps, quietBeats, beatFeatures, toSongBeats, BAR, _internal: { mono, envelope, period, track } };
 })();

@@ -35,7 +35,7 @@
     { id: "forest", name: "Forest Hop", cat: "arcade", kind: "ARCADE GAME", playable: true,
       desc: "Pick an animal and get as far through the forest as you can. Type a direction's word, then press Space or Enter to hop. Dodge deer, ride logs, collect treats, and keep moving before your predator catches up." },
     { id: "tiles", name: "Tiles", cat: "rhythm", kind: "RHYTHM GAME", playable: true,
-      desc: "Words fall down four lanes in time with the music. Type a word, then press Enter or Space as its tile crosses the line. Pick a song, or add your own music, and a difficulty from easy to expert." },
+      desc: "Tiles fall down the columns in time with the music, and each column has a word at the bottom. Type a column's word, then press Enter or Space as its tile crosses the line. Pick a song, or add your own music, and a difficulty from easy to expert." },
     { id: "path", name: "Path Runner", cat: "arcade", kind: "ARCADE GAME", playable: true,
       desc: "Type a path's word to step onto it. The words come from your weak keys. The clock keeps draining, so keep moving." },
     { id: "falling", name: "Falling Words", cat: "arcade", kind: "ARCADE GAME",
@@ -626,7 +626,7 @@
   const tiles = TT.createTiles({
     root: $("view-tiles"),
     onStart() {
-      els.statusLine.textContent = "Hit Enter as each word crosses the line.";
+      els.statusLine.textContent = "Type a column's word, then hit Enter as its tile crosses the line.";
     },
     onEnd(id) {
       ui.lastTilesId = id;
@@ -635,10 +635,10 @@
   });
 
   const DIFF_HINT = {
-    easy: "A word every few bars, with plenty of time to read it.",
-    medium: "A word every bar or two.",
-    hard: "A word about every bar, falling faster.",
-    expert: "Words on most beats, falling fastest.",
+    easy: "Two columns and short words, with a tile every few bars.",
+    medium: "Three columns, a tile every bar or two.",
+    hard: "Four columns and longer words, a tile about every bar, falling faster.",
+    expert: "Four columns, the longest words, tiles on most beats, falling fastest.",
   };
   const tilesData = () => {
     const d = (TT.store.games.tiles ||= { best: 0, plays: 0, history: [], bestBy: {} });
@@ -698,7 +698,7 @@
         <ul class="list col-list tl-songs">${songs}</ul>
         ${tapPanel || `<section class="col-main">
           <div class="title-row"><h1>${esc(song.title.toUpperCase())}</h1><span class="title-meta">${esc(song.composer.toUpperCase())}${song.year ? ` · ${song.year}` : ""}</span></div>
-          <div class="kind-line">${song.tempo} · ${fmtLength(song.duration)}${song.user ? ` · ${Math.round(song.bpm)} BPM` : ""} · ${words} WORDS</div>
+          <div class="kind-line">${song.tempo} · ${fmtLength(song.duration)}${song.user ? ` · ${Math.round(song.bpm)} BPM` : ""} · ${words} TILES</div>
           ${ui.tlNote ? `<p class="tl-msg" role="status">${esc(ui.tlNote)}</p>` : ""}
           <p class="tl-blurb">${esc(song.blurb)}</p>
           ${song.user ? `<div class="tl-own">
@@ -718,9 +718,9 @@
           <dl class="status">${statusRows(rows)}</dl>
           <div class="side-label">How to play:</div>
           <ol class="fh-rules">
-            <li>Type the word on a tile. The tile lights up once your letters match it.</li>
-            <li>Press <strong>Enter</strong> or <strong>Space</strong> as it crosses the line, on the beat.</li>
-            <li>Close to the line counts, and a little early gets more room than a little late. Misses and typos cost health, and a typo has to be backspaced before you can go on.</li>
+            <li>Each column has a word at the bottom. Tiles fall down the columns in time with the music, higher notes further right.</li>
+            <li>Type a column's word, then press <strong>Enter</strong> or <strong>Space</strong> as that column's tile crosses the line. Its word then changes.</li>
+            <li>Close to the line counts, and a little early gets more room than a little late. Enter on the wrong column counts as a mistake, but your typing stays. Misses and typos cost health, and a typo has to be backspaced before you can go on.</li>
           </ol>
         </aside>
       </div>`;

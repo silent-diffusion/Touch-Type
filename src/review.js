@@ -188,8 +188,8 @@
 
   function analyzeTiles(rec) {
     const C = TT.tilesCore;
-    const g = C.newCore({ hits: rec.hits, fall: rec.fall, endT: rec.endT, diff: rec.diff, v: rec.v || 1 });
-    const provider = C.recordedTiles(rec);
+    const g = C.coreFor(rec);
+    const provider = C.recorded(rec);
     const a = newAnalysis();
     a.typedErrors = g.v >= 2;
     a.extra = []; // missed tiles and early presses, for the moments list
@@ -202,7 +202,8 @@
         const r = g.res[i];
         if (r && r.grade === "M" && !r.noted && r.t <= upTo) {
           r.noted = true;
-          a.extra.push({ t: r.t, kind: "wrong", text: `Missed "${rec.tiles[i] ? rec.tiles[i].w : "?"}"` });
+          const word = r.w || (rec.tiles && rec.tiles[i] ? rec.tiles[i].w : "?");
+          a.extra.push({ t: r.t, kind: "wrong", text: g.v >= 4 ? `Missed a tile under "${word}"` : `Missed "${word}"` });
         }
       }
     };
@@ -233,7 +234,8 @@
         if (gap != null) a.gaps.push(gap);
         prevChar = d.typed;
       } else if (d.type === "early") {
-        a.extra.push({ t, kind: "space", text: `Enter ${Math.round(-d.d)} ms too early on "${d.word}"` });
+        a.extra.push({ t, kind: "space", text: d.wrong ? `Enter on the wrong column ("${d.word}")`
+          : d.d == null ? `Enter with no tile under "${d.word}"` : `Enter ${Math.round(-d.d)} ms too early on "${d.word}"` });
       } else if (d.type === "strike") {
         a.spaces.push({ t, gap, ok: false, ignored: d.empty, word: bufAt, typed: bufAt, next: "", skipped: 0,
           note: d.empty ? "Enter with nothing typed" : typoAt ? `Enter with a typo (typed "${bufAt}")` : `Enter before finishing a word (typed "${bufAt}")` });
