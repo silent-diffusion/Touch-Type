@@ -183,10 +183,83 @@
     return a;
   }
 
+  function analyzeTiles(rec) {
+    const C = TT.tilesCore;
+    const g = C.newCore({ hits: rec.hits, fall: rec.fall, endT: rec.endT, diff: rec.diff });
+    const provider = C.recordedTiles(rec);
+    const a = newAnalysis();
+    a.extra = []; // missed tiles and early presses, for the moments list
+    let prevT = null;
+    let prevChar = null;
+    let stepStart = 0;
+    let pending = []; // wrong keys since the last word; their intended letter is known once it's hit
+    const noteMisses = (upTo) => {
+      for (let i = 0; i < g.res.length; i++) {
+        const r = g.res[i];
+        if (r && r.grade === "M" && !r.noted && r.t <= upTo) {
+          r.noted = true;
+          a.extra.push({ t: r.t, kind: "wrong", text: `Missed "${rec.tiles[i] ? rec.tiles[i].w : "?"}"` });
+        }
+      }
+    };
+
+    for (let i = 0; i < rec.keys.length; i++) {
+      const k = rec.keys[i];
+      const t = rec.times[i];
+      const gap = prevT == null ? null : t - prevT;
+      prevT = t;
+      C.advance(g, t, provider);
+      noteMisses(t);
+      const bufAt = g.buf;
+      // Waiting for a tile is part of the game, so only pauses in the middle of a word count.
+      if (gap != null && gap >= HESITATION_MS && bufAt && k !== " ") a.hesitations.push({ t, gap, word: `${bufAt}…`, pos: bufAt.length });
+
+      const d = C.applyKey(g, k, t, provider);
+      if (!d) continue;
+      if (d.type === "miss") {
+        pending.push({ t, typed: d.typed, pos: d.pos });
+        prevChar = null;
+      } else if (d.type === "back") {
+        a.backs.push({ t, gap, word: `${bufAt}…`, deleted: d.deleted, fixedError: false, crossed: false, whole: k === TT.typingCore.BACK_WORD });
+        prevChar = null;
+      } else if (d.type === "letter") {
+        time(a.keyTimes, d.typed, gap);
+        if (prevChar) time(a.bigrams, prevChar + d.typed, gap);
+        if (gap != null) a.gaps.push(gap);
+        prevChar = d.typed;
+      } else if (d.type === "early") {
+        a.extra.push({ t, kind: "space", text: `Enter ${Math.round(-d.d)} ms too early on "${d.word}"` });
+      } else if (d.type === "strike") {
+        a.spaces.push({ t, gap, ok: false, ignored: d.empty, word: bufAt, typed: bufAt, next: "", skipped: 0,
+          note: d.empty ? "Enter with nothing typed" : `Enter before finishing a word (typed "${bufAt}")` });
+        prevChar = null;
+      } else if (d.type === "hit") {
+        a.spaces.push({ t, gap, ok: true, word: d.word, typed: d.word, next: "", skipped: 0 });
+        for (const m of pending) {
+          if (m.pos >= d.word.length) continue;
+          const expected = d.word[m.pos];
+          a.confusions[`${expected}>${m.typed}`] = (a.confusions[`${expected}>${m.typed}`] || 0) + 1;
+          a.wrong.push({ t: m.t, expected, typed: m.typed, word: d.word, pos: m.pos });
+        }
+        a.steps.push({ t, word: d.word, ms: t - stepStart, misses: pending.length, grade: d.grade, offset: d.d });
+        pending = [];
+        stepStart = t;
+        prevChar = null;
+      }
+    }
+    C.advance(g, rec.duration, provider);
+    noteMisses(rec.duration);
+    if (g.cause === "health") a.extra.push({ t: rec.duration, kind: "wrong", text: "Ran out of health" });
+    a.duration = rec.duration;
+    a.final = { score: g.score, counts: { ...g.counts }, maxCombo: g.maxCombo, ...C.gameStats(g, rec.duration) };
+    return a;
+  }
+
   const cache = new Map();
   function analyze(rec) {
     if (!cache.has(rec.id)) {
-      cache.set(rec.id, rec.game === "forest" ? analyzeForest(rec) : rec.kind === "game" ? analyzeGame(rec) : analyzeTyping(rec));
+      cache.set(rec.id, rec.game === "forest" ? analyzeForest(rec) : rec.game === "tiles" ? analyzeTiles(rec)
+        : rec.kind === "game" ? analyzeGame(rec) : analyzeTyping(rec));
     }
     return cache.get(rec.id);
   }
@@ -256,7 +329,8 @@
       list.push({ t: b.t, kind: "back", text: `${what} "${b.word}"` });
     }
     for (const h of a.hesitations) list.push({ t: h.t, kind: "pause", text: `${(h.gap / 1000).toFixed(1)}s pause in "${h.word}"` });
-    if (a.final && a.final.cause && TT.forestCore) {
+    if (a.extra) list.push(...a.extra);
+    if (a.final && a.final.cause && a.final.animal && TT.forestCore) {
       const c = TT.forestCore.causeText(a.final.cause, a.final.animal);
       list.push({ t: a.duration, kind: "wrong", text: c[0] + c.slice(1).toLowerCase() });
     }

@@ -34,6 +34,8 @@
   const GAMES = [
     { id: "forest", name: "Forest Hop", cat: "arcade", kind: "ARCADE GAME", playable: true,
       desc: "Pick an animal and get as far through the forest as you can. Type a direction's word, then press Space or Enter to hop. Dodge deer, ride logs, collect treats, and keep moving before your predator catches up." },
+    { id: "tiles", name: "Tiles", cat: "rhythm", kind: "RHYTHM GAME", playable: true,
+      desc: "Words fall down four lanes in time with the music. Type a word, then press Enter or Space as its tile crosses the line. Pick a song and a difficulty from easy to expert." },
     { id: "path", name: "Path Runner", cat: "arcade", kind: "ARCADE GAME", playable: true,
       desc: "Type a path's word to step onto it. The words come from your weak keys. The clock keeps draining, so keep moving." },
     { id: "falling", name: "Falling Words", cat: "arcade", kind: "ARCADE GAME",
@@ -45,6 +47,12 @@
   ];
 
   const GAME_ART = {
+    tiles: `<path d="M36 40 V260 M264 40 V260" stroke="currentColor" stroke-width="12"/>
+            <path d="M93 40 V260 M150 40 V260 M207 40 V260" stroke="currentColor" stroke-width="4" stroke-dasharray="10 10"/>
+            <rect x="44" y="196" width="212" height="40" fill="none" stroke="currentColor" stroke-width="10"/>
+            <rect x="100" y="56" width="44" height="34" fill="currentColor"/>
+            <rect x="214" y="120" width="44" height="34" fill="currentColor"/>
+            <rect x="44" y="198" width="44" height="36" fill="var(--accent)"/>`,
     path: `<path d="M150 228 V150 L66 66 M150 150 V48 M150 150 L234 66 M44 104 V44 H104 M112 74 L150 36 L188 74 M196 44 H256 V104" fill="none" stroke="currentColor" stroke-width="22"/>
            <rect x="124" y="236" width="52" height="52" fill="var(--accent)"/>`,
     falling: `<path d="M30 270 H270" stroke="currentColor" stroke-width="22"/>
@@ -59,6 +67,9 @@
 
   const MENU_VIEWS = ["games", "stats", "settings"];
   const FOREST_VIEWS = ["forest", "forest-select", "forest-guide"];
+  const TILES_VIEWS = ["tiles", "tiles-select"];
+  // What Enter (or the play button) does for each game in the library.
+  const playAct = (id) => ({ forest: "fh:select", tiles: "tl:select" })[id] || "play";
 
   const ui = {
     view: "test",
@@ -105,6 +116,10 @@
     if (!CARETS[s.caret]) s.caret = "line";
     s.second = !!s.second;
     s.autoUpdate = !!s.autoUpdate;
+    if (!TT.songs.get(s.tilesSong)) s.tilesSong = TT.songs.list[0].id;
+    if (!TT.tilesCore.DIFFS[s.tilesDiff]) s.tilesDiff = "medium";
+    s.tilesMusic = s.tilesMusic !== false;
+    s.tilesMetronome = !!s.tilesMetronome;
   }
 
   const isDark = () => S().theme === "night";
@@ -180,13 +195,13 @@
     const s = S();
     const btn = (label, on, act) => `<button class="${on ? "on" : ""}" aria-pressed="${on}" data-act="${act}">${label}</button>`;
     const divider = `<span class="divider" aria-hidden="true"></span>`;
-    const special = ui.view === "game" || ui.view === "replay" || FOREST_VIEWS.includes(ui.view);
+    const special = ui.view === "game" || ui.view === "replay" || FOREST_VIEWS.includes(ui.view) || TILES_VIEWS.includes(ui.view);
     els.config.hidden = special;
     els.badge.hidden = !special && ui.lastTyping !== "practice";
     $("profile-chip").textContent = TT.profiles.active().name;
     $("profile-chip").setAttribute("aria-label", `Profile: ${TT.profiles.active().name}. Manage profiles`);
     els.badge.textContent = ui.view === "replay" ? "REPLAY" : ui.view === "game" ? "PATH RUNNER"
-      : FOREST_VIEWS.includes(ui.view) ? "FOREST HOP" : "PRACTICE";
+      : FOREST_VIEWS.includes(ui.view) ? "FOREST HOP" : TILES_VIEWS.includes(ui.view) ? "TILES" : "PRACTICE";
     if (special) return;
 
     if (ui.lastTyping === "practice") {
@@ -238,8 +253,9 @@
     return { best, isFirst: prior.length === 0 };
   }
 
-  const testName = (kind, mode, amount, game) =>
-    kind === "game" ? `${game === "forest" ? "forest hop" : "path runner"}, ${amount} steps` : `${kind === "practice" ? "practice" : mode} ${amount}`;
+  const testName = (kind, mode, amount, game, title) =>
+    kind === "game" && game === "tiles" ? `tiles, ${(title || "song").toLowerCase()} (${mode})`
+      : kind === "game" ? `${game === "forest" ? "forest hop" : "path runner"}, ${amount} steps` : `${kind === "practice" ? "practice" : mode} ${amount}`;
 
   function statusRows(rows) {
     return rows.map(([label, value, ruled, cls]) =>
@@ -295,6 +311,8 @@
     forest: [["SPACE / ENTER", "JUMP", "noop"], ["TAB", "RESTART", "fh:play"], ["ESC", "ANIMALS", "fh:select"]],
     "forest-select": [["← →", "CHOOSE", "fh:next"], ["ENTER", "PLAY", "fh:play"], ["H", "HOW TO PLAY", "fh:guide"], ["ESC", "MENU", "menu"]],
     "forest-guide": [["ENTER", "PLAY", "fh:play"], ["ESC", "BACK", "fh:select"]],
+    tiles: [["ENTER / SPACE", "HIT", "noop"], ["TAB", "RESTART", "tl:play"], ["ESC", "SONGS", "tl:select"]],
+    "tiles-select": [["↑ ↓", "SONG", "tl:next"], ["← →", "DIFFICULTY", "tl:harder"], ["ENTER", "PLAY", "tl:play"], ["M", "MUSIC", "tl:music"], ["T", "METRONOME", "tl:metronome"], ["ESC", "MENU", "menu"]],
     replay: [["SPACE", "PLAY / PAUSE", "rp:toggle"], ["← →", "SKIP 2S", "rp:skip:2000"], ["ESC", "BACK", "rp:back"]],
     stats: [["P", "PRACTICE WEAK KEYS", "practice"], ["ESC", "CLOSE MENU", "close"]],
     settings: [["ESC", "CLOSE MENU", "close"]],
@@ -308,6 +326,8 @@
     forest: "Type a word, then press Space or Enter to hop.",
     "forest-select": "Collect treats on your runs to unlock more animals.",
     "forest-guide": "Lanes get more dangerous the further you go.",
+    tiles: "Type the word, then hit Enter as it crosses the line.",
+    "tiles-select": "Pick a song and a difficulty.",
     replay: "Click a moment to jump to it.",
     stats: "Select a view.",
     settings: "Changes save automatically.",
@@ -320,7 +340,7 @@
       hints = hints.filter(([, , act]) => act !== "practice").map(([key, label, act]) =>
         [key, act === "restart" ? "PRACTICE AGAIN" : label, act]);
     }
-    if (ui.view === "games" && selectedGame().playable) hints = [["ENTER", "PLAY", selectedGame().id === "forest" ? "fh:select" : "play"], ...hints];
+    if (ui.view === "games" && selectedGame().playable) hints = [["ENTER", "PLAY", playAct(selectedGame().id)], ...hints];
     els.hints.innerHTML = hints.map(([key, label, act]) => `<button data-act="${act}"><kbd>${key}</kbd>${label}</button>`).join("");
     els.statusLine.textContent = STATUS[ui.view];
   }
@@ -335,6 +355,8 @@
     $("view-game").hidden = view !== "game";
     for (const v of FOREST_VIEWS) $(`view-${v}`).hidden = v !== view;
     if (view !== "forest" && forest) forest.stop();
+    for (const v of TILES_VIEWS) $(`view-${v}`).hidden = v !== view;
+    if (view !== "tiles" && tiles) tiles.stop();
     $("view-replay").hidden = view !== "replay";
     if (view !== "replay") pauseReplay();
     for (const v of MENU_VIEWS) $(`view-${v}`).hidden = v !== view;
@@ -351,6 +373,7 @@
     engine.stop();
     runner.stop();
     forest.stop();
+    tiles.stop();
     document.body.classList.remove("typing");
     ui.menuView = view;
     show(view);
@@ -390,7 +413,7 @@
     if (!list.some((g) => g.id === ui.game)) ui.game = list[0].id;
     const g = selectedGame();
 
-    $("view-games").innerHTML = subtabs([["all", "All"], ["arcade", "Arcade"], ["drills", "Drills"]], ui.gamesTab, "gtab") + `
+    $("view-games").innerHTML = subtabs([["all", "All"], ["arcade", "Arcade"], ["rhythm", "Rhythm"], ["drills", "Drills"]], ui.gamesTab, "gtab") + `
       <div class="cols">
         <ul class="list col-list">
           ${list.map((x) => `<li><button class="${x.id === g.id ? "on" : ""}" aria-pressed="${x.id === g.id}" data-act="game:${x.id}">${x.name}<span class="tag">${gameTag(x)}</span></button></li>`).join("")}
@@ -399,9 +422,9 @@
           <div class="title-row"><h1>${g.name.toUpperCase()}</h1><span class="title-meta">${g.playable ? `BEST ${gameBest(g.id)}` : "SOON"}</span></div>
           <div class="kind-line">${g.kind}</div>
           <div class="game-art">${g.id === "forest" ? TT.sprites.svg("frog", 220) : `<svg viewBox="0 0 300 300" role="img" aria-label="${g.name} icon">${GAME_ART[g.id]}</svg>`}</div>
-          <div class="detail-line">DIFFICULTY: <strong>ADAPTIVE</strong></div>
+          <div class="detail-line">DIFFICULTY: <strong>${g.id === "tiles" ? "EASY TO EXPERT" : "ADAPTIVE"}</strong></div>
           <div class="rule-box">${g.desc}${g.playable ? "" : " <strong>Coming in a later update.</strong>"}</div>
-          ${g.playable ? `<button class="outline-btn play-btn" data-act="${g.id === "forest" ? "fh:select" : "play"}">PLAY <kbd>ENTER</kbd></button>` : ""}
+          ${g.playable ? `<button class="outline-btn play-btn" data-act="${playAct(g.id)}">PLAY <kbd>ENTER</kbd></button>` : ""}
         </section>
         <aside class="col-side">${statusPanel()}${targetPanel()}</aside>
       </div>`;
@@ -596,6 +619,118 @@
     }
   }
 
+  // ---------- tiles ----------
+
+  const tiles = TT.createTiles({
+    root: $("view-tiles"),
+    onStart() {
+      els.statusLine.textContent = "Hit Enter as each word crosses the line.";
+    },
+    onEnd(id) {
+      ui.lastTilesId = id;
+      els.statusLine.textContent = "Round saved. Press R to replay it.";
+    },
+  });
+
+  const DIFF_HINT = {
+    easy: "A word every few bars, with plenty of time to read it.",
+    medium: "A word every bar or two.",
+    hard: "A word about every bar, falling faster.",
+    expert: "Words on most beats, falling fastest.",
+  };
+  const tilesData = () => {
+    const d = (TT.store.games.tiles ||= { best: 0, plays: 0, history: [], bestBy: {} });
+    d.bestBy ||= {};
+    return d;
+  };
+  const fmtLength = (sec) => `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, "0")}`;
+
+  function openTilesSelect() {
+    engine.stop();
+    runner.stop();
+    forest.stop();
+    tiles.stop();
+    document.body.classList.remove("typing");
+    show("tiles-select");
+    renderBar();
+    renderTilesSelect();
+  }
+
+  function renderTilesSelect() {
+    const s = S();
+    const C = TT.tilesCore;
+    const d = tilesData();
+    const song = TT.songs.get(s.tilesSong);
+    const best = (id, diff) => d.bestBy[`${id}:${diff}`];
+    const songs = TT.songs.list.map((x) => {
+      const b = best(x.id, s.tilesDiff);
+      const on = x.id === song.id;
+      return `<li><button class="${on ? "on" : ""}" aria-pressed="${on}" data-act="tl:song:${x.id}">${esc(x.title)}<span class="tag">${b ? b.grade : x.tempo}</span></button></li>`;
+    }).join("");
+    const words = C.chart(song, s.tilesDiff).length;
+    const rows = C.DIFF_IDS.map((id) => {
+      const b = best(song.id, id);
+      return [`${C.DIFFS[id].name[0]}${C.DIFFS[id].name.slice(1).toLowerCase()}:`, b ? `${b.grade} · ${b.score.toLocaleString()}` : "—"];
+    });
+    rows[rows.length - 1][2] = true;
+    const toggle = (label, on, act) => `<button class="opt ${on ? "on" : ""}" aria-pressed="${on}" data-act="${act}">${label} ${on ? "ON" : "OFF"}</button>`;
+
+    $("view-tiles-select").innerHTML = `
+      <div class="cols">
+        <ul class="list col-list tl-songs">${songs}</ul>
+        <section class="col-main">
+          <div class="title-row"><h1>${esc(song.title.toUpperCase())}</h1><span class="title-meta">${esc(song.composer.toUpperCase())} · ${song.year}</span></div>
+          <div class="kind-line">${song.tempo} · ${fmtLength(song.duration)} · ${words} WORDS</div>
+          <p class="tl-blurb">${esc(song.blurb)}</p>
+          <div class="side-label">Difficulty:</div>
+          <div class="seg tl-diffs" aria-label="Difficulty">${C.DIFF_IDS.map((id) =>
+            `<button class="${id === s.tilesDiff ? "on" : ""}" aria-pressed="${id === s.tilesDiff}" data-act="tl:diff:${id}">${C.DIFFS[id].name}</button>`).join("")}</div>
+          <p class="note">${DIFF_HINT[s.tilesDiff]} The music plays at the same speed on every difficulty.</p>
+          <button class="fh-play tl-play" data-act="tl:play">PLAY <kbd>ENTER</kbd></button>
+        </section>
+        <aside class="col-side">
+          <div class="rule-head">SOUND</div>
+          <div class="tl-toggles">${toggle("MUSIC", s.tilesMusic, "tl:music")}${toggle("METRONOME", s.tilesMetronome, "tl:metronome")}</div>
+          <div class="rule-head">YOUR BEST</div>
+          <dl class="status">${statusRows(rows)}</dl>
+          <div class="side-label">How to play:</div>
+          <ol class="fh-rules">
+            <li>Type the word on a tile. The tile lights up once your letters match it.</li>
+            <li>Press <strong>Enter</strong> or <strong>Space</strong> as it crosses the line, on the beat.</li>
+            <li>Close to the line counts, and a little early gets more room than a little late. Misses and typos cost health.</li>
+          </ol>
+        </aside>
+      </div>`;
+  }
+
+  function startTiles() {
+    const s = S();
+    engine.stop();
+    runner.stop();
+    forest.stop();
+    document.body.classList.remove("typing");
+    show("tiles");
+    renderBar();
+    tiles.newGame(s.tilesSong, s.tilesDiff, { music: s.tilesMusic, metronome: s.tilesMetronome });
+  }
+
+  function tilesAct(x, y) {
+    const s = S();
+    const ids = TT.songs.list.map((z) => z.id);
+    const diffs = TT.tilesCore.DIFF_IDS;
+    if (x === "select") { tiles.stop(); openTilesSelect(); return; }
+    if (x === "play") { startTiles(); return; }
+    if (x === "song") s.tilesSong = y;
+    else if (x === "next" || x === "prev") s.tilesSong = ids[(ids.indexOf(s.tilesSong) + (x === "next" ? 1 : -1) + ids.length) % ids.length];
+    else if (x === "diff") s.tilesDiff = y;
+    else if (x === "harder" || x === "easier") s.tilesDiff = diffs[Math.max(0, Math.min(diffs.length - 1, diffs.indexOf(s.tilesDiff) + (x === "harder" ? 1 : -1)))];
+    else if (x === "music") s.tilesMusic = !s.tilesMusic;
+    else if (x === "metronome") s.tilesMetronome = !s.tilesMetronome;
+    else return;
+    TT.save();
+    if (ui.view === "tiles-select") renderTilesSelect();
+  }
+
   // ---------- replay ----------
 
   const rp = { rec: null, a: null, T: 0, playing: false, speed: 1, raf: 0, last: 0, returnTo: "results", player: null };
@@ -610,6 +745,7 @@
     }
     engine.stop();
     runner.stop();
+    tiles.stop();
     document.body.classList.remove("typing");
     Object.assign(rp, { rec, a: TT.review.analyze(rec), T: 0, playing: false, returnTo });
     show("replay");
@@ -635,7 +771,7 @@
     $("view-replay").innerHTML = `
       <div class="cols">
         <section class="col-main">
-          <div class="title-row"><h1>REPLAY</h1><span class="title-meta">${testName(rec.kind, rec.mode, rec.amount, rec.game).toUpperCase()}</span></div>
+          <div class="title-row"><h1>REPLAY</h1><span class="title-meta">${testName(rec.kind, rec.mode, rec.amount, rec.game, rec.title).toUpperCase()}</span></div>
           <div class="kind-line">${fmtDate.format(new Date(rec.date))}</div>
           <div id="rp-stage" class="rp-stage">${game ? "" : `
             <div class="live"><span id="rp-live-num" class="live-num"></span><span id="rp-live-label" class="caps-label"></span></div>
@@ -657,7 +793,8 @@
             ["Avg time per key:", `${Math.round(avgGap)} ms`],
             ["Rhythm consistency:", cons ? `${Math.round(cons.pct)}%` : "—"],
             [game ? "Backspaces:" : "Backspaces (fixed typos):", game ? a.backs.length : `${a.backs.length} (${fixed})`],
-            ...(game ? [["Slowest step:", a.steps.length ? fmtSec(Math.max(...a.steps.map((s) => s.ms))) : "—"]] : [["Space errors:", spaceBad]]),
+            ...(rec.game === "tiles" ? [["Timing (average):", a.final.counts.M < a.final.judged ? `${a.final.avg > 0 ? "+" : ""}${Math.round(a.final.avg)} ms` : "—"], ["Missed tiles:", a.final.counts.M]]
+              : game ? [["Slowest step:", a.steps.length ? fmtSec(Math.max(...a.steps.map((s) => s.ms))) : "—"]] : [["Space errors:", spaceBad]]),
             ["Pauses over 1s:", a.hesitations.length, true],
           ])}</dl>
           <div class="side-label">Wrong keys (expected → pressed):</div>
@@ -674,6 +811,9 @@
     if (rec.game === "forest") {
       $("rp-stage").classList.add("rp-forest");
       rp.player = TT.createForest({ root: $("rp-stage"), replayOnly: true });
+    } else if (rec.game === "tiles") {
+      $("rp-stage").classList.add("rp-tiles");
+      rp.player = TT.createTiles({ root: $("rp-stage"), replayOnly: true });
     } else if (game) {
       rp.player = TT.createPathRunner({ root: $("rp-stage"), replayOnly: true });
     } else {
@@ -696,7 +836,10 @@
     let rows;
     // Speeds over a fraction of a second are meaningless, so they appear after the first second.
     const speed = (x) => (rp.T < 1000 && rec.duration >= 1000 ? "—" : Math.round(x));
-    if (rec.game === "forest") {
+    if (rec.game === "tiles") {
+      const st = TT.tilesCore.gameStats(state, Math.max(rp.T, 1));
+      rows = [["Score:", state.score.toLocaleString()], ["Combo:", state.combo], ["WPM:", speed(st.wpm)], ["Accuracy:", `${Math.round(st.acc)}%`], ["Missed tiles:", state.counts.M, true]];
+    } else if (rec.game === "forest") {
       const F = TT.forestCore;
       const st = F.gameStats(state, Math.max(rp.T, 1));
       rows = [["Steps:", F.score(state)], ["WPM:", speed(st.wpm)], ["Accuracy:", `${Math.round(st.acc)}%`], ["Mistakes:", state.mistakes, true]];
@@ -884,7 +1027,7 @@
         <thead><tr><th>DATE</th><th>TEST</th><th class="num">WPM</th><th class="num">ACCURACY</th><th class="num">RAW</th><th class="num">REPLAY</th></tr></thead>
         <tbody>${rows.map((h) => `<tr>
           <td>${fmt.format(new Date(h.date))}</td>
-          <td>${testName(h.kind || "test", h.mode, h.amount, h.game)}</td>
+          <td>${testName(h.kind || "test", h.mode, h.amount, h.game, h.title)}</td>
           <td class="num"><strong>${Math.round(h.wpm)}</strong></td>
           <td class="num">${Math.round(h.acc)}%</td>
           <td class="num">${Math.round(h.raw)}</td>
@@ -1101,7 +1244,7 @@
 
   // After switching profiles: forget anything that pointed at the old profile's rounds.
   function onProfileChanged() {
-    ui.lastRoundId = ui.lastGameId = ui.lastForestId = null;
+    ui.lastRoundId = ui.lastGameId = ui.lastForestId = ui.lastTilesId = null;
     ui.fhPick = null;
     ui.renaming = null;
     renderBar();
@@ -1209,12 +1352,13 @@
       case "practice": startTyping("practice"); break;
       case "play": startGame(); break;
       case "replay": {
-        const id = x === "last" ? (ui.view === "game" ? ui.lastGameId : ui.view === "forest" ? ui.lastForestId : ui.lastRoundId) : x;
+        const id = x === "last" ? (ui.view === "game" ? ui.lastGameId : ui.view === "forest" ? ui.lastForestId : ui.view === "tiles" ? ui.lastTilesId : ui.lastRoundId) : x;
         if (id) openReplay(id, ui.view === "stats" ? "stats" : ui.view);
         break;
       }
       case "rp": replayAct(x, y); break;
       case "fh": forestAct(x, y); break;
+      case "tl": tilesAct(x, y); break;
       case "stab": ui.statsTab = x; renderStats(); break;
       case "settab": ui.settingsTab = x; renderSettings(); break;
       case "gtab": ui.gamesTab = x; renderGames(); break;
@@ -1285,6 +1429,18 @@
       }
       return;
     }
+    if (TILES_VIEWS.includes(v)) {
+      if (v === "tiles") {
+        if (e.key === "Tab") { e.preventDefault(); act("tl:play"); }
+        else if (e.key === "Escape") { e.preventDefault(); act("tl:select"); }
+        else if (tiles.isOver()) { if (plainKey(e, "r")) act("replay:last"); }
+        else tiles.handleKey(e);
+      } else {
+        const keys = { ArrowDown: "tl:next", ArrowUp: "tl:prev", ArrowRight: "tl:harder", ArrowLeft: "tl:easier", Enter: "tl:play", m: "tl:music", t: "tl:metronome", Escape: "menu" };
+        if (keys[e.key] && !e.ctrlKey && !e.altKey && !e.metaKey) { e.preventDefault(); act(keys[e.key]); }
+      }
+      return;
+    }
     if (e.key === "Escape") {
       e.preventDefault();
       act(MENU_VIEWS.includes(v) ? "close" : "menu");
@@ -1320,7 +1476,7 @@
       runner.handleKey(e);
     } else if (v === "games" && e.key === "Enter" && selectedGame().playable) {
       e.preventDefault();
-      act(selectedGame().id === "forest" ? "fh:select" : "play");
+      act(playAct(selectedGame().id));
     } else if (v === "stats" && plainKey(e, "p")) {
       act("practice");
     }

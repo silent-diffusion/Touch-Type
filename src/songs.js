@@ -1,0 +1,169 @@
+// Built-in songs for Tiles. These are public-domain pieces written out as notes and played by the
+// app's own synth, so no recordings ship with the app.
+//
+// A song is a list of sections, each with a melody (m) and a bass line (b) written as notes:
+//   "e5" one step, "e5:3" three steps, "r:2" a two-step rest, "c#4" / "bb3" sharp and flat,
+//   "|" a bar line (only there to make the music easier to read).
+// A step is 1/beat of a beat. A section can change the tempo (bpm) or move everything up or down
+// by some semitones (t). Every section's melody and bass must be the same length.
+(() => {
+  const NOTE = { c: 0, d: 2, e: 4, f: 5, g: 7, a: 9, b: 11 };
+
+  function parse(str, shift = 0) {
+    const notes = [];
+    let s = 0;
+    for (const tok of str.trim().split(/\s+/)) {
+      if (!tok || tok === "|") continue;
+      const [name, len] = tok.split(":");
+      const n = len ? Number(len) : 1;
+      const m = /^([a-g])(#|b)?(\d)$/.exec(name);
+      if (m) notes.push({ s, n, midi: 12 * (Number(m[3]) + 1) + NOTE[m[1]] + (m[2] === "#" ? 1 : m[2] === "b" ? -1 : 0) + shift });
+      else if (name !== "r") throw new Error(`Bad note "${tok}"`);
+      s += n;
+    }
+    return { notes, steps: s };
+  }
+
+  // ---------- the songs ----------
+
+  const twinkle = {
+    A: { m: "c5:2 c5:2 g5:2 g5:2 | a5:2 a5:2 g5:4 | f5:2 f5:2 e5:2 e5:2 | d5:2 d5:2 c5:4",
+         b: "c3:4 e3:4 | f3:4 c3:4 | f3:4 c3:4 | g2:4 c3:4" },
+    B: { m: "g5:2 g5:2 f5:2 f5:2 | e5:2 e5:2 d5:4 | g5:2 g5:2 f5:2 f5:2 | e5:2 e5:2 d5:4",
+         b: "c3:4 g2:4 | c3:4 g2:4 | c3:4 g2:4 | c3:4 g2:4" },
+  };
+
+  const ode = {
+    A: { m: "e5:2 e5:2 f5:2 g5:2 | g5:2 f5:2 e5:2 d5:2 | c5:2 c5:2 d5:2 e5:2 | e5:3 d5:1 d5:4",
+         b: "c3:4 c3:4 | g2:4 g2:4 | c3:4 c3:4 | g2:4 g2:4" },
+    B: { m: "e5:2 e5:2 f5:2 g5:2 | g5:2 f5:2 e5:2 d5:2 | c5:2 c5:2 d5:2 e5:2 | d5:3 c5:1 c5:4",
+         b: "c3:4 c3:4 | g2:4 g2:4 | c3:4 c3:4 | g2:4 c3:4" },
+    C: { m: "d5:2 d5:2 e5:2 c5:2 | d5:2 e5:1 f5:1 e5:2 c5:2 | d5:2 e5:1 f5:1 e5:2 d5:2 | c5:2 d5:2 g4:4",
+         b: "g2:4 c3:4 | g2:4 c3:4 | g2:4 g2:4 | c3:4 g2:4" },
+  };
+
+  const canonBass = "d3:4 a2:4 | b2:4 f#2:4 | g2:4 d2:4 | g2:4 a2:4";
+  const canon = {
+    intro: { m: "r:32", b: canonBass },
+    v1: { m: "f#5:4 e5:4 | d5:4 c#5:4 | b4:4 a4:4 | b4:4 c#5:4", b: canonBass },
+    v2: { m: "d5:4 c#5:4 | b4:4 a4:4 | g4:4 f#4:4 | g4:4 e4:4", b: canonBass },
+    v3: { m: "d4:2 f#4:2 a4:2 g4:2 | f#4:2 d4:2 f#4:2 e4:2 | d4:2 b3:2 d4:2 a4:2 | g4:2 b4:2 a4:2 g4:2", b: canonBass },
+    v4: { m: "d4:2 f#4:2 a4:2 g4:2 | f#4:2 d4:2 f#4:2 e4:2 | d4:2 b3:2 d4:2 a4:2 | g4:2 b4:2 a4:2 g4:2", b: canonBass, t: 12 },
+    end: { m: "d5:8", b: "d3:8" },
+  };
+
+  const elise = {
+    theme: { m: "e5 d#5 | e5 d#5 e5 b4 d5 c5 | a4:3 c4 e4 a4 | b4:3 e4 g#4 b4 | c5:3 e4 e5 d#5 | e5 d#5 e5 b4 d5 c5 | a4:3 c4 e4 a4 | b4:3 e4 c5 b4",
+             b: "r:2 | r:6 | a2 e3 a3 r:3 | e2 e3 g#3 r:3 | a2 e3 a3 r:3 | r:6 | a2 e3 a3 r:3 | e2 e3 g#3 r:3" },
+    end1: { m: "a4:4", b: "a2 e3 a3 r" },
+    end2: { m: "a4:3 b4 c5 d5", b: "a2 e3 a3 r:3" },
+    bridge: { m: "e5:3 g4 f5 e5 | d5:3 f4 e5 d5 | c5:3 e4 d5 c5 | b4:2 e4 e5 e4 e5 | e5 e6 d#5 e5 d#5 e5 | d#5 e5 d#5 e5",
+              b: "c3 g3 c4 r:3 | g2 g3 b3 r:3 | a2 e3 a3 r:3 | e2 e3 e4 r:3 | r:6 | r:4" },
+    fin: { m: "a4:6", b: "a2:6" },
+  };
+
+  const minuet = {
+    A1: { m: "d5:2 g4 a4 b4 c5 | d5:2 g4:2 g4:2 | e5:2 c5 d5 e5 f#5 | g5:2 g4:2 g4:2 | c5:2 d5 c5 b4 a4 | b4:2 c5 b4 a4 g4 | f#4:2 g4 a4 b4 g4 | a4:6",
+          b: "g3:4 a3:2 | b3:6 | c4:6 | b3:6 | a3:6 | g3:6 | d3:4 g3:2 | d3:2 f#3:2 a3:2" },
+    A2: { m: "d5:2 g4 a4 b4 c5 | d5:2 g4:2 g4:2 | e5:2 c5 d5 e5 f#5 | g5:2 g4:2 g4:2 | c5:2 d5 c5 b4 a4 | b4:2 c5 b4 a4 g4 | a4:2 b4 a4 g4 f#4 | g4:6",
+          b: "g3:4 a3:2 | b3:6 | c4:6 | b3:6 | a3:6 | g3:6 | c4:2 d4:2 d3:2 | g3:4 g2:2" },
+    B: { m: "b5:2 g5 a5 b5 g5 | a5:2 d5 e5 f#5 d5 | g5:2 e5 f#5 g5 d5 | c#5:2 b4 c#5 a4:2 | a4 b4 c#5 d5 e5 f#5 | g5:2 f#5:2 e5:2 | f#5:2 a4:2 c#5:2 | d5:6 | d5:2 g4 f#4 g4:2 | e5:2 g4 f#4 g4:2 | d5:2 c5:2 b4:2 | a4 g4 f#4 g4 a4:2 | d4 e4 f#4 g4 a4 b4 | c5:2 b4:2 a4:2 | b4 d5 g4:2 f#4:2 | g4:6",
+         b: "g3:6 | f#3:6 | e3:6 | a3:4 a2:2 | a3:6 | e3:2 g3:2 a3:2 | a3:6 | d3:4 d4:2 | b3:6 | c4:6 | b3:2 a3:2 g3:2 | c4:2 d4:2 d3:2 | g3:6 | a3:6 | g3:4 d3:2 | g2:6" },
+  };
+
+  const kingTheme = {
+    m: "b3 c#4 d4 e4 f#4 d4 f#4:2 | f4 c#4 f4:2 e4 c4 e4:2 | b3 c#4 d4 e4 f#4 d4 f#4 b4 | a4 f#4 d4 f#4 a4:4",
+    b: "b2:2 f#2:2 b2:2 f#2:2 | c#3:2 f#2:2 c3:2 e2:2 | b2:2 f#2:2 b2:2 f#2:2 | f#2:2 c#3:2 f#2:4",
+  };
+
+  const turkish = {
+    A1: { m: "b4 a4 g#4 a4 | c5:4 d5 c5 b4 c5 | e5:4 f5 e5 d#5 e5 | b5 a5 g#5 a5 b5 a5 g#5 a5 | c6:4 a5:2 c6:2 | b5:2 a5:2 g5:2 a5:2 | b5:2 a5:2 g5:2 a5:2 | b5:2 a5:2 g5:2 f#5:2 | e5:4",
+          b: "r:4 | a2:2 e3:2 c3:2 e3:2 | a2:2 e3:2 c3:2 e3:2 | e2:2 b2:2 g#2:2 b2:2 | a2:2 e3:2 c3:2 e3:2 | e2:2 b2:2 g2:2 b2:2 | e2:2 b2:2 g2:2 b2:2 | b2:2 d#3:2 f#3:2 a3:2 | e2:2 b2:2" },
+    A2: { m: "b4 a4 g#4 a4 | c5:4 d5 c5 b4 c5 | e5:4 f5 e5 d#5 e5 | b5 a5 g#5 a5 b5 a5 g#5 a5 | c6:4 a5:2 b5:2 | c6:2 b5:2 a5:2 g#5:2 | a5:2 e5:2 f5:2 d5:2 | c5:4 b4:3 a4:1 | a4:4",
+          b: "r:4 | a2:2 e3:2 c3:2 e3:2 | a2:2 e3:2 c3:2 e3:2 | e2:2 b2:2 g#2:2 b2:2 | a2:2 e3:2 c3:2 e3:2 | a2:2 e3:2 e2:2 g#2:2 | a2:2 c3:2 d3:2 f3:2 | e2:2 b2:2 e2:2 g#2:2 | a2:4" },
+    B: { m: "e5:2 f5:2 | g5:2 g5:2 a5 g5 f5 e5 | d5:4 e5:2 f5:2 | g5:2 g5:2 a5 g5 f5 e5 | d5:4 c5:2 d5:2 | e5:2 e5:2 f5 e5 d5 c5 | b4:4 c5:2 d5:2 | e5:2 e5:2 f5 e5 d5 c5 | b4:4",
+         b: "r:4 | c3:2 g3:2 e3:2 g3:2 | g2:2 d3:2 b2:2 d3:2 | c3:2 g3:2 e3:2 g3:2 | g2:2 d3:2 b2:2 d3:2 | a2:2 e3:2 c3:2 e3:2 | e2:2 b2:2 g#2:2 b2:2 | a2:2 e3:2 c3:2 e3:2 | e2:2 b2:2" },
+  };
+
+  // tempo: how fast the song is played, as a label for the song list
+  const SONGS = [
+    { id: "twinkle", title: "Twinkle, Twinkle", composer: "Mozart (theme)", year: 1781, tempo: "SLOW",
+      blurb: "The French tune Mozart wrote his famous variations on.",
+      bpm: 100, beat: 2, bar: 4, pickup: 0,
+      sections: [twinkle.A, twinkle.B, twinkle.A, twinkle.A, twinkle.B, twinkle.A] },
+    { id: "ode", title: "Ode to Joy", composer: "Beethoven", year: 1824, tempo: "SLOW",
+      blurb: "The big tune from the last movement of the Ninth Symphony.",
+      bpm: 100, beat: 2, bar: 4, pickup: 0,
+      sections: [ode.A, ode.B, ode.C, ode.B, ode.A, ode.B, ode.C, ode.B] },
+    { id: "canon", title: "Canon in D", composer: "Pachelbel", year: 1680, tempo: "SLOW",
+      blurb: "The same eight bass notes over and over, with the melody building on top.",
+      bpm: 72, beat: 2, bar: 4, pickup: 0,
+      sections: [canon.intro, canon.v1, canon.v2, canon.v3, canon.v4, canon.v1, canon.end] },
+    { id: "elise", title: "Für Elise", composer: "Beethoven", year: 1810, tempo: "MEDIUM",
+      blurb: "Beethoven's little piano piece, in three beats to the bar.",
+      bpm: 120, beat: 2, bar: 3, pickup: 2,
+      sections: [elise.theme, elise.end1, elise.theme, elise.end2, elise.bridge, elise.theme, elise.end1, elise.theme, elise.end2, elise.bridge, elise.theme, elise.fin] },
+    { id: "minuet", title: "Minuet in G", composer: "Petzold", year: 1725, tempo: "MEDIUM",
+      blurb: "A dance from the notebook Bach kept for his wife, Anna Magdalena.",
+      bpm: 120, beat: 2, bar: 3, pickup: 0,
+      sections: [minuet.A1, minuet.A2, minuet.B, minuet.B] },
+    { id: "king", title: "In the Hall of the Mountain King", composer: "Grieg", year: 1875, tempo: "SPEEDS UP",
+      blurb: "One sneaky tune, played again and again, faster and faster.",
+      bpm: 92, beat: 2, bar: 4, pickup: 0,
+      sections: [
+        { ...kingTheme, bpm: 92 }, { ...kingTheme, bpm: 92 },
+        { ...kingTheme, bpm: 104, t: 12 }, { ...kingTheme, bpm: 116, t: 12 },
+        { ...kingTheme, bpm: 128 }, { ...kingTheme, bpm: 140, t: 12 },
+        { ...kingTheme, bpm: 152, t: 12 }, { ...kingTheme, bpm: 164, t: 12 },
+        { m: "b4:2 f#4:2 b4:4", b: "b2:2 f#2:2 b1:4", bpm: 164 },
+      ] },
+    { id: "turkish", title: "Turkish March", composer: "Mozart", year: 1783, tempo: "FAST",
+      blurb: "The quick last movement of Mozart's Piano Sonata No. 11.",
+      bpm: 120, beat: 4, bar: 2, pickup: 4,
+      sections: [turkish.A1, turkish.A2, turkish.B, turkish.A1, turkish.A2, turkish.B, turkish.A1, turkish.A2] },
+  ];
+
+  // ---------- building ----------
+
+  // Works out every note's time and every beat. Beats know whether they start a bar (down) and
+  // whether a melody note (mel) or any note (any) starts on them, so words can land on real notes.
+  function build(song) {
+    const notes = [];
+    const beats = [];
+    const perBar = song.beat * song.bar;
+    const mod = (a, n) => ((a % n) + n) % n;
+    let step = 0;
+    let t = 0;
+    for (const sec of song.sections) {
+      const dt = 60 / (sec.bpm || song.bpm) / song.beat; // seconds per step
+      const voices = [parse(sec.m, sec.t || 0), parse(sec.b || "", sec.t || 0)];
+      const len = Math.max(voices[0].steps, voices[1].steps);
+      voices.forEach((v, voice) => {
+        for (const n of v.notes) notes.push({ t: t + n.s * dt, d: n.n * dt, midi: n.midi, voice });
+      });
+      const starts = voices.map((v) => new Set(v.notes.map((n) => n.s)));
+      for (let i = 0; i < len; i++) {
+        const g = step + i - song.pickup;
+        if (mod(g, song.beat)) continue;
+        beats.push({ t: t + i * dt, down: mod(g, perBar) === 0, mel: starts[0].has(i), any: starts[0].has(i) || starts[1].has(i), len: song.beat * dt });
+      }
+      step += len;
+      t += len * dt;
+    }
+    notes.sort((a, b) => a.t - b.t);
+    return { ...song, notes, beats, duration: t };
+  }
+
+  const cache = new Map();
+  TT.songs = {
+    list: SONGS,
+    get(id) {
+      const song = SONGS.find((s) => s.id === id);
+      if (!song) return null;
+      if (!cache.has(id)) cache.set(id, build(song));
+      return cache.get(id);
+    },
+    build,
+    parse,
+  };
+})();
