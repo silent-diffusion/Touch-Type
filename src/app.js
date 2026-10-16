@@ -454,12 +454,85 @@
 
   // The second row of tabs. tabs: [[id, label, action], ...], or null for none.
   function setSubtabs(tabs, current, main) {
+    // A section's own menu switching tab (stats, settings, leaderboard) pulls a new window forward.
+    if (tabs && folderShown.main === main && folderShown.sub != null && current !== folderShown.sub) queueFolderMove("sub");
+    if (tabs) folderShown.sub = current;
     els.subtabs.hidden = !tabs;
     els.app.classList.toggle("has-sub", !!tabs);
     if (!tabs) return (els.subtabs.innerHTML = "");
     const n = tabNum(main);
     els.subtabs.innerHTML = tabs.map(([id, label, act], i) => tabButton(id === current, act, `0${n}.${i + 1}`, label)).join("");
     shapeTabs(els.subtabs);
+  }
+
+  // ---------- folder transition ----------
+  // Moving to another tab pulls its folder out of the drawer: the new folder, with its open tab, rises
+  // from the bottom of the screen while the old one drops back behind it and fades. A main tab moves
+  // the whole folder (with its second row of tabs); a tab in the second row moves just the window.
+  // The open tab travels with its folder, so the outline around them stays joined, and the other
+  // tabs stay where they are.
+  const folderShown = { main: null, sub: null }; // the tabs on screen now
+  let folderMove = null; // { kind, ghost } waiting for the next frame
+  let folderRun = null;  // { ghost, anims } still animating
+  const calm = window.matchMedia ? window.matchMedia("(prefers-reduced-motion: reduce)") : { matches: false };
+  els.stack = document.querySelector(".folder-stack");
+
+  function endFolderRun() {
+    if (!folderRun) return;
+    folderRun.anims.forEach((a) => a.cancel());
+    folderRun.ghost.remove();
+    folderRun = null;
+  }
+
+  // A still copy of the folder as it looks now, laid over the same spot, to animate out of the way.
+  function folderGhost(target) {
+    const r = target.getBoundingClientRect();
+    const ghost = target.cloneNode(true);
+    ghost.querySelectorAll("[hidden]").forEach((e) => e.remove());
+    [ghost, ...ghost.querySelectorAll("[id]")].forEach((e) => e.removeAttribute("id"));
+    ghost.querySelectorAll("[data-act]").forEach((e) => e.removeAttribute("data-act"));
+    ghost.setAttribute("aria-hidden", "true");
+    Object.assign(ghost.style, {
+      position: "fixed", left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px`,
+      margin: "0", zIndex: "0", pointerEvents: "none", transformOrigin: "50% 0",
+    });
+    return ghost;
+  }
+
+  function queueFolderMove(kind) {
+    if (folderMove || calm.matches || !els.app.offsetWidth) return;
+    endFolderRun();
+    const target = kind === "main" ? els.stack : $("folder");
+    folderMove = { kind, ghost: folderGhost(target) };
+    // after the new page is drawn: the next frame, or a moment later if frames are paused
+    requestAnimationFrame(runFolderMove);
+    setTimeout(runFolderMove, 60);
+  }
+
+  function runFolderMove() {
+    const move = folderMove;
+    folderMove = null;
+    if (!move) return;
+    const target = move.kind === "main" ? els.stack : $("folder");
+    const tab = (move.kind === "main" ? els.tabs : els.subtabs).querySelector(".ftab.on");
+    els.app.prepend(move.ghost);
+    const rise = Math.max(120, window.innerHeight - target.getBoundingClientRect().top + 24);
+    const ease = "cubic-bezier(.3,.7,.3,1)";
+    const riseUp = [{ transform: `translateY(${rise}px)` }, { transform: "translateY(0)" }];
+    const anims = [
+      target.animate(riseUp, { duration: 420, easing: ease }),
+      move.ghost.animate([
+        { transform: "none", filter: "brightness(1)", opacity: 1 },
+        { transform: "translateY(-22px) scale(.97)", filter: "brightness(.86)", opacity: 1, offset: 0.7 },
+        { transform: "translateY(-22px) scale(.97)", filter: "brightness(.86)", opacity: 0 },
+      ], { duration: 460, easing: ease, fill: "forwards" }),
+    ];
+    if (tab) anims.push(tab.animate(riseUp, { duration: 420, easing: ease }));
+    folderRun = { ghost: move.ghost, anims };
+    // Tidy up when it ends, and in any case shortly after (animations pause while the window is hidden).
+    const done = () => { if (folderRun && folderRun.ghost === move.ghost) endFolderRun(); };
+    anims[1].onfinish = done;
+    setTimeout(done, 700);
   }
 
   // ---------- jump to a tab by its number ----------
@@ -488,6 +561,15 @@
   });
 
   function show(view) {
+    // Changing tab plays the folder transition (decided here, before anything on screen changes).
+    const main = tabFor(view);
+    const sub = main === "games" ? gameTabFor(view) : null;
+    if (folderShown.main !== null && main !== folderShown.main) queueFolderMove("main");
+    else if (main === "games" && folderShown.sub !== null && sub !== folderShown.sub) queueFolderMove("sub");
+    folderShown.main = main;
+    if (main === "games") folderShown.sub = sub;
+    else if (!FOLDER_VIEWS.includes(view)) folderShown.sub = null;
+
     ui.view = view;
     els.config.hidden = !["test", "practice", "results"].includes(view);
     renderTabs(view);
