@@ -34,7 +34,8 @@
   const TYPO_HP = 2, START_HP = 80, MAX_HP = 100;
   const GRADE_NAMES = { P: "PERFECT", G: "GREAT", O: "GOOD", S: "SLOPPY", M: "MISS", E: "TOO EARLY", X: "WRONG COLUMN" };
   const LEAD_MS = 1200; // quiet time before the first tile shows up
-  const LYRIC_SHARE = 0.6; // for a song with lyrics, about this share of words come from them
+  const LYRIC_SHARE = 0.6; // for a song with untimed lyrics, about this share of words come from them
+  const SUNG_EXTRA = 2;    // a sung word may be this many letters longer than the difficulty allows
   const HISTORY_CAP = 200;
 
   const multiplier = (combo) => (combo >= 50 ? 4 : combo >= 25 ? 3 : combo >= 10 ? 2 : 1);
@@ -115,6 +116,25 @@
       return (lo + eq / 2) / known.length;
     };
     return ps.map((p) => (p == null ? Math.floor(cols / 2) : Math.min(cols - 1, Math.floor(below(p) * cols))));
+  }
+
+  // Timed lyrics: the word sung as each of a chart's tiles reaches the line, or null. Each sung
+  // word goes to the nearest tile within its tolerance (song.sungWords), and to only one tile.
+  function sungWords(song, diff) {
+    const hits = chart(song, diff), sw = song.sungWords || [];
+    const out = hits.map(() => null);
+    if (!sw.length) return out;
+    const used = new Set();
+    hits.forEach((h, i) => {
+      let best = -1, bestD = Infinity;
+      for (let k = 0; k < sw.length; k++) {
+        if (used.has(k)) continue;
+        const d = Math.abs(sw[k].t * 1000 - h);
+        if (d < bestD) { bestD = d; best = k; }
+      }
+      if (best >= 0 && bestD <= sw[best].tol * 1000) { used.add(best); out[i] = sw[best].w; }
+    });
+    return out;
   }
 
   // The first hit of the charts before they followed the music, for older recordings that didn't
@@ -408,7 +428,7 @@
 
   TT.tilesCore = {
     DIFFS, DIFF_IDS, WIN, RULES, GRADE_NAMES,
-    chart, columns, newCore, dealWords, coreFor, applyKey, advance, gameStats, target, column, attribute, recorded, multiplier, letterGrade,
+    chart, columns, sungWords, newCore, dealWords, coreFor, applyKey, advance, gameStats, target, column, attribute, recorded, multiplier, letterGrade,
   };
 
   // ---------- sound ----------
@@ -773,7 +793,17 @@
       const minLen = Math.min(D.len[0], maxLen);
       const taken = new Set((state.words || []).filter((w, c) => w && c !== col).map((w) => w[0]));
       const ok = (w) => w.length >= minLen && w.length <= maxLen && !taken.has(w[0]) && !live.recent.includes(w);
-      // Songs with lyrics: most words come from the song itself, when one fits.
+      // Timed lyrics: the column's next tile falls as a word is sung, so it gets that word. It may
+      // run up to SUNG_EXTRA letters past the difficulty's limit when there's time to type it, and
+      // mustn't share a first letter with another column's word.
+      const sungNow = j >= 0 ? live.sungFor[j] : null;
+      const sungMax = Math.min(D.len[1] + SUNG_EXTRA, Math.max(3, Math.round(gap * 8)));
+      if (sungNow && sungNow.length >= 2 && sungNow.length <= sungMax && !taken.has(sungNow[0])) {
+        live.recent = [...live.recent, sungNow].slice(-12);
+        live.words.push(sungNow);
+        return sungNow;
+      }
+      // Lyrics without times: most words come from the song itself, when one fits.
       const sung = live.lyricWords.length && Math.random() < LYRIC_SHARE ? live.lyricWords.filter(ok) : [];
       let pool = sung.length ? sung : live.pool.filter(ok);
       if (!sung.length && pool.length < 5) {
@@ -964,9 +994,13 @@
       live = {
         state: "ready", diff, song: songId, offset, sound, startedAt: 0, player: null,
         keys: "", times: [], words: [], recent: [], pool: [],
-        lyricWords: sound.lyrics !== false && TT.lyrics ? TT.lyrics.words(song.lyrics) : [],
+        // with timed lyrics, sung words go on the tiles where they're sung and the rest are
+        // practice words; with untimed lyrics, most words are drawn from them at random
+        sungFor: sound.lyrics !== false ? sungWords(song, diff) : [],
+        lyricWords: [],
         targets: A.weakKeys(), missed: A.weakWords(20),
       };
+      if (sound.lyrics !== false && !live.sungFor.some(Boolean) && TT.lyrics) live.lyricWords = TT.lyrics.words(song.lyrics);
       g = newCore({ hits, fall: D.fall, endT, diff, lanes: columns(song, diff), cols: D.cols });
       g.wpmScale = W.scale();
       dealWords(g, provide);

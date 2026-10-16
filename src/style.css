@@ -1003,6 +1003,11 @@ body:not(.typing) .caret.caret-block { animation-name: blink-block; }
 .tl-play { margin-top: 28px; }
 .tl-toggles { display: flex; gap: 8px; padding: 14px 0 20px; flex-wrap: wrap; }
 .tl-songs .tl-group { padding: 18px 0 6px; border-top: var(--rule); margin-top: 10px; }
+/* timing the lyrics: the last words timed, the one to tap next, and what's coming */
+.tl-lyric-run { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 18px; min-height: 70px; margin: 18px 0 8px; font-family: var(--type-font); }
+.tl-lyric-run .done { font-size: 22px; color: var(--sub); }
+.tl-lyric-run .now { font-size: 46px; color: var(--accent); }
+.tl-lyric-run .next { font-size: 22px; }
 .tl-lyrics { width: 100%; box-sizing: border-box; margin: 4px 0 16px; padding: 12px 14px; border: var(--rule); background: transparent; color: var(--ink); font: 16px/1.5 var(--type-font); resize: vertical; }
 .tl-lyrics:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 .tl-add { justify-content: center !important; border: 2px dashed var(--ink) !important; font-weight: 700; letter-spacing: 0.1em; }

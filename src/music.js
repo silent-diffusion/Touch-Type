@@ -2,7 +2,9 @@
 // (never uploaded) and shared by every profile; scores stay with each profile.
 //
 // A saved song: { id, name, type, size, added, blob, analysis, lyrics }
-//   lyrics — read from the file when it was added (lyrics.js), or pasted in later; may be empty
+//   lyrics — read from the file when it was added (lyrics.js), or pasted in later; may be empty,
+//            and may be LRC text with times
+//   lyricTimes — [{ t, w }] from tapping along to the lyrics; beats any times in the lyrics
 //   analysis — from TT.beatTrack: { method: "auto" | "tap", bpm, beats, down, quiet, strength, pitch, duration, rev }
 // In the song list an added song's id is "u:" + its saved id.
 (() => {
@@ -31,6 +33,16 @@
   // A short pause so the progress message gets drawn before the heavy work starts.
   const frame = () => new Promise((r) => setTimeout(r, 40));
 
+  // When each sung word starts: tapped along for the words that were tapped (the first ones, in
+  // order, since a song can be tapped part way), then any LRC times in the lyrics for the rest.
+  function sungWords(meta) {
+    const lrc = TT.lyrics.timed(meta.lyrics) || [];
+    const taps = (meta.lyricTimes || []).map((x) => ({ t: x.t, w: x.w, tol: 0.25 }));
+    if (!taps.length) return lrc;
+    const last = taps[taps.length - 1].t;
+    return taps.concat(lrc.slice(taps.length).filter((x) => x.t > last));
+  }
+
   // What Tiles sees: the same shape as a built-in song, with the beats from the analysis.
   function register(meta) {
     const an = meta.analysis;
@@ -51,6 +63,7 @@
       pickup: 0,
       notes: [],
       lyrics: meta.lyrics || "",
+      sungWords: sungWords(meta),
       beats: TT.beatTrack.toSongBeats(an),
       duration: an.duration,
       buffer: decoded.id === meta.id ? decoded.buffer : null,
@@ -181,7 +194,21 @@
       return true;
     },
 
-    // Sets (or clears) an added song's lyrics.
+    // Saves the times of an added song's lyric words from tapping along ([{ t, w }]); empty clears them.
+    async setLyricTimes(songId, times) {
+      const id = savedId(songId);
+      const meta = metas.get(id);
+      if (!meta) return false;
+      const rec = await tx("readonly", (s) => s.get(id));
+      if (!rec) return false;
+      rec.lyricTimes = times.map((x) => ({ t: Math.round(x.t * 1000) / 1000, w: x.w }));
+      await tx("readwrite", (s) => s.put(rec));
+      meta.lyricTimes = rec.lyricTimes;
+      register(meta);
+      return true;
+    },
+
+    // Sets (or clears) an added song's lyrics. New lyrics drop any tapped times (they were for the old words).
     async setLyrics(songId, text) {
       const id = savedId(songId);
       const meta = metas.get(id);
@@ -189,9 +216,11 @@
       const lyrics = String(text || "").slice(0, 20000);
       const rec = await tx("readonly", (s) => s.get(id));
       if (!rec) return false;
+      if (lyrics !== (rec.lyrics || "")) rec.lyricTimes = [];
       rec.lyrics = lyrics;
       await tx("readwrite", (s) => s.put(rec));
       meta.lyrics = lyrics;
+      meta.lyricTimes = rec.lyricTimes || [];
       register(meta);
       return true;
     },

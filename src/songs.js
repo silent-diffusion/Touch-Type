@@ -106,14 +106,37 @@ Stars and angels sing around thee, center of unbroken praise.
 Field and forest, vale and mountain, flowery meadow, flashing sea,
 Singing bird and flowing fountain call us to rejoice in thee.`;
 
+  // How the lyrics are sung: one string per section (in the song's section order), one syllable on
+  // each melody note. Syllables of a word are joined by "-"; "_" is a note slurred on from the
+  // syllable before it. Each word is timed by its first syllable's note, so Tiles can put a word on
+  // the tile that falls as it's sung.
+  const TWINKLE_SUNG = [
+    "Twin-kle twin-kle lit-tle star, how I won-der what you are",
+    "Up a-bove the world so high, like a dia-mond in the sky",
+    "Twin-kle twin-kle lit-tle star, how I won-der what you are",
+    "When the bla-zing sun is gone, when he no-thing shines up-on",
+    "Then you show your lit-tle light, twin-kle twin-kle all the night",
+    "Twin-kle twin-kle lit-tle star, how I won-der what you are",
+  ];
+  const ODE_SUNG = [
+    "Joy-ful, joy-ful, we a-dore thee, God of glo-ry, Lord of love",
+    "Hearts un-fold like flowers be-fore thee, o-pening to the sun a-bove",
+    "Melt the clouds of sin and _ sad-ness, drive the _ dark of doubt a-way",
+    "Gi-ver of im-mor-tal glad-ness, fill us with the light of day",
+    "All thy works with joy sur-round thee, earth and heaven re-flect thy rays",
+    "Stars and an-gels sing a-round thee, cen-ter of un-bro-ken praise",
+    "Field and for-est, vale and _ moun-tain, flow-ery _ mea-dow, flash-ing sea",
+    "Sing-ing bird and flow-ing foun-tain call us to re-joice in thee",
+  ];
+
   // tempo: how fast the song is played, as a label for the song list
   const SONGS = [
     { id: "twinkle", title: "Twinkle, Twinkle", composer: "Mozart (theme)", year: 1781, tempo: "SLOW",
-      blurb: "The French tune Mozart wrote his famous variations on.", lyrics: TWINKLE_LYRICS,
+      blurb: "The French tune Mozart wrote his famous variations on.", lyrics: TWINKLE_LYRICS, sung: TWINKLE_SUNG,
       bpm: 100, beat: 2, bar: 4, pickup: 0,
       sections: [twinkle.A, twinkle.B, twinkle.A, twinkle.A, twinkle.B, twinkle.A] },
     { id: "ode", title: "Ode to Joy", composer: "Beethoven", year: 1824, tempo: "SLOW",
-      blurb: "The big tune from the last movement of the Ninth Symphony.", lyrics: ODE_LYRICS,
+      blurb: "The big tune from the last movement of the Ninth Symphony.", lyrics: ODE_LYRICS, sung: ODE_SUNG,
       bpm: 100, beat: 2, bar: 4, pickup: 0,
       sections: [ode.A, ode.B, ode.C, ode.B, ode.A, ode.B, ode.C, ode.B] },
     { id: "canon", title: "Canon in D", composer: "Pachelbel", year: 1680, tempo: "SLOW",
@@ -170,14 +193,27 @@ Singing bird and flowing fountain call us to rejoice in thee.`;
   // Works out every note's time and every beat. Beats know whether they start a bar (down),
   // whether a melody note (mel) or any note (any) starts on them, how much they stand out (w)
   // and their pitch (p), so tiles land on the music's important moments and follow the tune.
+  // A sung line's syllables: [{ word, first }] per melody note, or null for a slurred note.
+  function syllables(line) {
+    const out = [];
+    for (const tok of line.split(/\s+/)) {
+      if (!tok) continue;
+      if (tok === "_") { out.push(null); continue; }
+      const word = tok.toLowerCase().replace(/[^a-z'-]/g, "").replace(/-/g, "");
+      tok.split("-").forEach((_, k) => out.push({ word, first: k === 0 }));
+    }
+    return out;
+  }
+
   function build(song) {
     const notes = [];
     const beats = [];
+    const sungWords = []; // { t (seconds), w, tol }: when each sung word starts
     const perBar = song.beat * song.bar;
     const mod = (a, n) => ((a % n) + n) % n;
     let step = 0;
     let t = 0;
-    for (const sec of song.sections) {
+    for (const [sectionIndex, sec] of song.sections.entries()) {
       const dt = 60 / (sec.bpm || song.bpm) / song.beat; // seconds per step
       const voices = [parse(sec.m, sec.t || 0), parse(sec.b || "", sec.t || 0)];
       const len = Math.max(voices[0].steps, voices[1].steps);
@@ -185,6 +221,14 @@ Singing bird and flowing fountain call us to rejoice in thee.`;
         for (const n of v.notes) notes.push({ t: t + n.s * dt, d: n.n * dt, midi: n.midi, voice });
       });
       const starts = voices.map((v) => new Set(v.notes.map((n) => n.s)));
+      const line = song.sung && song.sung[sectionIndex];
+      if (line) {
+        const syl = syllables(line);
+        if (syl.length !== voices[0].notes.length) throw new Error(`${song.id}: section ${sectionIndex + 1} has ${syl.length} syllables for ${voices[0].notes.length} notes`);
+        syl.forEach((x, k) => {
+          if (x && x.first && x.word.length >= 2 && /^[a-z]+$/.test(x.word)) sungWords.push({ t: t + voices[0].notes[k].s * dt, w: x.word, tol: 0.12 });
+        });
+      }
       for (let i = 0; i < len; i++) {
         const g = step + i - song.pickup;
         if (mod(g, song.beat)) continue;
@@ -194,7 +238,7 @@ Singing bird and flowing fountain call us to rejoice in thee.`;
       t += len * dt;
     }
     notes.sort((a, b) => a.t - b.t);
-    return { ...song, notes, beats, duration: t };
+    return { ...song, notes, beats, sungWords, duration: t };
   }
 
   const cache = new Map();

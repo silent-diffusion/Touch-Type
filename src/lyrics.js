@@ -6,22 +6,74 @@
 //   FLAC, OGG Vorbis, Opus: a LYRICS or UNSYNCEDLYRICS comment
 //   M4A / MP4: the ©lyr tag
 // Nothing goes online; a file without lyrics simply has none (they can be pasted in instead).
+//
+// Timed lyrics make sung words land on the tile that falls as they're sung. They come as LRC text
+// ("[01:23.45] a line", or "<01:23.45>" before each word in enhanced LRC), pasted in or embedded in
+// the file, or as an MP3's synced-lyrics frame (SYLT), which is turned into LRC when it's read.
 (() => {
-  // The words of some lyrics, in the order they first appear.
-  function words(text) {
-    if (!text) return [];
-    const seen = new Set();
-    const out = [];
-    const plain = String(text).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-    for (const tok of plain.split(/[\s\-–—/]+/)) {
-      const w = tok.replace(/^[^a-z']+|[^a-z']+$/g, ""); // trim punctuation around a word
-      if (w.length < 2 || !/^[a-z]+$/.test(w) || seen.has(w)) continue;
-      seen.add(w);
-      out.push(w);
-    }
-    return out;
-  }
+  const TAG = /\[(\d+):(\d+(?:[.:]\d+)?)\]|<(\d+):(\d+(?:[.:]\d+)?)>|\[[a-z]+:[^\]]*\]/gi;
 
+  // One word as the game uses it: lower case a-z, accents dropped, punctuation trimmed. Null for
+  // anything else (apostrophes, digits, single letters).
+  function clean(tok) {
+    const w = String(tok).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/^[^a-z']+|[^a-z']+$/g, "");
+    return w.length >= 2 && /^[a-z]+$/.test(w) ? w : null;
+  }
+  const split = (text) => String(text || "").replace(TAG, " ").split(/[\s\-–—/]+/);
+
+  // The words of some lyrics in the order they're sung, repeats and all.
+  const sequence = (text) => split(text).map(clean).filter(Boolean);
+
+  // The different words of some lyrics, in the order they first appear.
+  const words = (text) => [...new Set(sequence(text))];
+
+  // A rough count of a word's syllables (vowel groups), to spread a line's words over its time.
+  const syllables = (w) => Math.max(1, (w.replace(/e$/, "").match(/[aeiouy]+/g) || []).length);
+
+  // Timed words from LRC text: [{ t (seconds), w, tol }], or null if it has no time tags. tol is
+  // how close (seconds) a word must be to a tile to be dealt to it: tight when each word is timed,
+  // looser when only lines are and the words are spread over the line.
+  function timed(text) {
+    if (!text || !/\[\d+:\d+(?:[.:]\d+)?\]/.test(text)) return null;
+    const sec = (m, s) => Number(m) * 60 + Number(String(s).replace(":", "."));
+    let offset = 0;
+    const off = /\[offset:\s*([+-]?\d+)\]/i.exec(text);
+    if (off) offset = Number(off[1]) / 1000; // LRC offset: positive means the lyrics come sooner
+    const lines = [];
+    for (const raw of String(text).split(/\r?\n/)) {
+      const stamps = [...raw.matchAll(/\[(\d+):(\d+(?:[.:]\d+)?)\]/g)];
+      if (!stamps.length) continue;
+      const body = raw.replace(/\[[^\]]*\]/g, "");
+      for (const st of stamps) lines.push({ t: sec(st[1], st[2]) - offset, body });
+    }
+    lines.sort((a, b) => a.t - b.t);
+    const out = [];
+    lines.forEach((line, li) => {
+      // enhanced LRC: a time before each word
+      if (/<\d+:\d+/.test(line.body)) {
+        for (const m of line.body.matchAll(/<(\d+):(\d+(?:[.:]\d+)?)>\s*([^<]*)/g)) {
+          const ws = split(m[3]).map(clean).filter(Boolean);
+          ws.forEach((w, k) => out.push({ t: sec(m[1], m[2]) - offset + k * 0.25, w, tol: k ? 0.35 : 0.2 }));
+        }
+        return;
+      }
+      // a timed line: its words spread over the line by syllables, at most ~0.3 s a syllable
+      // (words the game skips, like "don't", still take their share of the line)
+      const toks = split(line.body).filter((x) => /[a-z]/i.test(x));
+      if (!toks.some(clean)) return;
+      const next = li + 1 < lines.length ? lines[li + 1].t : line.t + 4;
+      const size = (x) => syllables(x.toLowerCase().replace(/[^a-z]/g, ""));
+      const total = toks.reduce((n, x) => n + size(x), 0);
+      const span = Math.min(Math.max(0, next - line.t) * 0.9, total * 0.3);
+      let at = 0;
+      for (const x of toks) {
+        const w = clean(x);
+        if (w) out.push({ t: line.t + (span * at) / total, w, tol: 0.35 });
+        at += size(x);
+      }
+    });
+    return out.length ? out : null;
+  }
   // ---------- reading lyrics from a file ----------
 
   const latin1 = new TextDecoder("latin1");
@@ -65,7 +117,7 @@
     }
     const idLen = ver === 2 ? 3 : 4;
     const head = ver === 2 ? 6 : 10;
-    let found = null;
+    let found = null, synced = null;
     while (p + head <= end) {
       const id = ascii(b, p, idLen);
       if (!/^[A-Z0-9]+$/.test(id)) break; // padding
@@ -74,7 +126,23 @@
         : (b[p + 4] << 24) | (b[p + 5] << 16) | (b[p + 6] << 8) | b[p + 7];
       const at = p + head, stop = Math.min(end, at + n);
       if (n <= 0) break;
-      if (id === "USLT" || id === "ULT") {
+      if ((id === "SYLT" || id === "SLT") && b[at + 4] === 2) {
+        // synced lyrics, timed in milliseconds: become LRC lines, which beat any unsynced lyrics
+        const enc = b[at];
+        let q = at + 6;
+        q += id3Text(b, q, stop, enc, true)[1]; // the description
+        const lines = [];
+        while (q < stop) {
+          const [text, used] = id3Text(b, q, stop, enc, true);
+          q += used;
+          if (q + 4 > stop) break;
+          const ms = (b[q] << 24) | (b[q + 1] << 16) | (b[q + 2] << 8) | b[q + 3];
+          q += 4;
+          const s = ms / 1000;
+          if (text.trim()) lines.push(`[${String(Math.floor(s / 60)).padStart(2, "0")}:${(s % 60).toFixed(2).padStart(5, "0")}]${text.trim()}`);
+        }
+        if (lines.length) synced = lines.join("\n");
+      } else if (id === "USLT" || id === "ULT") {
         // encoding, 3-letter language, a description, then the lyrics
         const enc = b[at];
         const [, used] = id3Text(b, at + 4, stop, enc, true);
@@ -90,7 +158,7 @@
       }
       p = stop;
     }
-    return found;
+    return synced || found;
   }
 
   // Vorbis-style comments (FLAC, OGG, Opus): little-endian lengths, "KEY=value" in UTF-8.
@@ -190,5 +258,5 @@
     }
   }
 
-  TT.lyrics = { words, fromFile };
+  TT.lyrics = { clean, words, sequence, timed, fromFile };
 })();

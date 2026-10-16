@@ -683,9 +683,14 @@
       `<li><button class="tl-add" data-act="tl:import" ${ui.tlBusy ? "disabled" : ""}>+ ADD A SONG</button></li>`;
     const words = C.chart(song, s.tilesDiff).length;
     const lyricCount = TT.lyrics.words(song.lyrics).length;
-    const lyricLine = lyricCount
-      ? `<p class="note">${s.tilesLyrics ? "Most of the words come from the song's lyrics" : "Lyrics are off, so the words are practice words"} (${lyricCount} different words).</p>`
-      : song.user ? `<p class="note">No lyrics yet. Add them with LYRICS and most of the words will come from the song.</p>` : "";
+    const sungCount = (song.sungWords || []).length ? C.sungWords(song, s.tilesDiff).filter(Boolean).length : 0;
+    let lyricLine = "";
+    if (lyricCount && !s.tilesLyrics) lyricLine = "Lyrics are off, so the words are practice words.";
+    else if (sungCount) lyricLine = `The lyrics are timed: ${sungCount === words ? `all ${words} tiles fall` : `${sungCount} of the ${words} tiles fall`} as a word is sung, and get that word when it fits the difficulty. ${sungCount === words ? "Words that don't fit are" : "The rest are"} practice words.`;
+    else if (lyricCount) lyricLine = `Most of the words come from the song's lyrics (${lyricCount} different words).` +
+      (song.user ? " Time them with TIME LYRICS, or paste LRC lyrics with times, and each word lands on the tile where it's sung." : "");
+    else if (song.user) lyricLine = "No lyrics yet. Add them with LYRICS and most of the words will come from the song.";
+    if (lyricLine) lyricLine = `<p class="note">${lyricLine}</p>`;
     const rows = C.DIFF_IDS.map((id) => {
       const b = best(song.id, id);
       return [`${C.DIFFS[id].name[0]}${C.DIFFS[id].name.slice(1).toLowerCase()}:`, b ? `${b.grade} · ${b.score.toLocaleString()}` : "—"];
@@ -693,7 +698,24 @@
     rows[rows.length - 1][2] = true;
     const toggle = (label, on, act) => `<button class="opt ${on ? "on" : ""}" aria-pressed="${on}" data-act="${act}">${label} ${on ? "ON" : "OFF"}</button>`;
 
-    const tapPanel = ui.tap && `
+    const lyricTap = ui.tap && ui.tap.mode === "lyrics" && (() => {
+      const tap = ui.tap, i = tap.taps.length, w = tap.words;
+      const span = (k, cls) => (k >= 0 && k < w.length ? `<span class="${cls}">${esc(w[k])}</span>` : "");
+      return `
+        <section class="col-main">
+          <div class="title-row"><h1>TIME THE LYRICS</h1><span class="title-meta">${esc(song.title.toUpperCase())}</span></div>
+          <p class="tl-blurb">Press <strong>Space</strong> or <strong>T</strong> as each word starts to be sung. <strong>Backspace</strong> takes back the last tap. You can save part way and the rest stay untimed.</p>
+          <div class="tl-lyric-run" aria-live="polite">${span(i - 2, "done")}${span(i - 1, "done")}${i < w.length ? span(i, "now") : `<span class="now">ALL TIMED</span>`}${[1, 2, 3, 4, 5, 6].map((d) => span(i + d, "next")).join("")}</div>
+          <div class="tl-tapcount"><span>${i}</span><span class="caps-label">OF ${w.length} WORDS TIMED</span></div>
+          ${ui.tlNote ? `<p class="tl-msg" role="status">${esc(ui.tlNote)}</p>` : ""}
+          <div class="tl-own">
+            <button class="fh-play" data-act="tl:tapsave">SAVE <kbd>ENTER</kbd></button>
+            <button class="outline-btn" data-act="tl:tapundo">UNDO <kbd>BACKSPACE</kbd></button>
+            <button class="outline-btn" data-act="tl:tapcancel">CANCEL <kbd>ESC</kbd></button>
+          </div>
+        </section>`;
+    })();
+    const tapPanel = lyricTap || ui.tap && `
         <section class="col-main">
           <div class="title-row"><h1>TAP THE BEAT</h1><span class="title-meta">${esc(song.title.toUpperCase())}</span></div>
           <p class="tl-blurb">Tap <strong>Space</strong> or <strong>T</strong> on every beat while the song plays. Start on a strong beat, the "one" of a bar, and keep going for at least 8 taps. More taps make it more exact.</p>
@@ -707,11 +729,12 @@
     const lyricsPanel = ui.lyricsEdit && song.user && `
         <section class="col-main">
           <div class="title-row"><h1>LYRICS</h1><span class="title-meta">${esc(song.title.toUpperCase())}</span></div>
-          <p class="tl-blurb">Paste the song's lyrics. Tiles takes most of its words from them, the ones that fit the difficulty. They stay on this computer.</p>
+          <p class="tl-blurb">Paste the song's lyrics. Tiles takes most of its words from them, the ones that fit the difficulty. LRC lyrics, with times like <span class="mono">[01:23.45]</span>, are timed straight away. They stay on this computer.</p>
           <label class="visually-hidden" for="tl-lyrics">Lyrics</label>
           <textarea id="tl-lyrics" class="tl-lyrics" rows="12" spellcheck="false">${esc(song.lyrics || "")}</textarea>
           <div class="tl-own">
             <button class="fh-play" data-act="tl:lyricssave">SAVE</button>
+            <button class="outline-btn" data-act="tl:lyricsfile">OPEN .LRC FILE</button>
             <button class="outline-btn" data-act="tl:lyricscancel">CANCEL</button>
           </div>
         </section>`;
@@ -726,6 +749,7 @@
           ${lyricLine}
           ${song.user ? `<div class="tl-own">
             <button class="outline-btn" data-act="tl:lyricsedit">LYRICS</button>
+            ${lyricCount ? `<button class="outline-btn" data-act="tl:timelyrics">TIME LYRICS</button>` : ""}
             <button class="outline-btn" data-act="tl:tap">TAP THE BEAT</button>
             <button class="outline-btn" data-act="tl:delete">DELETE</button>
           </div>` : ""}
@@ -814,11 +838,29 @@
     refresh();
   });
 
-  async function startTap() {
+  // An .lrc (or text) file of lyrics, opened into the lyrics editor.
+  const lrcInput = document.createElement("input");
+  lrcInput.type = "file";
+  lrcInput.accept = ".lrc,.txt,text/plain";
+  lrcInput.hidden = true;
+  document.body.appendChild(lrcInput);
+  lrcInput.addEventListener("change", async () => {
+    const file = lrcInput.files[0];
+    lrcInput.value = "";
+    const t = $("tl-lyrics");
+    if (!file || !t) return;
+    if (file.size > 512 * 1024) { ui.tlNote = "That file is too big for lyrics."; renderTilesSelect(); return; }
+    t.value = await file.text();
+    t.focus();
+  });
+
+  // Tapping along: mode "beat" finds the beat; mode "lyrics" times each lyric word as it's sung.
+  async function startTap(mode = "beat") {
     const song = TT.songs.get(S().tilesSong);
     if (!song || !song.user) return;
+    ui.lyricsEdit = false;
     ui.tlNote = "Loading the song…";
-    ui.tap = { id: song.id, taps: [], bpm: 0, src: null, zeroPerf: 0 };
+    ui.tap = { mode, id: song.id, taps: [], bpm: 0, src: null, zeroPerf: 0, words: mode === "lyrics" ? TT.lyrics.sequence(song.lyrics) : [] };
     renderTilesSelect();
     let buffer;
     try {
@@ -855,6 +897,11 @@
     if (!tap || !tap.src) return;
     const t = (stamp - tap.zeroPerf) / 1000;
     if (t < 0) return;
+    if (tap.mode === "lyrics") {
+      if (tap.taps.length < tap.words.length) tap.taps.push({ t, w: tap.words[tap.taps.length] });
+      renderTilesSelect();
+      return;
+    }
     tap.taps.push(t);
     const gaps = tap.taps.slice(1).map((v, i) => v - tap.taps[i]).filter((g) => g > 0.2 && g < 2).sort((a, b) => a - b);
     tap.bpm = gaps.length >= 3 ? Math.round(60 / gaps[Math.floor(gaps.length / 2)]) : 0;
@@ -864,6 +911,18 @@
   async function saveTap() {
     const tap = ui.tap;
     if (!tap) return;
+    if (tap.mode === "lyrics") {
+      if (tap.taps.length < 4) {
+        ui.tlNote = `Time at least 4 words first (${tap.taps.length} so far).`;
+        renderTilesSelect();
+        return;
+      }
+      const ok = await TT.music.setLyricTimes(tap.id, tap.taps);
+      stopTap();
+      ui.tlNote = ok ? `Lyric times saved: ${tap.taps.length} words timed.` : "The lyric times couldn't be saved.";
+      renderTilesSelect();
+      return;
+    }
     if (tap.taps.length < 8) {
       ui.tlNote = `Tap at least 8 beats first (${tap.taps.length} so far).`;
       renderTilesSelect();
@@ -898,6 +957,9 @@
     if (x === "lyricsedit") { ui.lyricsEdit = true; ui.tlNote = ""; renderTilesSelect(); const t = $("tl-lyrics"); if (t) t.focus(); return; }
     if (x === "lyricscancel") { ui.lyricsEdit = false; renderTilesSelect(); return; }
     if (x === "lyricssave") { saveLyrics(); return; }
+    if (x === "lyricsfile") { lrcInput.click(); return; }
+    if (x === "timelyrics") { startTap("lyrics"); return; }
+    if (x === "tapundo") { if (ui.tap && ui.tap.mode === "lyrics" && ui.tap.taps.length) { ui.tap.taps.pop(); renderTilesSelect(); } return; }
     if (x === "tapsave") { saveTap(); return; }
     if (x === "tapcancel") { stopTap(); ui.tlNote = ""; renderTilesSelect(); return; }
     if (x === "delete") { deleteSong(); return; }
@@ -1737,6 +1799,7 @@
         // tapping along: Space or T taps, Enter saves, Esc cancels
         if (e.key === " " || plainKey(e, "t")) { e.preventDefault(); if (!e.repeat) tapBeat(e.timeStamp || performance.now()); }
         else if (e.key === "Enter") { e.preventDefault(); act("tl:tapsave"); }
+        else if (e.key === "Backspace") { e.preventDefault(); act("tl:tapundo"); }
         else if (e.key === "Escape") { e.preventDefault(); act("tl:tapcancel"); }
       } else {
         const keys = { ArrowDown: "tl:next", ArrowUp: "tl:prev", ArrowRight: "tl:harder", ArrowLeft: "tl:easier", Enter: "tl:play", a: "tl:import", m: "tl:music", t: "tl:metronome", Escape: "menu" };
