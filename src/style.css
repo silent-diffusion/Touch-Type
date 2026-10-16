@@ -1144,7 +1144,7 @@ body:not(.typing) .caret.caret-block { animation-name: blink-block; }
 .ftab .n { font-family: var(--type-font); font-size: 12px; font-weight: 500; letter-spacing: 0; color: var(--sub); }
 /* under the cursor a tab grows taller from its base, so it stays attached to its folder. The negative
    margin takes back the extra height, so the row (and the page under it) doesn't move. */
-.ftab:hover, .ftab:focus-visible { height: 54px; margin-top: -8px; outline: none; }
+.ftab:hover, .ftab:focus-visible, .ftab.peek { height: 54px; margin-top: -8px; outline: none; }
 .ftab:focus-visible::before { border-color: var(--accent); }
 
 /* The open tab is part of its folder: one drawing (.tabshape, shaped in app.js) covers the folder's

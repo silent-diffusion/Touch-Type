@@ -413,8 +413,9 @@
 
   // The open tab is drawn as one shape whose outline runs on, unbroken, into its folder's outline:
   // a curve out of the folder's edge, a slanted side, rounded top corners, the other side, a curve back.
+  // num is the tab's number as shown ("03.1"); Ctrl + that number jumps to it (see "jump" below).
   const tabButton = (on, act, num, label) =>
-    `<button class="ftab ${on ? "on" : ""}" data-act="${act}"${on ? ' aria-current="page"' : ""}><span class="n">${num}</span>${label}${on
+    `<button class="ftab ${on ? "on" : ""}" data-act="${act}" data-num="${num.replace(/^0/, "")}" title="Ctrl+${num.replace(/^0/, "")}"${on ? ' aria-current="page"' : ""}><span class="n">${num}</span>${label}${on
       ? '<svg class="tabshape" aria-hidden="true"><path class="ff"/><path class="fl"/></svg>' : ""}</button>`;
 
   const FLARE = 12, CORNER = 12, SLANT = 8; // px: the curve into the folder, top corners, how far the sides lean in
@@ -460,6 +461,43 @@
     els.subtabs.innerHTML = tabs.map(([id, label, act], i) => tabButton(id === current, act, `0${n}.${i + 1}`, label)).join("");
     shapeTabs(els.subtabs);
   }
+
+  // ---------- jump to a tab by its number ----------
+  // Hold Ctrl and type a tab's number ("1", "6.4"), then let go of Ctrl: the main tab opens, then the
+  // numbered tab in its second row.
+  let jump = null;
+
+  function peekJump() {
+    const main = jump && jump.match(/^0*(\d)/);
+    for (const b of els.tabs.querySelectorAll(".ftab")) b.classList.toggle("peek", !!main && b.dataset.num === main[1]);
+    els.statusLine.textContent = jump ? `Go to ${jump}…` : STATUS[ui.view];
+  }
+
+  function jumpTo(code) {
+    const m = code.match(/^0*(\d+)(?:\.0*(\d+))?$/);
+    const tab = m && MAIN_TABS[Number(m[1]) - 1];
+    if (!tab) {
+      els.statusLine.textContent = `There's no tab ${code}.`;
+      return;
+    }
+    act(tab[2]);
+    if (!m[2]) return;
+    const sub = els.subtabs.hidden ? null : els.subtabs.querySelectorAll(".ftab")[Number(m[2]) - 1];
+    if (sub) act(sub.dataset.act);
+    else els.statusLine.textContent = `There's no tab ${code}.`;
+  }
+
+  document.addEventListener("keyup", (e) => {
+    if (e.key !== "Control" || jump === null) return;
+    const code = jump;
+    jump = null;
+    peekJump();
+    jumpTo(code);
+  });
+  window.addEventListener("blur", () => {
+    jump = null;
+    peekJump();
+  });
 
   function show(view) {
     ui.view = view;
@@ -1900,6 +1938,21 @@
     }
     const v = ui.view;
 
+    // Ctrl + digits (and ".") build up a tab number to jump to when Ctrl is let go.
+    if (e.ctrlKey && !e.altKey && !e.metaKey && /^[0-9.]$/.test(e.key)) {
+      e.preventDefault();
+      if (!e.repeat) {
+        jump = (jump || "") + e.key;
+        peekJump();
+      }
+      return;
+    }
+    if (jump !== null && e.key === "Escape") {
+      e.preventDefault();
+      jump = null;
+      peekJump();
+      return;
+    }
     if (e.key === "Escape" && ui.fullscreen && ROOT_VIEWS.includes(v)) {
       e.preventDefault();
       act("window:windowed");

@@ -30,6 +30,7 @@ Your data stays on your computer.
 
 | Key | Action |
 |---|---|
+| Ctrl + a tab's number | Jump to that tab: hold Ctrl, type the number shown on it (like 1 or 6.4), then let go |
 | Tab | Restart the test or game |
 | Tab / Enter | Start the next round from the results screen |
 | Esc | Leave full screen on a main screen (Test, Practice, Games, Leaderboard, Stats, Settings); elsewhere, go back |
