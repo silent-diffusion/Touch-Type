@@ -380,10 +380,14 @@
 
   const tabNum = (id) => MAIN_TABS.findIndex(([t]) => t === id) + 1;
 
+  // The curves where an open tab's sides flow into its folder's outline.
+  const FLARE = (side) => `<svg class="flare ${side}" viewBox="0 0 16 14" aria-hidden="true"><path class="ff" d="M0 12C8 12 15 7 15 0H16V14H0Z"/><path class="fl" d="M0 13C8 13 15 7 15 0"/></svg>`;
+  const tabButton = (on, act, num, label) =>
+    `<button class="ftab ${on ? "on" : ""}" data-act="${act}"${on ? ' aria-current="page"' : ""}><span class="n">${num}</span>${label}${on ? FLARE("l") + FLARE("r") : ""}</button>`;
+
   function renderTabs(view) {
     const main = tabFor(view);
-    els.tabs.innerHTML = MAIN_TABS.map(([id, label, act], i) =>
-      `<button class="ftab ${id === main ? "on" : ""}" data-act="${act}"${id === main ? ' aria-current="page"' : ""}><span class="n">0${i + 1}</span>${label}</button>`).join("");
+    els.tabs.innerHTML = MAIN_TABS.map(([id, label, act], i) => tabButton(id === main, act, `0${i + 1}`, label)).join("");
     if (main === "games") setSubtabs(GAME_TABS, gameTabFor(view), main);
     else if (!FOLDER_VIEWS.includes(view)) setSubtabs(null);
   }
@@ -394,8 +398,7 @@
     els.app.classList.toggle("has-sub", !!tabs);
     if (!tabs) return (els.subtabs.innerHTML = "");
     const n = tabNum(main);
-    els.subtabs.innerHTML = tabs.map(([id, label, act], i) =>
-      `<button class="ftab ${id === current ? "on" : ""}" data-act="${act}"${id === current ? ' aria-current="page"' : ""}><span class="n">0${n}.${i + 1}</span>${label}</button>`).join("");
+    els.subtabs.innerHTML = tabs.map(([id, label, act], i) => tabButton(id === current, act, `0${n}.${i + 1}`, label)).join("");
   }
 
   function show(view) {

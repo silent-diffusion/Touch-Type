@@ -1044,7 +1044,7 @@ body:not(.typing) .caret.caret-block { animation-name: blink-block; }
 
 .topline { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding-bottom: 12px; }
 
-.ftabs { display: flex; align-items: flex-end; padding-left: 4px; position: relative; z-index: 2; min-width: 0; }
+.ftabs { display: flex; align-items: flex-end; padding-left: 34px; position: relative; z-index: 2; min-width: 0; }
 .ftab {
   position: relative;
   z-index: 1;
@@ -1062,11 +1062,12 @@ body:not(.typing) .caret.caret-block { animation-name: blink-block; }
   white-space: nowrap;
   transition: height 0.15s ease;
 }
-/* the tab's shape: slanted sides with rounded top corners */
+/* the tab's shape: slanted sides with rounded top corners. Tabs you're not on stop at the folder's
+   edge, so its outline runs in front of them. */
 .ftab::before {
   content: "";
   position: absolute;
-  inset: 0;
+  inset: 0 0 2px 0;
   z-index: -1;
   background: var(--tab-back);
   border: var(--rule);
@@ -1080,28 +1081,32 @@ body:not(.typing) .caret.caret-block { animation-name: blink-block; }
 /* under the cursor a tab grows taller from its base, so it stays attached to its folder */
 .ftab:hover, .ftab:focus-visible { height: 54px; outline: none; }
 .ftab:focus-visible::before { border-color: var(--accent); }
-/* the tab you're on opens into its folder */
-.ftab.on { z-index: 2; color: var(--ink); }
-.ftab.on::before { inset: 0 0 -2px 0; background: var(--ground); box-shadow: none; }
-.ftab.on .n { color: var(--ink); }
 
-/* a section's own menu: a second row of tabs on a folder in front, a little lower and further over */
-.ftabs.sub { padding-left: 72px; }
-.ftabs.sub .ftab { height: 40px; padding: 0 28px; font-size: 13px; }
-.ftabs.sub .ftab:hover, .ftabs.sub .ftab:focus-visible { height: 48px; }
-.folder-back {
-  display: none;
-  height: 40px;
+/* The open tab is part of its folder: it covers the folder's outline where they meet, and its
+   sides curve out into that outline (the two .flare drawings at its feet). */
+.ftab.on { z-index: 2; color: var(--ink); }
+.ftab.on::before { inset: 0 0 -2px 0; background: var(--fill, var(--ground)); box-shadow: none; }
+.ftab.on .n { color: var(--ink); }
+.flare { position: absolute; bottom: 0; width: 16px; height: 14px; pointer-events: none; overflow: visible; }
+.flare.l { left: -14px; }
+.flare.r { right: -14px; transform: scaleX(-1); }
+.flare .ff { fill: var(--fill, var(--ground)); }
+.flare .fl { fill: none; stroke: var(--ink); stroke-width: 2; }
+
+/* A section with its own menu is an open parent folder: shaded, outlined all the way round, with the
+   second row of tabs and the window inside it. The window sits a little in from the parent's
+   edges, so the parent's outline stays visible behind it. */
+.folder-stack { flex: 1; display: flex; flex-direction: column; position: relative; }
+#app.has-sub .folder-stack {
   background: var(--tab-back);
   border: var(--rule);
-  border-bottom: none;
-  border-radius: 0 16px 0 0;
-  position: relative;
-  z-index: 1;
+  border-radius: 16px;
+  padding: 0 14px 14px;
 }
-#app.has-sub .folder-back { display: block; }
-.folder-stack { flex: 1; display: flex; flex-direction: column; position: relative; z-index: 3; }
-#app.has-sub .folder-stack { margin-top: -54px; }
+#app.has-sub #tabs .ftab.on { --fill: var(--tab-back); }
+.ftabs.sub { padding-left: 58px; margin-top: -16px; z-index: 3; }
+.ftabs.sub .ftab { height: 40px; padding: 0 28px; font-size: 13px; }
+.ftabs.sub .ftab:hover, .ftabs.sub .ftab:focus-visible { height: 48px; }
 
 .folder {
   flex: 1;
@@ -1109,12 +1114,12 @@ body:not(.typing) .caret.caret-block { animation-name: blink-block; }
   flex-direction: column;
   background: var(--ground);
   border: var(--rule);
-  border-radius: 0 16px 16px 16px;
+  border-radius: 16px;
   padding: 22px 36px 32px;
   position: relative;
   z-index: 1;
 }
-#app.has-sub .folder { border-radius: 16px; box-shadow: 0 -6px 12px -6px var(--shade); }
+#app.has-sub .folder { border-radius: 16px; box-shadow: 0 2px 10px -4px var(--shade); }
 .folder-head { display: flex; justify-content: flex-end; }
 /* the folder takes a little width, so columns sit a bit closer than they used to */
 .folder .cols { gap: 48px 56px; }
@@ -1125,8 +1130,8 @@ body:not(.typing) .caret.caret-block { animation-name: blink-block; }
 html.scope[data-theme] { --desk: #1c1b18; --tab-back: #24231f; --shade: rgba(0, 0, 0, 0.7); }
 html.scope, html.scope body { background: var(--desk); }
 html.scope .folder { background: color-mix(in srgb, var(--ground) 30%, transparent); }
-html.scope .folder-back, html.scope .ftab::before { background: color-mix(in srgb, var(--tab-back) 50%, transparent); }
-html.scope .ftab.on::before { background: color-mix(in srgb, var(--ground) 30%, transparent); }
+html.scope #app.has-sub .folder-stack, html.scope .ftab::before { background: color-mix(in srgb, var(--tab-back) 50%, transparent); }
+html.scope .ftab.on::before { background: color-mix(in srgb, var(--fill, var(--ground)) 30%, transparent); }
 
 @media (max-width: 1280px) {
   .ftab { padding: 0 22px; gap: 8px; }
@@ -1135,7 +1140,7 @@ html.scope .ftab.on::before { background: color-mix(in srgb, var(--ground) 30%, 
 @media (max-width: 1120px) {
   .ftab { font-size: 13px; padding: 0 18px; }
   .ftab .n { display: none; }
-  .ftabs.sub { padding-left: 40px; }
+  .ftabs.sub { padding-left: 34px; }
   #app { padding-left: 24px; padding-right: 24px; }
   .folder { padding-left: 22px; padding-right: 22px; }
   .folder .cols { gap: 40px 44px; }
