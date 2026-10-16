@@ -1228,7 +1228,7 @@
           chipEls.delete(i);
         }
       }
-      el.queue.classList.toggle("empty", !locked.length);
+      el.queue.classList.toggle("waiting", !locked.length);
     }
 
     function renderEffects() {
@@ -1364,6 +1364,7 @@
       const lanes = columns(song, diff, queue);
       live.plan = planLengths(hits, lanes, diff, queue, D.fall);
       g = newCore({ hits, fall: D.fall, endT, diff, lanes, cols: D.cols, queue });
+      el.queue.hidden = !queue; // the queue line's space is there from the start, so nothing moves
       g.wpmScale = W.scale();
       dealWords(g, provide);
       beatTimes = song.beats.map((b) => ({ t: offset + b.t * 1000, down: b.down, w: b.w }));
@@ -1554,6 +1555,7 @@
       live = null;
       replay = { rec, pos: 0, lastT: 0, provider: recorded(rec) };
       resetReplayCore(rec);
+      el.queue.hidden = !g.queue;
       song = TT.songs.get(rec.song);
       // The beat pulse needs the song as it was played; an added song's beat may have been redone.
       const same = song && (!song.user || song.key === rec.songKey);
