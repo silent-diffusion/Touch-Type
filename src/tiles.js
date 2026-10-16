@@ -1054,6 +1054,8 @@
 
     const colCount = () => (g.v >= 4 ? g.cols : 4);
     const colLeft = (l) => `${(l * 100) / colCount()}%`;
+    // each column's colour (style.css, --c0 to --c3)
+    const colVar = (l) => `var(--c${l % 4})`;
 
     // The dashed lines between the columns.
     function renderColumns() {
@@ -1074,6 +1076,7 @@
           e = document.createElement("div");
           e.className = g.v >= 4 ? "tl-tile blank" : "tl-tile";
           e.style.left = colLeft(t.l);
+          e.style.setProperty("--col", colVar(t.l));
           e.style.width = `calc(${100 / colCount()}% - 12px)`;
           e.sig = "";
           el.tiles.appendChild(e);
@@ -1120,7 +1123,7 @@
         const on = i === c;
         const n = on ? typed.length : 0;
         const cls = ["tl-word", on ? "on" : "", on && W.ready(g, w) ? "ready" : "", i === nextCol && !on ? "next" : "", !on && (typed || (g.queue && i !== nextCol)) ? "dim" : ""].filter(Boolean).join(" ");
-        return `<div class="${cls}" style="left: ${colLeft(i)}; width: ${100 / colCount()}%"><span><b>${w.slice(0, n)}</b>${w.slice(n)}</span></div>`;
+        return `<div class="${cls}" style="left: ${colLeft(i)}; width: ${100 / colCount()}%; --col: ${colVar(i)}"><span><b>${w.slice(0, n)}</b>${w.slice(n)}</span></div>`;
       }).join("");
     }
 
@@ -1135,7 +1138,10 @@
       // a flash in the lane of a hit
       const flash = last && "PGOS".includes(last.grade) && age >= 0 && age < 320;
       el.flash.style.opacity = flash ? (1 - age / 320).toFixed(2) : "0";
-      if (flash) el.flash.style.left = colLeft(last.l);
+      if (flash) {
+        el.flash.style.left = colLeft(last.l);
+        if (g.v >= 4) el.flash.style.setProperty("--col", colVar(last.l));
+      }
       // the line pulses on each beat
       let beat = null;
       for (let k = beatTimes.length - 1; k >= 0; k--) {
@@ -1150,6 +1156,9 @@
       const typed = W.html(g);
       if (el.typed.innerHTML !== typed) el.typed.innerHTML = typed;
       el.typed.classList.toggle("empty", !g.buf);
+      const tc = g.v >= 4 && g.words ? column(g) : -1;
+      el.typed.classList.toggle("col", tc >= 0);
+      if (tc >= 0) el.typed.style.setProperty("--col", colVar(tc));
       el.typed.classList.toggle("shake", viewT - shakeT < 250);
       // v4: a word card pushes up into the tile it hit, then settles back
       const cards = el.words.children;

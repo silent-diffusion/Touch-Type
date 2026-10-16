@@ -21,6 +21,10 @@
   --sub: #8e8977;
   --on-accent: #1e1d1a;
 }
+/* Tiles: each column's colour, low notes to high (muted inks, like the rest of the app; no red,
+   which means a typo or a miss). --on-col is text on a filled column colour. */
+:root, [data-theme="sand"], [data-theme="ash"] { --c0: #2f6b72; --c1: #93640f; --c2: #74466f; --c3: #4f6b2a; --on-col: #f4f1e6; }
+[data-theme="night"], html.scope[data-theme] { --c0: #6fb0b8; --c1: #d4a446; --c2: #b98fb5; --c3: #93b363; --on-col: #1e1d1a; }
 :root {
   --accent: #b4472b;
   --accent-2: #2f5f6b;
@@ -905,7 +909,7 @@ body:not(.typing) .caret.caret-block { animation-name: blink-block; }
   pointer-events: none;
 }
 /* a burst of light that rises up the column from a word that hit */
-.tl-flash { position: absolute; bottom: 42px; height: 260px; width: 25%; background: linear-gradient(to top, var(--accent), transparent); opacity: 0; pointer-events: none; }
+.tl-flash { position: absolute; bottom: 42px; height: 260px; width: 25%; background: linear-gradient(to top, var(--col, var(--accent)), transparent); opacity: 0; pointer-events: none; }
 .tl-tiles { position: absolute; inset: 0; }
 .tl-tile {
   position: absolute;
@@ -925,12 +929,15 @@ body:not(.typing) .caret.caret-block { animation-name: blink-block; }
 .tl-tile span { white-space: nowrap; }
 .tl-tile.on { background: var(--ink); color: var(--ground); }
 /* from rules v4, tiles are frames that line up around their column's word */
-.tl-tile.blank { background: color-mix(in srgb, var(--ink) 12%, transparent); border-width: 4px; }
-.tl-tile.blank.on { background: color-mix(in srgb, var(--accent) 16%, transparent); border-color: var(--accent); }
+.tl-tile.blank { background: color-mix(in srgb, var(--col, var(--ink)) 16%, transparent); border-width: 4px; border-color: var(--col, var(--ink)); }
+/* the tile you're typing for: its colour, stronger, with an ink frame round it */
+.tl-tile.blank.on { background: color-mix(in srgb, var(--col, var(--accent)) 34%, transparent); border-color: var(--col, var(--accent)); outline: 3px solid var(--ink); outline-offset: 2px; }
 .tl-tile b { font-weight: inherit; color: var(--accent); }
 /* queue mode: a tile with its word locked in, waiting for the line (sloppy ones in the accent) */
-.tl-tile.blank.queued { background: var(--ink); color: var(--ground); border-color: var(--ink); }
-.tl-tile.blank.queued.sloppy { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+.tl-tile.blank.queued { background: var(--col, var(--ink)); color: var(--on-col, var(--ground)); border-color: var(--col, var(--ink)); }
+/* sloppy: striped, and the word struck through */
+.tl-tile.blank.queued.sloppy { background: repeating-linear-gradient(-45deg, var(--col, var(--accent)) 0 8px, color-mix(in srgb, var(--col, var(--accent)) 55%, var(--ground)) 8px 16px); }
+.tl-tile.blank.queued.sloppy span { text-decoration: line-through; text-decoration-color: var(--accent); text-decoration-thickness: 3px; }
 .tl-judge {
   position: absolute;
   left: 0;
@@ -962,16 +969,19 @@ body:not(.typing) .caret.caret-block { animation-name: blink-block; }
   overflow: hidden;
 }
 .tl-word b { font-weight: inherit; text-decoration: underline; text-decoration-color: var(--accent); text-underline-offset: 5px; }
-.tl-word.on span { border-color: var(--accent); }
-.tl-word.ready span { background: var(--ink); color: var(--ground); }
+.tl-word span { border-color: var(--col, var(--ink)); border-width: 3px; background: color-mix(in srgb, var(--col, var(--ink)) 12%, var(--ground)); }
+.tl-word.on span { background: color-mix(in srgb, var(--col, var(--accent)) 30%, var(--ground)); }
+.tl-word.ready span { background: var(--col, var(--ink)); color: var(--on-col, var(--ground)); }
 .tl-word.ready b { text-decoration: none; }
-.tl-word.dim { opacity: 0.45; }
+.tl-word.dim { opacity: 0.6; }
 /* queue mode: the column of the next tile to type for */
-.tl-word.next span { border-color: var(--accent); border-style: dashed; }
-.tl-word.hit span { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+.tl-word.next span { border-style: dashed; }
+.tl-word.hit span { background: var(--col, var(--accent)); color: var(--on-col, var(--on-accent)); }
 
 .tl-typed-row { display: flex; justify-content: center; margin-top: 18px; min-height: 60px; }
 .tl-typed { min-width: 80px; justify-content: center; font-size: 34px; padding: 6px 20px; }
+/* the colour of the column you're typing for */
+.tl-typed.col { box-shadow: inset 0 -6px 0 var(--col); }
 
 .tl-meter { position: relative; height: 30px; border: var(--rule); margin-top: 8px; }
 .tl-meter::after { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; border-left: 2px dashed var(--accent); }
