@@ -34,6 +34,7 @@
   const TYPO_HP = 2, START_HP = 80, MAX_HP = 100;
   const GRADE_NAMES = { P: "PERFECT", G: "GREAT", O: "GOOD", S: "SLOPPY", M: "MISS", E: "TOO EARLY", X: "WRONG COLUMN" };
   const LEAD_MS = 1200; // quiet time before the first tile shows up
+  const LYRIC_SHARE = 0.6; // for a song with lyrics, about this share of words come from them
   const HISTORY_CAP = 200;
 
   const multiplier = (combo) => (combo >= 50 ? 4 : combo >= 25 ? 3 : combo >= 10 ? 2 : 1);
@@ -772,8 +773,10 @@
       const minLen = Math.min(D.len[0], maxLen);
       const taken = new Set((state.words || []).filter((w, c) => w && c !== col).map((w) => w[0]));
       const ok = (w) => w.length >= minLen && w.length <= maxLen && !taken.has(w[0]) && !live.recent.includes(w);
-      let pool = live.pool.filter(ok);
-      if (pool.length < 5) {
+      // Songs with lyrics: most words come from the song itself, when one fits.
+      const sung = live.lyricWords.length && Math.random() < LYRIC_SHARE ? live.lyricWords.filter(ok) : [];
+      let pool = sung.length ? sung : live.pool.filter(ok);
+      if (!sung.length && pool.length < 5) {
         live.pool = A.practiceWords(80, live.targets, live.missed, TT.store.settings.mix);
         pool = live.pool.filter(ok);
       }
@@ -949,7 +952,7 @@
 
     // ---------- live play ----------
 
-    function newGame(songId, diff, sound = { music: true, metronome: false, scope: true }) {
+    function newGame(songId, diff, sound = { music: true, metronome: false, scope: true, lyrics: true }) {
       stop();
       replay = null;
       song = TT.songs.get(songId);
@@ -961,6 +964,7 @@
       live = {
         state: "ready", diff, song: songId, offset, sound, startedAt: 0, player: null,
         keys: "", times: [], words: [], recent: [], pool: [],
+        lyricWords: sound.lyrics !== false && TT.lyrics ? TT.lyrics.words(song.lyrics) : [],
         targets: A.weakKeys(), missed: A.weakWords(20),
       };
       g = newCore({ hits, fall: D.fall, endT, diff, lanes: columns(song, diff), cols: D.cols });

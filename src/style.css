@@ -1003,6 +1003,8 @@ body:not(.typing) .caret.caret-block { animation-name: blink-block; }
 .tl-play { margin-top: 28px; }
 .tl-toggles { display: flex; gap: 8px; padding: 14px 0 20px; flex-wrap: wrap; }
 .tl-songs .tl-group { padding: 18px 0 6px; border-top: var(--rule); margin-top: 10px; }
+.tl-lyrics { width: 100%; box-sizing: border-box; margin: 4px 0 16px; padding: 12px 14px; border: var(--rule); background: transparent; color: var(--ink); font: 16px/1.5 var(--type-font); resize: vertical; }
+.tl-lyrics:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 .tl-add { justify-content: center !important; border: 2px dashed var(--ink) !important; font-weight: 700; letter-spacing: 0.1em; }
 .tl-add:disabled { opacity: 0.5; cursor: progress; }
 .tl-msg { margin: 16px 0 0; padding: 10px 14px; border-left: 4px solid var(--accent); background: color-mix(in srgb, var(--ink) 6%, transparent); font-size: 16px; }

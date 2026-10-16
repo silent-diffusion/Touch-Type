@@ -85,14 +85,35 @@
          b: "r:4 | c3:2 g3:2 e3:2 g3:2 | g2:2 d3:2 b2:2 d3:2 | c3:2 g3:2 e3:2 g3:2 | g2:2 d3:2 b2:2 d3:2 | a2:2 e3:2 c3:2 e3:2 | e2:2 b2:2 g#2:2 b2:2 | a2:2 e3:2 c3:2 e3:2 | e2:2 b2:2" },
   };
 
+  // Lyrics for the songs that have words, both long in the public domain: Jane Taylor's poem "The
+  // Star" (1806), sung to the Twinkle tune, and Henry van Dyke's "Hymn of Joy" (1907), the usual
+  // English words for Ode to Joy. Tiles takes many of its words from these (lyrics.js).
+  const TWINKLE_LYRICS = `Twinkle, twinkle, little star, how I wonder what you are!
+Up above the world so high, like a diamond in the sky.
+When the blazing sun is gone, when he nothing shines upon,
+Then you show your little light, twinkle, twinkle, all the night.
+Then the traveller in the dark thanks you for your tiny spark;
+He could not see which way to go, if you did not twinkle so.
+In the dark blue sky you keep, and often through my curtains peep,
+For you never shut your eye till the sun is in the sky.`;
+
+  const ODE_LYRICS = `Joyful, joyful, we adore thee, God of glory, Lord of love;
+Hearts unfold like flowers before thee, opening to the sun above.
+Melt the clouds of sin and sadness; drive the dark of doubt away;
+Giver of immortal gladness, fill us with the light of day!
+All thy works with joy surround thee, earth and heaven reflect thy rays,
+Stars and angels sing around thee, center of unbroken praise.
+Field and forest, vale and mountain, flowery meadow, flashing sea,
+Singing bird and flowing fountain call us to rejoice in thee.`;
+
   // tempo: how fast the song is played, as a label for the song list
   const SONGS = [
     { id: "twinkle", title: "Twinkle, Twinkle", composer: "Mozart (theme)", year: 1781, tempo: "SLOW",
-      blurb: "The French tune Mozart wrote his famous variations on.",
+      blurb: "The French tune Mozart wrote his famous variations on.", lyrics: TWINKLE_LYRICS,
       bpm: 100, beat: 2, bar: 4, pickup: 0,
       sections: [twinkle.A, twinkle.B, twinkle.A, twinkle.A, twinkle.B, twinkle.A] },
     { id: "ode", title: "Ode to Joy", composer: "Beethoven", year: 1824, tempo: "SLOW",
-      blurb: "The big tune from the last movement of the Ninth Symphony.",
+      blurb: "The big tune from the last movement of the Ninth Symphony.", lyrics: ODE_LYRICS,
       bpm: 100, beat: 2, bar: 4, pickup: 0,
       sections: [ode.A, ode.B, ode.C, ode.B, ode.A, ode.B, ode.C, ode.B] },
     { id: "canon", title: "Canon in D", composer: "Pachelbel", year: 1680, tempo: "SLOW",

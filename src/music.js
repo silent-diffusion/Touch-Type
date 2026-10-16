@@ -1,7 +1,8 @@
 // Songs you add to Tiles. The file and its beat analysis are kept in IndexedDB on this computer
 // (never uploaded) and shared by every profile; scores stay with each profile.
 //
-// A saved song: { id, name, type, size, added, blob, analysis }
+// A saved song: { id, name, type, size, added, blob, analysis, lyrics }
+//   lyrics — read from the file when it was added (lyrics.js), or pasted in later; may be empty
 //   analysis — from TT.beatTrack: { method: "auto" | "tap", bpm, beats, down, quiet, strength, pitch, duration, rev }
 // In the song list an added song's id is "u:" + its saved id.
 (() => {
@@ -49,6 +50,7 @@
       beat: 1,
       pickup: 0,
       notes: [],
+      lyrics: meta.lyrics || "",
       beats: TT.beatTrack.toSongBeats(an),
       duration: an.duration,
       buffer: decoded.id === meta.id ? decoded.buffer : null,
@@ -125,7 +127,11 @@
       }
       if (analysis.beats.length < 16) throw new Error("No steady beat could be found in that song.");
       analysis.rev = 1;
-      const meta = { id: TT.newRoundId(), name: cleanName(file.name), type: file.type, size: file.size, added: new Date().toISOString(), analysis };
+      let lyrics = "";
+      try {
+        lyrics = TT.lyrics.fromFile(await file.arrayBuffer()) || "";
+      } catch {}
+      const meta = { id: TT.newRoundId(), name: cleanName(file.name), type: file.type, size: file.size, added: new Date().toISOString(), analysis, lyrics };
       onStep("Saving…");
       await tx("readwrite", (s) => s.put({ ...meta, blob: file }));
       metas.set(meta.id, meta);
@@ -171,6 +177,21 @@
       rec.analysis = an;
       await tx("readwrite", (s) => s.put(rec));
       meta.analysis = an;
+      register(meta);
+      return true;
+    },
+
+    // Sets (or clears) an added song's lyrics.
+    async setLyrics(songId, text) {
+      const id = savedId(songId);
+      const meta = metas.get(id);
+      if (!meta) return false;
+      const lyrics = String(text || "").slice(0, 20000);
+      const rec = await tx("readonly", (s) => s.get(id));
+      if (!rec) return false;
+      rec.lyrics = lyrics;
+      await tx("readwrite", (s) => s.put(rec));
+      meta.lyrics = lyrics;
       register(meta);
       return true;
     },

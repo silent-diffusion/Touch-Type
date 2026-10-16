@@ -125,6 +125,7 @@
     s.tilesMusic = s.tilesMusic !== false;
     s.tilesMetronome = !!s.tilesMetronome;
     s.tilesScope = s.tilesScope !== false;
+    s.tilesLyrics = s.tilesLyrics !== false;
   }
 
   const isDark = () => S().theme === "night";
@@ -681,6 +682,10 @@
       `<li class="tl-group caps-label">YOUR MUSIC</li>` + mine.map(item).join("") +
       `<li><button class="tl-add" data-act="tl:import" ${ui.tlBusy ? "disabled" : ""}>+ ADD A SONG</button></li>`;
     const words = C.chart(song, s.tilesDiff).length;
+    const lyricCount = TT.lyrics.words(song.lyrics).length;
+    const lyricLine = lyricCount
+      ? `<p class="note">${s.tilesLyrics ? "Most of the words come from the song's lyrics" : "Lyrics are off, so the words are practice words"} (${lyricCount} different words).</p>`
+      : song.user ? `<p class="note">No lyrics yet. Add them with LYRICS and most of the words will come from the song.</p>` : "";
     const rows = C.DIFF_IDS.map((id) => {
       const b = best(song.id, id);
       return [`${C.DIFFS[id].name[0]}${C.DIFFS[id].name.slice(1).toLowerCase()}:`, b ? `${b.grade} · ${b.score.toLocaleString()}` : "—"];
@@ -699,15 +704,28 @@
             <button class="outline-btn" data-act="tl:tapcancel">CANCEL <kbd>ESC</kbd></button>
           </div>
         </section>`;
+    const lyricsPanel = ui.lyricsEdit && song.user && `
+        <section class="col-main">
+          <div class="title-row"><h1>LYRICS</h1><span class="title-meta">${esc(song.title.toUpperCase())}</span></div>
+          <p class="tl-blurb">Paste the song's lyrics. Tiles takes most of its words from them, the ones that fit the difficulty. They stay on this computer.</p>
+          <label class="visually-hidden" for="tl-lyrics">Lyrics</label>
+          <textarea id="tl-lyrics" class="tl-lyrics" rows="12" spellcheck="false">${esc(song.lyrics || "")}</textarea>
+          <div class="tl-own">
+            <button class="fh-play" data-act="tl:lyricssave">SAVE</button>
+            <button class="outline-btn" data-act="tl:lyricscancel">CANCEL</button>
+          </div>
+        </section>`;
     $("view-tiles-select").innerHTML = `
       <div class="cols">
         <ul class="list col-list tl-songs">${songs}</ul>
-        ${tapPanel || `<section class="col-main">
+        ${tapPanel || lyricsPanel || `<section class="col-main">
           <div class="title-row"><h1>${esc(song.title.toUpperCase())}</h1><span class="title-meta">${esc(song.composer.toUpperCase())}${song.year ? ` · ${song.year}` : ""}</span></div>
           <div class="kind-line">${song.tempo} · ${fmtLength(song.duration)}${song.user ? ` · ${Math.round(song.bpm)} BPM` : ""} · ${words} TILES</div>
           ${ui.tlNote ? `<p class="tl-msg" role="status">${esc(ui.tlNote)}</p>` : ""}
           <p class="tl-blurb">${esc(song.blurb)}</p>
+          ${lyricLine}
           ${song.user ? `<div class="tl-own">
+            <button class="outline-btn" data-act="tl:lyricsedit">LYRICS</button>
             <button class="outline-btn" data-act="tl:tap">TAP THE BEAT</button>
             <button class="outline-btn" data-act="tl:delete">DELETE</button>
           </div>` : ""}
@@ -719,7 +737,7 @@
         </section>`}
         <aside class="col-side">
           <div class="rule-head">SOUND</div>
-          <div class="tl-toggles">${toggle("MUSIC", s.tilesMusic, "tl:music")}${toggle("METRONOME", s.tilesMetronome, "tl:metronome")}${toggle("SCOPE", s.tilesScope, "tl:scope")}</div>
+          <div class="tl-toggles">${toggle("MUSIC", s.tilesMusic, "tl:music")}${toggle("METRONOME", s.tilesMetronome, "tl:metronome")}${toggle("SCOPE", s.tilesScope, "tl:scope")}${toggle("LYRICS", s.tilesLyrics, "tl:lyrics")}</div>
           <div class="rule-head">YOUR BEST</div>
           <dl class="status">${statusRows(rows)}</dl>
           <div class="side-label">How to play:</div>
@@ -731,6 +749,17 @@
           </ol>
         </aside>
       </div>`;
+  }
+
+  async function saveLyrics() {
+    const s = S();
+    const t = $("tl-lyrics");
+    if (!t) return;
+    const ok = await TT.music.setLyrics(s.tilesSong, t.value);
+    ui.lyricsEdit = false;
+    const n = TT.lyrics.words(t.value).length;
+    ui.tlNote = !ok ? "The lyrics couldn't be saved." : n ? `Lyrics saved: ${n} different words.` : "Lyrics cleared.";
+    renderTilesSelect();
   }
 
   async function startTiles() {
@@ -754,7 +783,7 @@
     document.body.classList.remove("typing");
     show("tiles");
     renderBar();
-    tiles.newGame(s.tilesSong, s.tilesDiff, { music: s.tilesMusic, metronome: s.tilesMetronome, scope: s.tilesScope });
+    tiles.newGame(s.tilesSong, s.tilesDiff, { music: s.tilesMusic, metronome: s.tilesMetronome, scope: s.tilesScope, lyrics: s.tilesLyrics });
   }
 
   // ---- your own music ----
@@ -775,7 +804,9 @@
       S().tilesSong = id;
       TT.save();
       const song = TT.songs.get(id);
-      ui.tlNote = `Added "${song.title}". Its beat is about ${Math.round(song.bpm)} BPM.`;
+      const found = TT.lyrics.words(song.lyrics).length;
+      ui.tlNote = `Added "${song.title}". Its beat is about ${Math.round(song.bpm)} BPM.` +
+        (found ? ` Its lyrics were in the file: ${found} different words.` : " No lyrics were in the file; add them with LYRICS if you like.");
     } catch (err) {
       ui.tlNote = err.message;
     }
@@ -864,11 +895,15 @@
     if (x === "play") { if (!ui.tap) startTiles(); return; }
     if (x === "import") { if (!ui.tlBusy) fileInput.click(); return; }
     if (x === "tap") { startTap(); return; }
+    if (x === "lyricsedit") { ui.lyricsEdit = true; ui.tlNote = ""; renderTilesSelect(); const t = $("tl-lyrics"); if (t) t.focus(); return; }
+    if (x === "lyricscancel") { ui.lyricsEdit = false; renderTilesSelect(); return; }
+    if (x === "lyricssave") { saveLyrics(); return; }
     if (x === "tapsave") { saveTap(); return; }
     if (x === "tapcancel") { stopTap(); ui.tlNote = ""; renderTilesSelect(); return; }
     if (x === "delete") { deleteSong(); return; }
     if (ui.tap) return; // the rest waits until tapping is done
     ui.tlNote = "";
+    if (x === "song" || x === "next" || x === "prev") ui.lyricsEdit = false; // another song: close its lyrics editor
     if (x === "song") s.tilesSong = y;
     else if (x === "next" || x === "prev") s.tilesSong = ids[(ids.indexOf(s.tilesSong) + (x === "next" ? 1 : -1) + ids.length) % ids.length];
     else if (x === "diff") s.tilesDiff = y;
@@ -876,6 +911,7 @@
     else if (x === "music") s.tilesMusic = !s.tilesMusic;
     else if (x === "metronome") s.tilesMetronome = !s.tilesMetronome;
     else if (x === "scope") s.tilesScope = !s.tilesScope;
+    else if (x === "lyrics") s.tilesLyrics = !s.tilesLyrics;
     else return;
     TT.save();
     if (ui.view === "tiles-select") renderTilesSelect();
