@@ -545,15 +545,18 @@
   // ---------- Scope mode ----------
   // The music outlines the playable area (the field, its words and the typing box) like an
   // oscilloscope trace, always outside it so it never gets in the way. From a streak of 10 (×2) it's
-  // a thin line that ripples with the music. From 25 (×3) the app switches to its night colours and
-  // the line glows and swings wider as the streak goes on, to its widest at 75. A miss flattens it
-  // out, and it fades away.
+  // a thin line that ripples with the music, growing through ×2 until it swings about 60 px out by
+  // 25. From 25 (×3) the app switches to its night colours, the line glows, and it can swing out
+  // across the whole window, under the rest of the app: by 75 it reaches the window's edges. It
+  // never crosses into the play area. A miss flattens it out, and it fades away.
   const SCOPE_START = 10, SCOPE_AT = 25, SCOPE_FULL = 75, COLLAPSE_MS = 450;
+  const SWING_START = 5, SWING_AT = 60; // px the line swings out: at the start of ×2, and by ×3
   const OUTLINE_GAP = 10; // px between the playable area and the line at rest
 
   function createScope() {
     let canvas = null, ctx = null, bufL = null, bufR = null;
-    let on = false, dark = false, size = 0, peak = 0.05, collapseAt = null;
+    // level: 0 to 1 through ×2 (10 to 25), then 1 to 2 through ×3 (25 to 75)
+    let on = false, dark = false, level = 0, peak = 0.05, collapseAt = null;
 
     function setup() {
       if (canvas) return;
@@ -594,9 +597,10 @@
         canvas.height = Math.round(H * dpr);
       }
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const low = Math.min(1, level), high = Math.max(0, level - 1);
       // at ×3 older frames fade rather than clear, so the line leaves a short glowing tail
       if (dark) {
-        ctx.fillStyle = `rgba(43,42,38,${(0.35 - 0.15 * size).toFixed(3)})`;
+        ctx.fillStyle = `rgba(43,42,38,${(0.35 - 0.15 * high).toFixed(3)})`;
         ctx.fillRect(0, 0, W, H);
       } else ctx.clearRect(0, 0, W, H);
       if (!area) return;
@@ -609,13 +613,16 @@
       let max = 0;
       for (let i = 0; i < len; i++) max = Math.max(max, Math.abs((bufL[i] + bufR[i]) / 2));
       peak = Math.max(0.02, max, peak * 0.985);
-      // how far the line may swing out: a few px at ×2, 14 to 60 px from ×3 on
-      const amp = calm ? 0 : (dark ? 14 + 46 * size : 5) * shrink;
+      // How far the line may swing out: from SWING_START to SWING_AT px through ×2, then through ×3
+      // further and further toward the window's edge on each side, reaching it at 75.
+      const base = SWING_START + (SWING_AT - SWING_START) * low;
       const perim = 2 * (r.x1 - r.x0 + (r.y1 - r.y0));
-      const N = 1400;
+      const N = 1600;
       ctx.beginPath();
       for (let k = 0; k <= N; k++) {
         const [x, y, nx, ny] = edgePoint(r, ((k % N) / N) * perim);
+        const edge = Math.max(0, nx < 0 ? x : nx > 0 ? W - x : ny < 0 ? y : H - y);
+        const amp = calm ? 0 : Math.min(edge, base + Math.max(0, edge - base) * high) * shrink;
         const i = Math.min(len - 1, Math.floor((k / N) * len));
         const v = (bufL[i] + bufR[i]) / 2 / peak;
         const d = (amp * (Math.max(-1, Math.min(1, v)) + 1)) / 2; // 0..amp, outward only
@@ -625,17 +632,17 @@
       ctx.closePath();
       if (dark) {
         ctx.globalCompositeOperation = "lighter";
-        ctx.strokeStyle = `rgba(224,118,79,${(0.3 + 0.25 * size).toFixed(3)})`;
-        ctx.lineWidth = 4 + 6 * size;
+        ctx.strokeStyle = `rgba(224,118,79,${(0.4 + 0.15 * high).toFixed(3)})`;
+        ctx.lineWidth = 7 + 3 * high;
         ctx.stroke();
         ctx.strokeStyle = "rgba(250,232,205,0.85)";
-        ctx.lineWidth = 1.4 + 0.6 * size;
+        ctx.lineWidth = 1.8 + 0.4 * high;
         ctx.stroke();
         ctx.globalCompositeOperation = "source-over";
       } else {
         ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue("--ink").trim() || "#3f3c33";
-        ctx.globalAlpha = 0.7;
-        ctx.lineWidth = 1.5;
+        ctx.globalAlpha = 0.6 + 0.3 * low;
+        ctx.lineWidth = 1.5 + 1.5 * low;
         ctx.stroke();
         ctx.globalAlpha = 1;
       }
@@ -647,15 +654,17 @@
         const want = combo >= SCOPE_START;
         if (want) collapseAt = null;
         if (!on && want) {
-          size = 0;
+          level = 0;
           setOn(true);
         }
         if (!on) return;
         if (!want && collapseAt == null) collapseAt = now;
         if (collapseAt != null && now - collapseAt >= COLLAPSE_MS) return setOn(false);
         if (collapseAt == null && (combo >= SCOPE_AT) !== dark) setDark(combo >= SCOPE_AT);
-        const grow = combo >= SCOPE_AT ? Math.min(1, (combo - SCOPE_AT) / (SCOPE_FULL - SCOPE_AT)) : 0;
-        size += (grow - size) * 0.04;
+        const target = combo >= SCOPE_AT
+          ? 1 + Math.min(1, (combo - SCOPE_AT) / (SCOPE_FULL - SCOPE_AT))
+          : Math.max(0, Math.min(1, (combo - SCOPE_START) / (SCOPE_AT - SCOPE_START)));
+        if (collapseAt == null) level += (target - level) * 0.04;
         const shrink = collapseAt == null ? 1 : Math.max(0, 1 - (now - collapseAt) / COLLAPSE_MS);
         // with reduced motion asked for, the outline stays still
         const calm = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
@@ -667,6 +676,8 @@
       },
     };
   }
+
+  TT.tilesScope = { create: createScope }; // for tests: a scope driven by hand
 
   // ---------- screen ----------
 
