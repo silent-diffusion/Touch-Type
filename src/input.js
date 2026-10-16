@@ -102,7 +102,7 @@
   // Words per minute so far, scaled to match the speed test (g.wpmScale, saved with each round).
   const wpm = (g) => (g.typeMs > 0 ? (g.typeChars / 5 / (g.typeMs / 60000)) * (g.wpmScale ?? 1) : 0);
 
-  TT.wordInput = { MAX_WRONG, reset, clean, good, wrong, ready, letter, back, attribute, html, mark, done, drop, wpm, scale, DEFAULT_SCALE };
+  TT.wordInput = { MAX_WRONG, MIN_GAP_MS, reset, clean, good, wrong, ready, letter, back, attribute, html, mark, done, drop, wpm, scale, DEFAULT_SCALE };
 
   // The pause screen every game shows. restart and quit are the game's own actions.
   TT.pausedHtml = (restart, quit, quitLabel) => `

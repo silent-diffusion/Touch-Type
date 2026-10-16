@@ -16,7 +16,10 @@
   // Queue mode (g.queue, with v5 rules): no timing. Space locks the typed word in for the next tile
   // in falling order and you type on; each tile takes its locked-in word as it reaches the line.
   // Its tiles come QUEUE_SPEED times as often as in timed mode.
-  const RULES = 5;
+  //
+  // v6: the multipliers come from progress (g.prog) rather than the combo count, and how well a word
+  // was typed sets how much progress its tile gives (gain()). Points per hit are as before.
+  const RULES = 6;
   const QUEUE_SPEED = 2;
   const LANES = 4;
 
@@ -84,7 +87,29 @@
   ];
   const HISTORY_CAP = 200;
 
-  const multiplier = (combo) => (combo >= 50 ? 4 : combo >= 25 ? 3 : combo >= 10 ? 2 : 1);
+  // ×2 at 10, ×3 at 25, ×4 at 50: of the combo before v6, of progress from v6
+  const MULT_AT = [10, 25, 50];
+  const multiplier = (n) => (n >= 50 ? 4 : n >= 25 ? 3 : n >= 10 ? 2 : 1);
+  // what the multiplier goes by: progress from v6, the combo before
+  const level = (g) => (g.v >= 6 ? g.prog : g.combo);
+  const multOf = (g) => multiplier(level(g));
+  // how far to the next multiplier, 0 to 1 (1 at ×4)
+  const toNext = (g) => {
+    const n = level(g);
+    let from = 0;
+    for (const at of MULT_AT) {
+      if (n < at) return (n - from) / (at - from);
+      from = at;
+    }
+    return 1;
+  };
+  // v6: how much progress a tile gives, from how its word was typed. clean: no wrong keys and no
+  // backspaces. Timed: a clean word with a perfect hit 3, a correct word with any good hit 2.
+  // Queue mode (always perfect, so it goes by the typing): a correct word 1, a clean one 2, and a
+  // clean one typed faster than your speed so far this round 3. A sloppy hit or lock-in gives the
+  // share of its letters typed right, never less than half.
+  const SLOPPY_MIN = 0.5;
+  const sloppyGain = (typed, word) => Math.max(SLOPPY_MIN, typed.length / word.length);
   const letterGrade = (timing) => (timing >= 95 ? "S" : timing >= 85 ? "A" : timing >= 70 ? "B" : timing >= 50 ? "C" : "D");
 
   // ---------- chart ----------
@@ -240,6 +265,8 @@
       res: [],          // per tile: { grade, d, t }
       buf: "", bad: -1,
       score: 0, combo: 0, maxCombo: 0, hp: START_HP,
+      prog: 0,          // v6: progress toward the multipliers
+      dirty: false,     // v6: a wrong key or a backspace since the last word
       keys: 0, correct: 0, mistakes: 0, chars: 0,
       counts: { P: 0, G: 0, O: 0, S: 0, M: 0 },
       offsets: [],      // ms early (-) or late (+) of each hit
@@ -296,6 +323,12 @@
   // was typed correctly of `word`. Before v2, wrong keys past what was typed weren't counted.
   const attribute = (g, letters, word = letters) => W.attribute(g, letters, g.v >= 2 ? word : letters, word);
 
+  // The typing starts over for the next word, and the next word starts clean.
+  function nextWord(g) {
+    W.reset(g);
+    g.dirty = false;
+  }
+
   function finish(g, t, cause) {
     g.over = true;
     g.endAt = t;
@@ -344,7 +377,7 @@
     if (g.buf && (c === tile.l || c < 0)) {
       attribute(g, c === tile.l ? W.good(g) : "", word);
       W.drop(g);
-      W.reset(g);
+      nextWord(g);
     }
     missed(g, tile, t, word);
   }
@@ -353,6 +386,7 @@
     g.res[tile.i] = { grade: "M", t, w: word };
     g.counts.M++;
     g.combo = 0;
+    g.prog = 0;
     g.last = { grade: "M", t, i: tile.i, l: tile.l };
     hurt(g, g.missHp, t);
   }
@@ -368,14 +402,16 @@
     g.counts[grade]++;
     g.combo++;
     g.maxCombo = Math.max(g.maxCombo, g.combo);
-    g.score += POINTS[grade] * multiplier(g.combo);
+    const gain = !g.dirty && grade === "P" ? 3 : 2;
+    if (g.v >= 6) g.prog += gain;
+    g.score += POINTS[grade] * multOf(g);
     g.hp = Math.min(MAX_HP, g.hp + HEAL[grade]);
     g.chars += word.length + 1;
     g.offsets.push(d);
     W.done(g, word);
-    W.reset(g);
-    g.last = { grade, t, i: tile.i, l: tile.l, d };
-    return { type: "hit", grade, d, word, misses, i: tile.i };
+    nextWord(g);
+    g.last = { grade, t, i: tile.i, l: tile.l, d, gain };
+    return { type: "hit", grade, d, word, misses, i: tile.i, gain };
   }
 
   // v5: Enter on time in the right column, with the word mistyped or unfinished. It still takes the
@@ -390,13 +426,15 @@
     g.missedWords.add(word);
     g.res[tile.i] = { grade: "S", d, t, w: word };
     g.counts.S++;
-    g.score += POINTS.S * multiplier(g.combo);
+    const gain = sloppyGain(typed, word);
+    if (g.v >= 6) g.prog += gain;
+    g.score += POINTS.S * multOf(g);
     g.chars += typed.length;
     g.offsets.push(d);
     W.drop(g);
-    W.reset(g);
-    g.last = { grade: "S", t, i: tile.i, l: tile.l, d };
-    return { type: "hit", grade: "S", d, word, misses, i: tile.i, sloppy: true };
+    nextWord(g);
+    g.last = { grade: "S", t, i: tile.i, l: tile.l, d, gain };
+    return { type: "hit", grade: "S", d, word, misses, i: tile.i, sloppy: true, gain };
   }
 
   // Runs everything that happens on its own (tiles appearing, tiles passing the line, the song
@@ -424,7 +462,10 @@
     if (advance(g, t, provider)) return null;
     if (k === BACK || k === BACK_WORD) {
       const b = W.back(g, k === BACK_WORD);
-      if (b) W.mark(g, t);
+      if (b) {
+        W.mark(g, t);
+        g.dirty = true;
+      }
       return b && { type: "back", ...b, buf: g.buf };
     }
     if (k === " " && g.queue) return lockIn(g, t, provider);
@@ -454,6 +495,7 @@
     W.mark(g, t);
     g.keys++;
     if (!r.ok) {
+      g.dirty = true;
       g.stepMisses.push({ pos: r.pos, typed: k });
       g.mistakes++;
       hurt(g, TYPO_HP, t);
@@ -523,29 +565,35 @@
     const ok = W.ready(g, word);
     const typed = W.good(g);
     g.keys++;
-    let misses;
+    let misses, gain;
     if (ok) {
+      // faster than so far this round: this word's letters a millisecond against the round's
+      const gaps = word.length - 1;
+      const ms = Math.max(g.lastT - g.wordT, gaps * W.MIN_GAP_MS);
+      const faster = g.typeMs > 0 && gaps / ms > g.typeChars / g.typeMs;
+      gain = g.dirty ? 1 : faster ? 3 : 2;
       g.correct++;
       misses = attribute(g, word);
       g.chars += word.length + 1;
       W.done(g, word);
     } else {
+      gain = sloppyGain(typed, word);
       misses = attribute(g, typed, word);
       g.missedWords.add(word);
       g.chars += typed.length;
       W.drop(g);
     }
-    W.reset(g);
-    up.q = { w: word, ok, t };
+    nextWord(g);
+    up.q = { w: word, ok, t, gain };
     g.last = { grade: "Q", t, i: up.i, l: c, d: null };
     deal(g, c, t, provider);
     if (t >= g.hits[up.i]) register(g, up, t);
-    return { type: "hit", grade: ok ? "P" : "S", d: null, word, misses, i: up.i, sloppy: !ok, queued: true };
+    return { type: "hit", grade: ok ? "P" : "S", d: null, word, misses, i: up.i, sloppy: !ok, queued: true, gain };
   }
 
   // Queue mode: a tile takes its locked-in word at the line. Like a hit (or a sloppy hit), without timing.
   function register(g, tile, t) {
-    const { w, ok } = tile.q;
+    const { w, ok, gain } = tile.q;
     const grade = ok ? "P" : "S";
     g.tiles = g.tiles.filter((x) => x !== tile);
     g.res[tile.i] = { grade, d: null, t, w };
@@ -555,8 +603,9 @@
       g.maxCombo = Math.max(g.maxCombo, g.combo);
       g.hp = Math.min(MAX_HP, g.hp + HEAL.P);
     }
-    g.score += POINTS[grade] * multiplier(g.combo);
-    g.last = { grade, t, i: tile.i, l: tile.l, d: null };
+    if (g.v >= 6) g.prog += gain;
+    g.score += POINTS[grade] * multOf(g);
+    g.last = { grade, t, i: tile.i, l: tile.l, d: null, gain };
   }
 
   function gameStats(g, ms) {
@@ -589,7 +638,7 @@
   TT.tilesAudio = { get: () => getAudio() };
 
   TT.tilesCore = {
-    DIFFS, DIFF_IDS, WIN, RULES, GRADE_NAMES, QUEUE_SPEED, modeDiff, nextUp, planLengths, LONG_WORDS,
+    DIFFS, DIFF_IDS, WIN, RULES, GRADE_NAMES, QUEUE_SPEED, modeDiff, nextUp, planLengths, LONG_WORDS, MULT_AT, level, multOf, toNext,
     chart, columns, sungWords, newCore, dealWords, coreFor, applyKey, advance, gameStats, target, column, attribute, recorded, multiplier, letterGrade,
   };
 
@@ -1001,14 +1050,15 @@
 
   const TILE_H = 52;     // tile height in px
   const HIT_BOTTOM = 42; // the line's center, in px from the bottom of the field: the words sit on it
-  const PUSH_MS = 200;   // how long a word card takes to push up into a tile it hit and settle back
+  const PUSH_MS = 200;
+  const BOUNCE_MS = 220; // how long the combo liquid's swell on a beat takes to settle   // how long a word card takes to push up into a tile it hit and settle back
 
   const TEMPLATE = `
     <div class="tl">
       <div class="tl-side tl-left">
         <div class="tl-box"><div class="caps-label">WPM</div><div class="tl-big" data-t="wpm">–</div></div>
         <div class="tl-box"><div class="caps-label">SCORE</div><div class="tl-big" data-t="score">0</div></div>
-        <div class="tl-box"><div class="caps-label">COMBO</div><div class="tl-big"><span data-t="combo">0</span><span class="tl-mult" data-t="mult"></span></div><div class="tl-scope" data-t="scope" hidden><i></i></div></div>
+        <div class="tl-box tl-combo"><div class="tl-liquid" data-t="liquid" aria-hidden="true"><i></i></div><div class="caps-label">COMBO</div><div class="tl-big"><span data-t="combo">0</span><span class="tl-mult" data-t="mult"></span></div><div class="tl-scope" data-t="scope" hidden><i></i></div></div>
         <div class="tl-box"><div class="caps-label">HEALTH</div><div class="tl-bar"><i data-t="hp"></i></div></div>
       </div>
       <div class="tl-center">
@@ -1239,6 +1289,10 @@
       const text = show ? GRADE_NAMES[last.grade] + (last.d != null && "PGOS".includes(last.grade) ? ` ${last.d > 0 ? "+" : ""}${Math.round(last.d)}MS` : "") : "";
       if (el.judge.textContent !== text) el.judge.textContent = text;
       el.judge.classList.toggle("miss", !!show && "MEX".includes(last.grade));
+      // a perfect hit flashes the field's outline white, glowing outward only (never over a tile or
+      // word). In queue mode every hit is perfect, so there it's the clean words.
+      const perfect = !!last && last.grade === "P" && age >= 0 && age < 140 && (!g.queue || last.gain >= 2);
+      el.hw.classList.toggle("perfect", perfect);
       // a flash in the lane of a hit
       const flash = last && "PGOS".includes(last.grade) && age >= 0 && age < 320;
       el.flash.style.opacity = flash ? (1 - age / 320).toFixed(2) : "0";
@@ -1256,6 +1310,20 @@
       }
       el.band.classList.toggle("beat", !!beat);
       el.band.classList.toggle("down", !!beat && beat.down);
+      // the combo box's liquid swells a little on each beat and settles back (more on a downbeat)
+      let bounce = 0;
+      for (let k = beatTimes.length - 1; k >= 0; k--) {
+        if (beatTimes[k].t <= viewT) {
+          const since = viewT - beatTimes[k].t;
+          if (since < BOUNCE_MS) bounce = (1 - since / BOUNCE_MS) ** 2 * (beatTimes[k].down ? 1 : 0.55);
+          break;
+        }
+      }
+      const b = bounce.toFixed(2);
+      if (el.liquid.bounce !== b) {
+        el.liquid.bounce = b;
+        el.liquid.style.setProperty("--bounce", b);
+      }
       // what's been typed
       const typed = W.html(g);
       if (el.typed.innerHTML !== typed) el.typed.innerHTML = typed;
@@ -1282,7 +1350,7 @@
       const prog = Math.min(1, viewT / g.endT);
       const marks = g.offsets.slice(-14);
       const locked = g.queue ? g.tiles.filter((x) => x.q).length : 0;
-      const sig = [g.score, g.combo, Math.round(g.hp), viewT < 5000 ? "-" : Math.round(st.wpm), c.P, c.G, c.O, c.S, c.M, Math.round(prog * 200), Math.floor(viewT / 1000), marks.length, g.offsets.length, g.queue, locked].join("|");
+      const sig = [g.score, g.combo, Math.round(level(g) * 100), Math.round(g.hp), viewT < 5000 ? "-" : Math.round(st.wpm), c.P, c.G, c.O, c.S, c.M, Math.round(prog * 200), Math.floor(viewT / 1000), marks.length, g.offsets.length, g.queue, locked].join("|");
       if (sig === hudSig) return;
       hudSig = sig;
       // queue mode has no timing, so the box shows how many tiles have a word locked in
@@ -1292,8 +1360,20 @@
       el.wpm.textContent = viewT < 5000 ? "–" : Math.round(st.wpm);
       el.score.textContent = g.score.toLocaleString();
       el.combo.textContent = g.combo;
-      const mult = multiplier(g.combo);
+      const mult = multOf(g);
       el.mult.textContent = mult > 1 ? `×${mult}` : "";
+      // the liquid behind the combo: how close the next multiplier is. On reaching one it starts
+      // again from empty at once, rather than draining.
+      const fill = toNext(g);
+      const liquid = el.liquid.firstChild;
+      if (el.liquid.mult !== mult) {
+        liquid.style.transition = "none";
+        liquid.style.setProperty("--fill", fill.toFixed(3));
+        void liquid.offsetHeight;
+        liquid.style.transition = "";
+        el.liquid.mult = mult;
+      } else liquid.style.setProperty("--fill", fill.toFixed(3));
+      el.liquid.classList.toggle("dry", fill <= 0);
       el.hp.style.width = `${Math.round(g.hp)}%`;
       el.hp.classList.toggle("low", g.hp < 30);
       el.prog.style.width = `${(prog * 100).toFixed(1)}%`;
@@ -1310,9 +1390,10 @@
       el.counts.innerHTML = [["PERFECT", c.P], ["GREAT", c.G], ["GOOD", c.O], ["SLOPPY", c.S || 0], ["MISS", c.M]]
         .map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join("");
       // how far the scope has grown (live rounds with Scope mode on)
-      const scopeOn = !!live && live.sound.scope && g.combo >= SCOPE_AT;
+      const lv = level(g);
+      const scopeOn = !!live && live.sound.scope && lv >= SCOPE_AT;
       el.scope.hidden = !scopeOn;
-      if (scopeOn) el.scope.firstChild.style.width = `${Math.round(Math.min(1, (g.combo - SCOPE_AT) / (SCOPE_FULL - SCOPE_AT)) * 100)}%`;
+      if (scopeOn) el.scope.firstChild.style.width = `${Math.round(Math.min(1, (lv - SCOPE_AT) / (SCOPE_FULL - SCOPE_AT)) * 100)}%`;
     }
 
     function render() {
@@ -1407,7 +1488,7 @@
       live.player.pump();
       if (advance(g, viewT, provide)) return end();
       render();
-      if (scope && live.sound.scope && live.player.tap) scope.frame(performance.now(), g.combo, live.player.tap, playArea(), lastBeatNow());
+      if (scope && live.sound.scope && live.player.tap) scope.frame(performance.now(), level(g), live.player.tap, playArea(), lastBeatNow());
       raf = requestAnimationFrame(frame);
     }
 
