@@ -639,7 +639,7 @@
     return g;
   }
 
-  TT.tilesAudio = { get: () => getAudio() };
+  TT.tilesAudio = { get: () => getAudio(), quickSplit }; // quickSplit: for tests
 
   TT.tilesCore = {
     DIFFS, DIFF_IDS, WIN, RULES, GRADE_NAMES, QUEUE_SPEED, modeDiff, nextUp, planLengths, LONG_WORDS, MULT_AT, level, multOf, toNext,
@@ -676,20 +676,22 @@
   function tone(ctx, bus, n, at) {
     const f = 440 * 2 ** ((n.midi - 69) / 12);
     const len = Math.min(Math.max(n.d, 0.12), 1.6) + 0.25;
-    const peak = n.voice ? 0.1 : 0.15;
+    // voice 0 the melody, 1 the bass, 2 the harmony: soft, a little slower to come in
+    const harmony = n.voice === 2;
+    const peak = harmony ? 0.055 : n.voice ? 0.1 : 0.15;
     const env = ctx.createGain();
     env.gain.setValueAtTime(0.0001, at);
-    env.gain.exponentialRampToValueAtTime(peak, at + 0.008);
+    env.gain.exponentialRampToValueAtTime(peak, at + (harmony ? 0.03 : 0.008));
     env.gain.exponentialRampToValueAtTime(0.0008, at + len);
-    // Stereo: the melody mostly left and the bass mostly right, so Scope mode's X/Y trace (left
-    // across, right up) draws the music itself.
+    // Stereo: the melody mostly left and the bass mostly right (the harmony in the middle), so the
+    // music has some width.
     if (ctx.createStereoPanner) {
       const pan = ctx.createStereoPanner();
-      pan.pan.value = n.voice ? 0.6 : -0.6;
+      pan.pan.value = harmony ? 0 : n.voice ? 0.6 : -0.6;
       env.connect(pan).connect(bus);
     } else env.connect(bus);
     const o = ctx.createOscillator();
-    o.type = "triangle";
+    o.type = harmony ? "sine" : "triangle";
     o.frequency.value = f;
     o.connect(env);
     o.start(at);
@@ -706,6 +708,91 @@
       o2.stop(at + len + 0.02);
     }
   }
+
+  // The built-in songs' drums: a kick (a sine falling in pitch), a snare (a noise burst and a short
+  // tone) and a hi-hat (high noise), all kept light so the pieces still sound like themselves.
+  const noiseFor = new WeakMap();
+  function noise(ctx) {
+    if (!noiseFor.has(ctx)) {
+      const b = ctx.createBuffer(1, Math.round(ctx.sampleRate * 0.5), ctx.sampleRate);
+      const d = b.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      noiseFor.set(ctx, b);
+    }
+    return noiseFor.get(ctx);
+  }
+  function drum(ctx, bus, kind, at) {
+    const env = ctx.createGain();
+    env.connect(bus);
+    if (kind === "kick") {
+      const o = ctx.createOscillator();
+      o.type = "sine";
+      o.frequency.setValueAtTime(140, at);
+      o.frequency.exponentialRampToValueAtTime(45, at + 0.12);
+      env.gain.setValueAtTime(0.2, at);
+      env.gain.exponentialRampToValueAtTime(0.001, at + 0.28);
+      o.connect(env);
+      o.start(at);
+      o.stop(at + 0.3);
+      return;
+    }
+    const src = ctx.createBufferSource();
+    src.buffer = noise(ctx);
+    const hp = ctx.createBiquadFilter();
+    hp.type = "highpass";
+    hp.frequency.value = kind === "hat" ? 7000 : 1500;
+    src.connect(hp).connect(env);
+    const len = kind === "hat" ? 0.045 : 0.13;
+    env.gain.setValueAtTime(kind === "hat" ? 0.035 : 0.11, at);
+    env.gain.exponentialRampToValueAtTime(0.0008, at + len);
+    src.start(at);
+    src.stop(at + len + 0.02);
+    if (kind === "snare") {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = "triangle";
+      o.frequency.value = 190;
+      g.gain.setValueAtTime(0.07, at);
+      g.gain.exponentialRampToValueAtTime(0.0008, at + 0.06);
+      o.connect(g).connect(bus);
+      o.start(at);
+      o.stop(at + 0.08);
+    }
+  }
+
+  // The quick split, for added songs that haven't been separated properly: from the mix, the low
+  // end (bass and kick drum), the middle's voice range (where a lead vocal sits), and the sides plus
+  // the highs (most other instruments), each to its own analyser. Rough, but instant.
+  function quickSplit(ctx, input, feeds) {
+    const split = ctx.createChannelSplitter(2);
+    input.connect(split);
+    const mid = ctx.createGain(), side = ctx.createGain();
+    const l = ctx.createGain(), r = ctx.createGain(), rNeg = ctx.createGain();
+    l.gain.value = 0.5;
+    r.gain.value = 0.5;
+    rNeg.gain.value = -0.5;
+    split.connect(l, 0);
+    split.connect(r, 1);
+    split.connect(rNeg, 1);
+    l.connect(mid);
+    r.connect(mid);
+    l.connect(side);
+    rNeg.connect(side);
+    const filter = (from, type, hz) => {
+      const f = ctx.createBiquadFilter();
+      f.type = type;
+      f.frequency.value = hz;
+      from.connect(f);
+      return f;
+    };
+    filter(mid, "lowpass", 160).connect(feeds.low);
+    filter(filter(mid, "highpass", 300), "lowpass", 3400).connect(feeds.vocal);
+    side.connect(feeds.other);
+    filter(mid, "highpass", 3800).connect(feeds.other);
+  }
+  // Separated stems (the AI model, when a song has them): each played silently in step with the
+  // song, into its feed. vocals to the vocal line; drums and bass to the outline; the rest to the sparks.
+  const STEM_FEEDS = { vocals: "vocal", drums: "low", bass: "low", other: "other" };
 
   function click(ctx, bus, down, at) {
     const o = ctx.createOscillator();
@@ -737,7 +824,19 @@
     bus.connect(split);
     split.connect(left, 0);
     split.connect(right, 1);
-    const tap = { left, right, rate: ctx.sampleRate };
+    // The music in three parts for Scope mode's ×4 (vocal, low, other), each to its own analyser.
+    // The built-in songs' parts go through their own buses: melody to vocal (it's what's sung),
+    // bass and drums to low, harmony to other.
+    const feeds = {}, parts = {};
+    for (const k of ["vocal", "low", "other"]) {
+      feeds[k] = ctx.createAnalyser();
+      feeds[k].fftSize = 2048;
+      parts[k] = ctx.createGain();
+      parts[k].connect(bus);
+      parts[k].connect(feeds[k]);
+    }
+    const partOf = (n) => (n.voice === 0 ? parts.vocal : n.voice === 1 ? parts.low : parts.other);
+    const tap = { left, right, rate: ctx.sampleRate, feeds };
     // metronome: a one-bar count-in, then every beat
     const clicks = [];
     if (metronome) {
@@ -748,9 +847,17 @@
     }
     let ni = 0;
     let ci = 0;
+    let di = 0;
     let sync = null;
     let stopped = false;
-    let source = null, sourceZero = 0;
+    let source = null, sourceZero = 0, stems = [];
+    const stopSources = () => {
+      for (const s of [source, ...stems]) {
+        try { if (s) s.stop(); } catch {}
+      }
+      source = null;
+      stems = [];
+    };
     return {
       tap,
       pump() {
@@ -763,10 +870,7 @@
         const horizon = ctx.currentTime + 0.3;
         // if the audio clock and the game's have drifted apart (the audio stalled, say), the file
         // starts again from where the game is, rather than playing on out of step
-        if (source && Math.abs(zero - sourceZero) > RESYNC_S) {
-          try { source.stop(); } catch {}
-          source = null;
-        }
+        if (source && Math.abs(zero - sourceZero) > RESYNC_S) stopSources();
         if (music && song.buffer && !source && zero < horizon) {
           // an added song: the whole file, started so its time 0 lines up with the game
           source = ctx.createBufferSource();
@@ -777,11 +881,27 @@
           const late = Math.max(0, ctx.currentTime - zero);
           source.start(Math.max(zero, ctx.currentTime), late);
           sourceZero = zero;
+          // the parts for the visuals: separated stems if the song has them, else the quick split
+          if (song.stems) {
+            for (const [name, buffer] of Object.entries(song.stems)) {
+              if (!buffer || !STEM_FEEDS[name]) continue;
+              const s = ctx.createBufferSource();
+              s.buffer = buffer;
+              s.connect(feeds[STEM_FEEDS[name]]);
+              s.start(Math.max(zero, ctx.currentTime), late);
+              stems.push(s);
+            }
+          } else quickSplit(ctx, gain, feeds);
         }
         if (music) {
           for (; ni < song.notes.length && zero + song.notes[ni].t < horizon; ni++) {
             const at = zero + song.notes[ni].t;
-            if (at >= ctx.currentTime - 0.02) tone(ctx, bus, song.notes[ni], Math.max(at, ctx.currentTime));
+            if (at >= ctx.currentTime - 0.02) tone(ctx, partOf(song.notes[ni]), song.notes[ni], Math.max(at, ctx.currentTime));
+          }
+          const drums = song.drums || [];
+          for (; di < drums.length && zero + drums[di].t < horizon; di++) {
+            const at = zero + drums[di].t;
+            if (at >= ctx.currentTime - 0.02) drum(ctx, parts.low, drums[di].kind, Math.max(at, ctx.currentTime));
           }
         }
         for (; ci < clicks.length && zero + clicks[ci].t < horizon; ci++) {
@@ -796,7 +916,7 @@
           bus.gain.setTargetAtTime(0, ctx.currentTime, 0.03);
           setTimeout(() => {
             bus.disconnect();
-            if (source) source.stop();
+            stopSources();
           }, 300);
         } catch {}
       },
@@ -809,9 +929,12 @@
   // a thin line that ripples with the music, growing through ×2 until it swings about 60 px out by
   // 25. From 25 (×3) the app switches to its night colours, the line glows, and it can swing out
   // across the whole window, under the rest of the app: by 50 (×4) it reaches the window's edges.
-  // At ×4 a storm of sparks joins it, thrown out from the play area on every beat and swirling
-  // round it to the window's edges. Nothing is ever drawn over the play area. A miss flattens it
-  // all out, and it fades away.
+  // At ×4 a storm of sparks joins it, thrown out from the play area and swirling round it to the
+  // window's edges, and the music comes apart into three (the player's feeds): the vocals draw a
+  // line straight across the middle of the window that bounces up as they're sung, the bass and
+  // drums drive the outline, and the other instruments throw the sparks. Nothing is ever drawn
+  // over the play area, and at ×4 it and the boxes beside it are opaque. A miss flattens it all
+  // out, and it fades away.
   const SCOPE_START = 10, SCOPE_AT = 25, SCOPE_FULL = 50, COLLAPSE_MS = 450;
   const SPARKS_MAX = 900; // the most sparks in the storm at once
   // From ×3 the line's colour goes round the colour wheel, HUE_SPEED degrees a second (a new colour
@@ -822,11 +945,26 @@
   const SCOPE_LOWPASS = 1200, SCOPE_SETTLE = 128, SCOPE_MATCH = 128; // Hz the trace is smoothed to; samples the filter needs to settle; points compared to hold the trace still
   const SWING_START = 5, SWING_AT = 60; // px the line swings out: at the start of ×2, and by ×3
   const OUTLINE_GAP = 10; // px between the playable area and the line at rest
+  const VOCAL_SWING = 0.22; // how far the vocal line can bounce up, as a share of the window's height
+  const ONSET_RISE = 1.35, ONSET_GAP_MS = 110; // a burst of sparks: the other instruments this much louder than lately, this far apart
 
   function createScope() {
     let canvas = null, ctx = null, bufL = null, bufR = null;
     // level: 0 to 1 through ×2 (10 to 25), then 1 to 2 through ×3 (25 to 75)
-    let on = false, dark = false, level = 0, loud = 0.05, mono = null, last = null, collapseAt = null;
+    let on = false, dark = false, level = 0, collapseAt = null, bufIn = null;
+    // A readable trace of a signal (see draw), with its own gain and trigger state: one for the
+    // outline, one for the vocal line. peak: the loudest it's been lately, falling slowly.
+    const newTrace = () => ({ loud: 0.05, peak: 0.004, rms: 0, mono: null, last: null });
+    const outline = newTrace(), vocal = newTrace();
+    // the other instruments' loudness lately, for bursts of sparks on their notes
+    let otherAvg = 0, otherPeak = 0.003, lastOnset = -1e9;
+    const feedBufs = {};
+    const readFeed = (name, analyser) => {
+      const n = analyser.fftSize;
+      if (!feedBufs[name] || feedBufs[name].length !== n) feedBufs[name] = new Float32Array(n);
+      analyser.getFloatTimeDomainData(feedBufs[name]);
+      return feedBufs[name];
+    };
     // the storm: 0 to 1 as ×4 comes in; each spark is { x, y, vx, vy, life, max, size, hot }
     let storm = 0, sparks = [], lastBeat = null, lastNow = 0;
     // the line's hue (from when ×3 began), and the swirl: 1 clockwise, -1 the other way
@@ -870,8 +1008,82 @@
       if (!yes) { sparks = []; storm = 0; lastBeat = null; flipAt = 0; }
     }
 
+    // What's playing, made readable the way a real oscilloscope does it:
+    // - low-passed, so cymbals and the high parts don't turn the line to fuzz;
+    // - triggered: the trace starts at a rising zero crossing, so a held tone stands still from frame
+    //   to frame instead of sliding (which, with the trails at ×3, smeared into a blur). Of the
+    //   crossings, it's the one whose trace looks most like the last frame's, so chords stand still too;
+    // - the gain follows the loudness (quick to rise, slow to fall) and peaks are soft-limited, so a
+    //   quiet song and a loud one both show their shape.
+    // Returns where the shown part starts and how long it is (~21 ms); tr.mono holds the trace.
+    function readTrace(tr, input, sr) {
+      const len = input.length;
+      if (!tr.mono || tr.mono.length !== len) tr.mono = new Float32Array(len);
+      const mono = tr.mono;
+      const a = 1 - Math.exp((-2 * Math.PI * SCOPE_LOWPASS) / sr);
+      let y1 = 0, y2 = 0, sum = 0;
+      for (let i = 0; i < len; i++) {
+        y1 += a * (input[i] - y1);
+        y2 += a * (y1 - y2);
+        mono[i] = y2;
+        if (i >= SCOPE_SETTLE) sum += y2 * y2;
+      }
+      tr.rms = Math.sqrt(sum / (len - SCOPE_SETTLE));
+      tr.loud += (tr.rms - tr.loud) * (tr.rms > tr.loud ? 0.3 : 0.03);
+      tr.loud = Math.max(0.004, tr.loud);
+      tr.peak = Math.max(0.004, tr.rms, tr.peak * 0.997);
+      const view = len >> 1;
+      let from = -1, best = Infinity;
+      for (let i = SCOPE_SETTLE, armed = false; i < len - view; i++) {
+        if (mono[i] < -0.1 * tr.loud) armed = true;
+        else if (armed && mono[i - 1] < 0 && mono[i] >= 0) {
+          armed = false;
+          if (!tr.last) { from = i; break; }
+          let diff = 0;
+          for (let j = 0; j < SCOPE_MATCH && diff < best; j++) diff += Math.abs(mono[i + Math.floor((j * view) / SCOPE_MATCH)] / tr.loud - tr.last[j]);
+          if (diff < best) { best = diff; from = i; }
+        }
+      }
+      if (from < 0) from = len - view;
+      if (!tr.last) tr.last = new Float32Array(SCOPE_MATCH);
+      for (let j = 0; j < SCOPE_MATCH; j++) tr.last[j] = mono[from + Math.floor((j * view) / SCOPE_MATCH)] / tr.loud;
+      return { from, view };
+    }
+    // the trace's value a share u (0 to 1) of the way along what's shown
+    const traceAt = (tr, from, view, u) => {
+      const f = from + u * view, i = Math.floor(f), m = tr.mono;
+      return m[i] + (m[Math.min(m.length - 1, i + 1)] - m[i]) * (u * view - (i - from));
+    };
+
+    // ×4: the vocals as a line straight across the middle of the window, from the left edge to the
+    // right, bouncing up as they're sung and lying flat when nobody is. It's behind the opaque play
+    // area and boxes (and clipped out of the play area anyway), in a colour between the outline's
+    // and the sparks'.
+    function drawVocal(feed, W, H, sr, shrink) {
+      const { from, view } = readTrace(vocal, readFeed("vocal", feed), sr);
+      const level = Math.min(1, vocal.rms / vocal.peak);
+      const amp = H * VOCAL_SWING * storm * shrink * level;
+      const mid = H / 2, N = 600;
+      ctx.beginPath();
+      for (let k = 0; k <= N; k++) {
+        const v = Math.tanh(traceAt(vocal, from, view, k / N) / (vocal.peak * 2.5));
+        const x = (k / N) * W, y = mid - (amp * (v + 1)) / 2;
+        if (k) ctx.lineTo(x, y);
+        else ctx.moveTo(x, y);
+      }
+      const vh = ((hue + 90) % 360).toFixed(1);
+      ctx.globalCompositeOperation = "lighter";
+      ctx.strokeStyle = `hsla(${vh},70%,62%,${(0.45 * storm).toFixed(3)})`;
+      ctx.lineWidth = 7;
+      ctx.stroke();
+      ctx.strokeStyle = `hsla(${vh},85%,90%,${(0.9 * storm).toFixed(3)})`;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.globalCompositeOperation = "source-over";
+    }
+
     // A burst of sparks from the outline, thrown outward with a swirl round the play area: more on a
-    // downbeat and on the song's strong beats.
+    // downbeat and on the song's strong beats (or, with the music in parts, on the other instruments' notes).
     function burst(r, perim, count, speed) {
       for (let k = 0; k < count && sparks.length < SPARKS_MAX; k++) {
         const [x, y, nx, ny] = edgePoint(r, Math.random() * perim);
@@ -880,8 +1092,26 @@
         sparks.push({ x, y, vx: nx * out - ny * swirl, vy: ny * out + nx * swirl, life: 0, max: 0.9 + Math.random() * 1.4, size: 1.6 + Math.random() * 2.6, hot: Math.random() < 0.3 });
       }
     }
-    function drawStorm(r, W, H, perim, beat, dt, shrink, now) {
+    function drawStorm(r, W, H, perim, beat, dt, shrink, now, feeds) {
       const cx = (r.x0 + r.x1) / 2, cy = (r.y0 + r.y1) / 2;
+      // The other instruments throw the sparks: a burst when they come in louder than lately (a new
+      // note or chord), and a drizzle as loud as they are. With nothing there, it's the beat.
+      let others = false, onset = 0, otherLevel = 0;
+      if (feeds && feeds.other) {
+        const buf = readFeed("other", feeds.other);
+        let sum = 0;
+        for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+        const rms = Math.sqrt(sum / buf.length);
+        otherPeak = Math.max(0.003, rms, otherPeak * 0.997);
+        otherLevel = rms / otherPeak;
+        others = otherPeak > 0.004;
+        if (others && rms > otherAvg * ONSET_RISE && otherLevel > 0.2 && now - lastOnset > ONSET_GAP_MS) {
+          onset = otherLevel;
+          lastOnset = now;
+        }
+        otherAvg += (rms - otherAvg) * 0.08;
+      }
+      if (onset && collapseAt == null) burst(r, perim, Math.round((40 + 120 * onset) * storm), 220 + 300 * onset);
       if (beat && beat.t !== lastBeat && collapseAt == null) {
         lastBeat = beat.t;
         // now and then, on a downbeat, the swirl turns the other way
@@ -891,13 +1121,13 @@
           flipAt = now + FLIP_MS * (1 + Math.random());
         }
         const strong = beat.down ? 1 : 0.35 + 0.65 * (beat.w == null ? 0.5 : beat.w);
-        burst(r, perim, Math.round((50 + 110 * strong) * storm), 260 + 260 * strong);
+        if (!others) burst(r, perim, Math.round((50 + 110 * strong) * storm), 260 + 260 * strong);
       }
-      // a steady drizzle between beats
-      if (collapseAt == null) burst(r, perim, Math.round(storm * 90 * dt), 160);
+      // a steady drizzle in between
+      if (collapseAt == null) burst(r, perim, Math.round(storm * 90 * dt * (others ? 0.25 + 0.75 * otherLevel : 1)), 160);
       spin += (spinTo - spin) * Math.min(1, dt * 3);
-      // each beat flashes the sparks bright, then they cool
-      const glow = beat ? Math.max(0, 1 - beat.since / 260) : 0;
+      // each burst (each beat, without the parts) flashes the sparks bright, then they cool
+      const glow = others ? Math.max(0, 1 - (now - lastOnset) / 260) : beat ? Math.max(0, 1 - beat.since / 260) : 0;
       const comp = (hue + 180) % 360;
       ctx.globalCompositeOperation = "lighter";
       const keep = [];
@@ -973,45 +1203,19 @@
           ctx.fillRect(0, 0, W, H);
         }
       }
-      // What's playing, made readable the way a real oscilloscope does it:
-      // - left and right mixed, then low-passed, so cymbals and the high parts don't turn the line to fuzz;
-      // - triggered: the trace starts at a rising zero crossing, so a held tone stands still from frame
-      //   to frame instead of sliding (which, with the trails at ×3, smeared into a blur);
-      // - the gain follows the loudness (quick to rise, slow to fall) and peaks are soft-limited, so a
-      //   quiet song and a loud one both show their shape.
+      // The outline draws the whole mix (left and right together), and at ×4, as the storm comes in,
+      // only the bass and drums.
       const len = tap.left.fftSize;
-      if (!bufL || bufL.length !== len) { bufL = new Float32Array(len); bufR = new Float32Array(len); mono = new Float32Array(len); }
+      if (!bufL || bufL.length !== len) { bufL = new Float32Array(len); bufR = new Float32Array(len); bufIn = new Float32Array(len); }
       tap.left.getFloatTimeDomainData(bufL);
       tap.right.getFloatTimeDomainData(bufR);
       const sr = (tap.left.context && tap.left.context.sampleRate) || 48000;
-      const a = 1 - Math.exp((-2 * Math.PI * SCOPE_LOWPASS) / sr);
-      let y1 = 0, y2 = 0, sum = 0;
+      const lowPart = tap.feeds && storm > 0 ? readFeed("low", tap.feeds.low) : null;
       for (let i = 0; i < len; i++) {
-        y1 += a * ((bufL[i] + bufR[i]) / 2 - y1);
-        y2 += a * (y1 - y2);
-        mono[i] = y2;
-        if (i >= SCOPE_SETTLE) sum += y2 * y2;
+        const mix = (bufL[i] + bufR[i]) / 2;
+        bufIn[i] = lowPart && i < lowPart.length ? mix * (1 - storm) + lowPart[i] * storm : mix;
       }
-      const rms = Math.sqrt(sum / (len - SCOPE_SETTLE));
-      loud += (rms - loud) * (rms > loud ? 0.3 : 0.03);
-      loud = Math.max(0.004, loud);
-      // Of the rising zero crossings, start at the one whose trace looks most like the last frame's,
-      // so a chord (which crosses zero several times a cycle) stands still too.
-      const view = len >> 1; // ~21 ms shown round the outline
-      let from = -1, best = Infinity;
-      for (let i = SCOPE_SETTLE, armed = false; i < len - view; i++) {
-        if (mono[i] < -0.1 * loud) armed = true;
-        else if (armed && mono[i - 1] < 0 && mono[i] >= 0) {
-          armed = false;
-          if (!last) { from = i; break; }
-          let diff = 0;
-          for (let j = 0; j < SCOPE_MATCH && diff < best; j++) diff += Math.abs(mono[i + Math.floor((j * view) / SCOPE_MATCH)] / loud - last[j]);
-          if (diff < best) { best = diff; from = i; }
-        }
-      }
-      if (from < 0) from = len - view;
-      if (!last) last = new Float32Array(SCOPE_MATCH);
-      for (let j = 0; j < SCOPE_MATCH; j++) last[j] = mono[from + Math.floor((j * view) / SCOPE_MATCH)] / loud;
+      const { from, view } = readTrace(outline, bufIn, sr);
       // How far the line may swing out: from SWING_START to SWING_AT px through ×2, then through ×3
       // further and further toward the window's edge on each side, reaching it at ×4.
       const base = SWING_START + (SWING_AT - SWING_START) * low;
@@ -1022,9 +1226,7 @@
         const [x, y, nx, ny] = edgePoint(r, ((k % N) / N) * perim);
         const edge = Math.max(0, nx < 0 ? x : nx > 0 ? W - x : ny < 0 ? y : H - y);
         const amp = calm ? 0 : Math.min(edge, base + Math.max(0, edge - base) * high) * shrink;
-        const f = from + ((k % N) / N) * view, i = Math.floor(f);
-        const s = mono[i] + (mono[Math.min(len - 1, i + 1)] - mono[i]) * (f - i);
-        const v = Math.tanh(s / (loud * 2.5));
+        const v = Math.tanh(traceAt(outline, from, view, (k % N) / N) / (outline.loud * 2.5));
         const d = (amp * (v + 1)) / 2; // 0..amp, outward only
         if (k) ctx.lineTo(x + nx * d, y + ny * d);
         else ctx.moveTo(x + nx * d, y + ny * d);
@@ -1046,7 +1248,8 @@
         ctx.stroke();
         ctx.globalAlpha = 1;
       }
-      if ((storm > 0 || sparks.length) && !calm) drawStorm(r, W, H, perim, beat, dt, shrink, now);
+      if (storm > 0 && tap.feeds && !calm) drawVocal(tap.feeds.vocal, W, H, sr, shrink);
+      if ((storm > 0 || sparks.length) && !calm) drawStorm(r, W, H, perim, beat, dt, shrink, now, tap.feeds);
       ctx.restore();
     }
 

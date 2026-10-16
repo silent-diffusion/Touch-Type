@@ -6,6 +6,11 @@
 //   "|" a bar line (only there to make the music easier to read).
 // A step is 1/beat of a beat. A section can change the tempo (bpm) or move everything up or down
 // by some semitones (t). Every section's melody and bass must be the same length.
+//
+// The app adds two more parts as it builds a song: a harmony (voice 2), a third under the melody in
+// the song's key, and a light drum part (kick, snare and hi-hat) in the song's time. They're made
+// from the written notes, so they always fit, and they only change the sound: the tiles still come
+// from the melody and bass.
 (() => {
   const NOTE = { c: 0, d: 2, e: 4, f: 5, g: 7, a: 9, b: 11 };
 
@@ -153,7 +158,7 @@ Singing bird and flowing fountain call us to rejoice in thee.`;
       sections: [minuet.A1, minuet.A2, minuet.B, minuet.B] },
     { id: "king", title: "In the Hall of the Mountain King", composer: "Grieg", year: 1875, tempo: "SPEEDS UP",
       blurb: "One sneaky tune, played again and again, faster and faster.",
-      bpm: 92, beat: 2, bar: 4, pickup: 0,
+      bpm: 92, beat: 2, bar: 4, pickup: 0, key: { tonic: 11, minor: true }, // B minor (its F sharps fool keyOf)
       sections: [
         { ...kingTheme, bpm: 92 }, { ...kingTheme, bpm: 92 },
         { ...kingTheme, bpm: 104, t: 12 }, { ...kingTheme, bpm: 116, t: 12 },
@@ -205,9 +210,61 @@ Singing bird and flowing fountain call us to rejoice in thee.`;
     return out;
   }
 
+  // The song's key: the major or minor key whose profile best fits how long each pitch class
+  // sounds (Krumhansl and Kessler's key profiles). Returns { tonic, minor }.
+  const MAJOR = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88];
+  const MINOR = [6.33, 2.68, 3.52, 5.38, 2.6, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17];
+  function keyOf(notes) {
+    const dur = new Array(12).fill(0);
+    for (const n of notes) dur[n.midi % 12] += n.d;
+    const fit = (profile, tonic) => {
+      let s = 0;
+      for (let k = 0; k < 12; k++) s += dur[(tonic + k) % 12] * profile[k];
+      return s;
+    };
+    let best = { tonic: 0, minor: false, s: -Infinity };
+    for (let tonic = 0; tonic < 12; tonic++) {
+      for (const minor of [false, true]) {
+        const s = fit(minor ? MINOR : MAJOR, tonic);
+        if (s > best.s) best = { tonic, minor, s };
+      }
+    }
+    return best;
+  }
+  // The scale's notes: major, or harmonic minor (its raised seventh is what minor tunes lean on).
+  const SCALE = { major: [0, 2, 4, 5, 7, 9, 11], minor: [0, 2, 3, 5, 7, 8, 11] };
+  // A third under a melody note, in the key, or null for a note outside the scale.
+  function thirdBelow(midi, key) {
+    const scale = SCALE[key.minor ? "minor" : "major"];
+    const rel = (((midi - key.tonic) % 12) + 12) % 12;
+    const deg = scale.indexOf(rel);
+    if (deg < 0) return null;
+    const down = (deg - 2 + 7) % 7;
+    const step = (scale[deg] - scale[down] + 12) % 12;
+    return midi - step;
+  }
+  const HARMONY_MIN_S = 0.2; // shorter melody notes get no harmony, so fast runs stay clean
+
+  // The drums for one step of a section: g is the step counted from the first downbeat. Kick and
+  // snare on the beats (1 and 3 / 2 and 4; in three, kick on 1 and hi-hats on 2 and 3), hi-hats on
+  // the half beats.
+  function drumsAt(song, g) {
+    const perBar = song.beat * song.bar;
+    const inBar = ((g % perBar) + perBar) % perBar;
+    const out = [];
+    if (inBar % song.beat === 0) {
+      const b = inBar / song.beat;
+      if (song.bar === 3) out.push(b === 0 ? "kick" : "hat");
+      else if (song.bar === 2) out.push(b === 0 ? "kick" : "snare");
+      else out.push(b % 2 === 0 ? "kick" : "snare");
+    } else if (song.beat % 2 === 0 && inBar % song.beat === song.beat / 2) out.push("hat");
+    return out;
+  }
+
   function build(song) {
     const notes = [];
     const beats = [];
+    const drums = []; // { t, kind: "kick" | "snare" | "hat" }
     const sungWords = []; // { t (seconds), w, tol }: when each sung word starts
     const perBar = song.beat * song.bar;
     const mod = (a, n) => ((a % n) + n) % n;
@@ -229,6 +286,13 @@ Singing bird and flowing fountain call us to rejoice in thee.`;
           if (x && x.first && x.word.length >= 2 && /^[a-z]+$/.test(x.word)) sungWords.push({ t: t + voices[0].notes[k].s * dt, w: x.word, tol: 0.12 });
         });
       }
+      // the drums: through every section, but only a last kick on the final one
+      const last = sectionIndex === song.sections.length - 1;
+      for (let i = 0; i < len; i++) {
+        const g = step + i - song.pickup;
+        if (g < 0 || (last && i > 0)) continue;
+        for (const kind of last ? ["kick"] : drumsAt(song, g)) drums.push({ t: t + i * dt, kind });
+      }
       for (let i = 0; i < len; i++) {
         const g = step + i - song.pickup;
         if (mod(g, song.beat)) continue;
@@ -237,8 +301,14 @@ Singing bird and flowing fountain call us to rejoice in thee.`;
       step += len;
       t += len * dt;
     }
-    notes.sort((a, b) => a.t - b.t);
-    return { ...song, notes, beats, sungWords, duration: t };
+    // the harmony: a third under each melody note long enough to carry one, in the song's key
+    const key = song.key || keyOf(notes);
+    for (const n of notes.filter((x) => x.voice === 0 && x.d >= HARMONY_MIN_S)) {
+      const midi = thirdBelow(n.midi, key);
+      if (midi != null) notes.push({ t: n.t, d: n.d, midi, voice: 2 });
+    }
+    notes.sort((a, b) => a.t - b.t || a.voice - b.voice);
+    return { ...song, notes, beats, drums, key, sungWords, duration: t };
   }
 
   const cache = new Map();
@@ -254,6 +324,8 @@ Singing bird and flowing fountain call us to rejoice in thee.`;
     },
     build,
     parse,
+    keyOf,
+    thirdBelow,
     register: (song) => added.set(song.id, song),
     unregister: (id) => added.delete(id),
   };
