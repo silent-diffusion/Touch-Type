@@ -45,6 +45,9 @@ html.scope[data-theme] {
 }
 canvas.scope { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 0; pointer-events: none; opacity: 0; transition: opacity 0.8s; }
 canvas.scope.on { opacity: 1; }
+/* at ×2 the line is drawn inside the folder: over its background, under everything in it */
+canvas.scope.in-folder { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: inherit; }
+.folder > canvas.scope.in-folder ~ * { position: relative; z-index: 1; }
 html.scope .tl-hw { background: color-mix(in srgb, var(--ground) 25%, transparent); }
 html.scope .tl-box { background: color-mix(in srgb, var(--ground) 60%, transparent); }
 

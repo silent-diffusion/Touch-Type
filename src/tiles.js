@@ -587,15 +587,29 @@
       document.body.appendChild(canvas);
       ctx = canvas.getContext("2d");
     }
+    // Where the line is drawn. At ×2 it's inside the folder, between the folder's own background and
+    // everything in it, so it shows without the UI going see-through. At ×3 it covers the whole
+    // window, behind the see-through folder. (No folder, as in tests: always the whole window.)
+    function place() {
+      const folder = !dark && on && document.getElementById("folder");
+      const host = folder || document.body;
+      canvas.classList.toggle("in-folder", !!folder);
+      if (canvas.parentNode !== host) {
+        if (folder) folder.prepend(canvas);
+        else document.body.appendChild(canvas);
+      }
+    }
     function setOn(yes) {
       on = yes;
       setup();
       canvas.classList.toggle("on", yes);
       if (!yes) setDark(false);
+      place();
     }
     function setDark(yes) {
       dark = yes;
       document.documentElement.classList.toggle("scope", yes);
+      if (canvas) place();
     }
 
     // The point at distance d along a rectangle's edge (clockwise from the top left), and the way out.
@@ -612,7 +626,9 @@
 
     function draw(tap, area, shrink, calm) {
       const dpr = window.devicePixelRatio || 1;
-      const W = window.innerWidth, H = window.innerHeight;
+      // the canvas covers the folder (×2) or the window (×3); the area is in window coordinates
+      const box = canvas.classList.contains("in-folder") ? canvas.parentNode.getBoundingClientRect() : { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
+      const W = box.width, H = box.height;
       if (canvas.width !== Math.round(W * dpr) || canvas.height !== Math.round(H * dpr)) {
         canvas.width = Math.round(W * dpr);
         canvas.height = Math.round(H * dpr);
@@ -625,7 +641,7 @@
         ctx.fillRect(0, 0, W, H);
       } else ctx.clearRect(0, 0, W, H);
       if (!area) return;
-      const r = { x0: area.left - OUTLINE_GAP, y0: area.top - OUTLINE_GAP, x1: area.right + OUTLINE_GAP, y1: area.bottom + OUTLINE_GAP };
+      const r = { x0: area.left - box.left - OUTLINE_GAP, y0: area.top - box.top - OUTLINE_GAP, x1: area.right - box.left + OUTLINE_GAP, y1: area.bottom - box.top + OUTLINE_GAP };
       // what's playing, left and right mixed, over the last ~40 ms; auto gain, slow to fall
       const len = tap.left.fftSize;
       if (!bufL || bufL.length !== len) { bufL = new Float32Array(len); bufR = new Float32Array(len); }
