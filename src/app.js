@@ -380,14 +380,42 @@
 
   const tabNum = (id) => MAIN_TABS.findIndex(([t]) => t === id) + 1;
 
-  // The curves where an open tab's sides flow into its folder's outline.
-  const FLARE = (side) => `<svg class="flare ${side}" viewBox="0 0 16 14" aria-hidden="true"><path class="ff" d="M0 12C8 12 15 7 15 0H16V14H0Z"/><path class="fl" d="M0 13C8 13 15 7 15 0"/></svg>`;
+  // The open tab is drawn as one shape whose outline runs on, unbroken, into its folder's outline:
+  // a curve out of the folder's edge, a slanted side, rounded top corners, the other side, a curve back.
   const tabButton = (on, act, num, label) =>
-    `<button class="ftab ${on ? "on" : ""}" data-act="${act}"${on ? ' aria-current="page"' : ""}><span class="n">${num}</span>${label}${on ? FLARE("l") + FLARE("r") : ""}</button>`;
+    `<button class="ftab ${on ? "on" : ""}" data-act="${act}"${on ? ' aria-current="page"' : ""}><span class="n">${num}</span>${label}${on
+      ? '<svg class="tabshape" aria-hidden="true"><path class="ff"/><path class="fl"/></svg>' : ""}</button>`;
+
+  const FLARE = 12, CORNER = 12, SLANT = 8; // px: the curve into the folder, top corners, how far the sides lean in
+  function shapeTab(btn) {
+    const svg = btn.querySelector(".tabshape");
+    if (!svg) return;
+    const w = btn.offsetWidth, h = btn.offsetHeight;
+    if (!w || !h) return; // not laid out yet; the size watcher shapes it once it is
+    const y = h - 1; // the middle of the folder's outline, which the tab's foot overlaps
+    const lean = (SLANT * FLARE) / h; // how far the side has leaned in at the top of the curve
+    const L = FLARE, R = FLARE + w; // the tab's left and right edges in the drawing
+    const outline = `M0 ${y} Q${L} ${y} ${L + lean} ${y - FLARE} L${L + SLANT} ${CORNER} Q${L + SLANT} 1 ${L + SLANT + CORNER} 1 ` +
+      `L${R - SLANT - CORNER} 1 Q${R - SLANT} 1 ${R - SLANT} ${CORNER} L${R - lean} ${y - FLARE} Q${R} ${y} ${R + FLARE} ${y}`;
+    svg.setAttribute("width", w + 2 * FLARE);
+    svg.setAttribute("height", h);
+    svg.setAttribute("viewBox", `0 0 ${w + 2 * FLARE} ${h}`);
+    svg.querySelector(".fl").setAttribute("d", outline);
+    svg.querySelector(".ff").setAttribute("d", `${outline} L${R + FLARE} ${h} L0 ${h} Z`);
+  }
+  // Reshape the open tabs whenever they change size (a tab grows under the cursor).
+  const tabSizes = new ResizeObserver((entries) => entries.forEach((e) => shapeTab(e.target)));
+  function shapeTabs(nav) {
+    for (const btn of nav.querySelectorAll(".ftab.on")) {
+      shapeTab(btn);
+      tabSizes.observe(btn);
+    }
+  }
 
   function renderTabs(view) {
     const main = tabFor(view);
     els.tabs.innerHTML = MAIN_TABS.map(([id, label, act], i) => tabButton(id === main, act, `0${i + 1}`, label)).join("");
+    shapeTabs(els.tabs);
     if (main === "games") setSubtabs(GAME_TABS, gameTabFor(view), main);
     else if (!FOLDER_VIEWS.includes(view)) setSubtabs(null);
   }
@@ -399,6 +427,7 @@
     if (!tabs) return (els.subtabs.innerHTML = "");
     const n = tabNum(main);
     els.subtabs.innerHTML = tabs.map(([id, label, act], i) => tabButton(id === current, act, `0${n}.${i + 1}`, label)).join("");
+    shapeTabs(els.subtabs);
   }
 
   function show(view) {

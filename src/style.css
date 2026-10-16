@@ -1085,28 +1085,25 @@ body:not(.typing) .caret.caret-block { animation-name: blink-block; }
 .ftab:hover, .ftab:focus-visible { height: 54px; outline: none; }
 .ftab:focus-visible::before { border-color: var(--accent); }
 
-/* The open tab is part of its folder: it covers the folder's outline where they meet, and its
-   sides curve out into that outline (the two .flare drawings at its feet). */
+/* The open tab is part of its folder: one drawing (.tabshape, shaped in app.js) covers the folder's
+   outline where they meet, and its own outline curves out of the folder's edge and back into it. */
 .ftab.on { z-index: 2; color: var(--ink); }
-.ftab.on::before { inset: 0 0 -2px 0; background: var(--fill, var(--ground)); box-shadow: none; }
+.ftab.on::before { display: none; }
 .ftab.on .n { color: var(--ink); }
-.flare { position: absolute; bottom: 0; width: 16px; height: 14px; pointer-events: none; overflow: visible; }
-.flare.l { left: -14px; }
-.flare.r { right: -14px; transform: scaleX(-1); }
-.flare .ff { fill: var(--fill, var(--ground)); }
-.flare .fl { fill: none; stroke: var(--ink); stroke-width: 2; }
+.tabshape { position: absolute; left: -12px; bottom: 0; z-index: -1; overflow: visible; pointer-events: none; }
+.tabshape .ff { fill: var(--ground); }
+.tabshape .fl { fill: none; stroke: var(--ink); stroke-width: 2; stroke-linejoin: round; }
 
-/* A section with its own menu is an open parent folder: shaded, outlined all the way round, with the
+/* A section with its own menu is an open parent folder: outlined all the way round, with the
    second row of tabs and the window inside it. The window sits a little in from the parent's
    edges, so the parent's outline stays visible behind it. */
 .folder-stack { flex: 1; display: flex; flex-direction: column; position: relative; }
 #app.has-sub .folder-stack {
-  background: var(--tab-back);
+  background: var(--ground);
   border: var(--rule);
   border-radius: 16px;
   padding: 0 14px 14px;
 }
-#app.has-sub #tabs .ftab.on { --fill: var(--tab-back); }
 .ftabs.sub { padding-left: 58px; margin-top: -16px; z-index: 3; }
 .ftabs.sub .ftab { height: 40px; padding: 0 28px; font-size: 13px; }
 .ftabs.sub .ftab:hover, .ftabs.sub .ftab:focus-visible { height: 48px; }
@@ -1133,8 +1130,8 @@ body:not(.typing) .caret.caret-block { animation-name: blink-block; }
 html.scope[data-theme] { --desk: #1c1b18; --tab-back: #24231f; --shade: rgba(0, 0, 0, 0.7); }
 html.scope, html.scope body { background: var(--desk); }
 html.scope .folder { background: color-mix(in srgb, var(--ground) 30%, transparent); }
-html.scope #app.has-sub .folder-stack, html.scope .ftab::before { background: color-mix(in srgb, var(--tab-back) 50%, transparent); }
-html.scope .ftab.on::before { background: color-mix(in srgb, var(--fill, var(--ground)) 30%, transparent); }
+html.scope .ftab::before { background: color-mix(in srgb, var(--tab-back) 50%, transparent); }
+html.scope #app.has-sub .folder-stack { background: color-mix(in srgb, var(--ground) 20%, transparent); }
 /* at ×4 the storm takes the whole window: the folders all but vanish (the play area keeps its own tint) */
 html.scope-storm .folder { background: color-mix(in srgb, var(--ground) 8%, transparent); transition: background 0.8s; }
 html.scope-storm #app.has-sub .folder-stack, html.scope-storm .ftab::before { background: color-mix(in srgb, var(--tab-back) 20%, transparent); }
