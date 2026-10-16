@@ -785,6 +785,11 @@
   // all out, and it fades away.
   const SCOPE_START = 10, SCOPE_AT = 25, SCOPE_FULL = 50, COLLAPSE_MS = 450;
   const SPARKS_MAX = 900; // the most sparks in the storm at once
+  // From ×3 the line's colour goes round the colour wheel, HUE_SPEED degrees a second (a new colour
+  // about every five seconds), starting from the orange it always had. The sparks are always its
+  // complement, 180 degrees round. The storm's swirl turns the other way now and then: on a
+  // downbeat, every FLIP_MS to twice that, easing round over about a second.
+  const HUE_START = 16, HUE_SPEED = 12, FLIP_MS = 6000;
   const SCOPE_LOWPASS = 1200, SCOPE_SETTLE = 128, SCOPE_MATCH = 128; // Hz the trace is smoothed to; samples the filter needs to settle; points compared to hold the trace still
   const SWING_START = 5, SWING_AT = 60; // px the line swings out: at the start of ×2, and by ×3
   const OUTLINE_GAP = 10; // px between the playable area and the line at rest
@@ -795,6 +800,8 @@
     let on = false, dark = false, level = 0, loud = 0.05, mono = null, last = null, collapseAt = null;
     // the storm: 0 to 1 as ×4 comes in; each spark is { x, y, vx, vy, life, max, size, hot }
     let storm = 0, sparks = [], lastBeat = null, lastNow = 0;
+    // the line's hue (from when ×3 began), and the swirl: 1 clockwise, -1 the other way
+    let hue = HUE_START, hueFrom = null, spin = 1, spinTo = 1, flipAt = 0;
 
     function setup() {
       if (canvas) return;
@@ -831,7 +838,7 @@
     }
     function setStorm(yes) {
       document.documentElement.classList.toggle("scope-storm", yes);
-      if (!yes) { sparks = []; storm = 0; lastBeat = null; }
+      if (!yes) { sparks = []; storm = 0; lastBeat = null; flipAt = 0; }
     }
 
     // A burst of sparks from the outline, thrown outward with a swirl round the play area: more on a
@@ -839,22 +846,30 @@
     function burst(r, perim, count, speed) {
       for (let k = 0; k < count && sparks.length < SPARKS_MAX; k++) {
         const [x, y, nx, ny] = edgePoint(r, Math.random() * perim);
-        const out = speed * (0.4 + Math.random() * 0.9), swirl = speed * (0.3 + Math.random() * 0.5);
-        // clockwise round the play area: the edge's way along is the way out turned a quarter
+        const out = speed * (0.4 + Math.random() * 0.9), swirl = spin * speed * (0.3 + Math.random() * 0.5);
+        // round the play area (clockwise for spin 1): the edge's way along is the way out turned a quarter
         sparks.push({ x, y, vx: nx * out - ny * swirl, vy: ny * out + nx * swirl, life: 0, max: 0.9 + Math.random() * 1.4, size: 1.6 + Math.random() * 2.6, hot: Math.random() < 0.3 });
       }
     }
-    function drawStorm(r, W, H, perim, beat, dt, shrink) {
+    function drawStorm(r, W, H, perim, beat, dt, shrink, now) {
       const cx = (r.x0 + r.x1) / 2, cy = (r.y0 + r.y1) / 2;
       if (beat && beat.t !== lastBeat && collapseAt == null) {
         lastBeat = beat.t;
+        // now and then, on a downbeat, the swirl turns the other way
+        if (!flipAt) flipAt = now + FLIP_MS * (1 + Math.random());
+        if (beat.down && now >= flipAt) {
+          spinTo = -spinTo;
+          flipAt = now + FLIP_MS * (1 + Math.random());
+        }
         const strong = beat.down ? 1 : 0.35 + 0.65 * (beat.w == null ? 0.5 : beat.w);
         burst(r, perim, Math.round((50 + 110 * strong) * storm), 260 + 260 * strong);
       }
       // a steady drizzle between beats
       if (collapseAt == null) burst(r, perim, Math.round(storm * 90 * dt), 160);
+      spin += (spinTo - spin) * Math.min(1, dt * 3);
       // each beat flashes the sparks bright, then they cool
       const glow = beat ? Math.max(0, 1 - beat.since / 260) : 0;
+      const comp = (hue + 180) % 360;
       ctx.globalCompositeOperation = "lighter";
       const keep = [];
       for (const p of sparks) {
@@ -862,8 +877,8 @@
         if (p.life >= p.max) continue;
         // drag, and a gentle pull that keeps the swirl going round the play area
         const dx = p.x - cx, dy = p.y - cy, dist = Math.hypot(dx, dy) || 1;
-        p.vx += (-dy / dist) * 90 * dt;
-        p.vy += (dx / dist) * 90 * dt;
+        p.vx += spin * (-dy / dist) * 90 * dt;
+        p.vy += spin * (dx / dist) * 90 * dt;
         p.vx *= 1 - 0.9 * dt;
         p.vy *= 1 - 0.9 * dt;
         const ox = p.x, oy = p.y;
@@ -873,7 +888,8 @@
         keep.push(p);
         const fade = (1 - p.life / p.max) * shrink;
         const a = Math.min(1, (0.5 + 0.5 * glow) * fade);
-        ctx.strokeStyle = p.hot ? `rgba(220,246,250,${a.toFixed(3)})` : `rgba(86,196,212,${a.toFixed(3)})`; // ice blue, against the warm line
+        // the line's complement: a bright tint for the hot ones
+        ctx.strokeStyle = p.hot ? `hsla(${comp.toFixed(1)},85%,90%,${a.toFixed(3)})` : `hsla(${comp.toFixed(1)},60%,60%,${a.toFixed(3)})`;
         ctx.lineWidth = p.size * (1 + 0.6 * glow);
         ctx.beginPath();
         ctx.moveTo(ox, oy);
@@ -896,7 +912,7 @@
       return [r.x0, r.y1 - d, -1, 0];
     }
 
-    function draw(tap, area, shrink, calm, beat, dt) {
+    function draw(tap, area, shrink, calm, beat, dt, now) {
       const dpr = window.devicePixelRatio || 1;
       // the canvas covers the folder (×2) or the window (×3); the area is in window coordinates
       const box = canvas.classList.contains("in-folder") ? canvas.parentNode.getBoundingClientRect() : { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
@@ -924,7 +940,7 @@
       if (storm > 0 && beat && !calm) {
         const pulse = Math.max(0, 1 - beat.since / 220) * storm * shrink * (beat.down ? 0.16 : 0.09);
         if (pulse > 0.005) {
-          ctx.fillStyle = `rgba(224,118,79,${pulse.toFixed(3)})`;
+          ctx.fillStyle = `hsla(${hue.toFixed(1)},70%,60%,${pulse.toFixed(3)})`;
           ctx.fillRect(0, 0, W, H);
         }
       }
@@ -987,10 +1003,10 @@
       ctx.closePath();
       if (dark) {
         ctx.globalCompositeOperation = "lighter";
-        ctx.strokeStyle = `rgba(224,118,79,${(0.4 + 0.15 * high).toFixed(3)})`;
+        ctx.strokeStyle = `hsla(${hue.toFixed(1)},70%,60%,${(0.4 + 0.15 * high).toFixed(3)})`;
         ctx.lineWidth = 7 + 3 * high;
         ctx.stroke();
-        ctx.strokeStyle = "rgba(250,232,205,0.85)";
+        ctx.strokeStyle = `hsla(${hue.toFixed(1)},80%,90%,0.85)`;
         ctx.lineWidth = 1.8 + 0.4 * high;
         ctx.stroke();
         ctx.globalCompositeOperation = "source-over";
@@ -1001,7 +1017,7 @@
         ctx.stroke();
         ctx.globalAlpha = 1;
       }
-      if ((storm > 0 || sparks.length) && !calm) drawStorm(r, W, H, perim, beat, dt, shrink);
+      if ((storm > 0 || sparks.length) && !calm) drawStorm(r, W, H, perim, beat, dt, shrink, now);
       ctx.restore();
     }
 
@@ -1033,7 +1049,11 @@
         const shrink = collapseAt == null ? 1 : Math.max(0, 1 - (now - collapseAt) / COLLAPSE_MS);
         // with reduced motion asked for, the outline stays still
         const calm = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
-        draw(tap, area, shrink, calm, beat, dt);
+        // the line's colour turns round the wheel from when ×3 began
+        if (dark && hueFrom == null) hueFrom = now;
+        if (!dark) hueFrom = null;
+        hue = hueFrom == null ? HUE_START : (HUE_START + ((now - hueFrom) / 1000) * HUE_SPEED) % 360;
+        draw(tap, area, shrink, calm, beat, dt, now);
       },
       off() {
         if (on) setOn(false);
@@ -1041,6 +1061,7 @@
         lastNow = 0;
       },
       sparks: () => sparks.length, // for tests
+      colours: () => ({ hue, spark: (hue + 180) % 360, spin: spinTo }), // for tests
     };
   }
 
