@@ -801,6 +801,7 @@
     else if (sungCount) lyricLine = `The lyrics are timed: ${sungCount === words ? `all ${words} tiles fall` : `${sungCount} of the ${words} tiles fall`} as a word is sung, and get that word when it fits the difficulty. ${sungCount === words ? "Words that don't fit are" : "The rest are"} practice words.`;
     else if (lyricCount) lyricLine = `Most of the words come from the song's lyrics (${lyricCount} different words).` +
       (song.user ? " Time them with TIME LYRICS, or paste LRC lyrics with times, and each word lands on the tile where it's sung." : "");
+    else if (s.tilesLyrics && C.titleWords(song.title).length) lyricLine = "A few of the words come from the title." + (song.user ? " Add lyrics with LYRICS and most of them will come from the song." : "");
     else if (song.user) lyricLine = "No lyrics yet. Add them with LYRICS and most of the words will come from the song.";
     if (lyricLine) lyricLine = `<p class="note">${lyricLine}</p>`;
     const rows = C.DIFF_IDS.map((id) => {

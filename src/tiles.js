@@ -50,6 +50,10 @@
   const GRADE_NAMES = { P: "PERFECT", G: "GREAT", O: "GOOD", S: "SLOPPY", M: "MISS", E: "TOO EARLY", X: "WRONG COLUMN", Q: "LOCKED IN" };
   const LEAD_MS = 1200; // quiet time before the first tile shows up
   const LYRIC_SHARE = 0.6; // for a song with untimed lyrics, about this share of words come from them
+  const TITLE_SHARE = 0.12; // without lyrics, about this share of words come from the title, when one fits
+  // The words of a song's title, leaving out what file names tend to carry.
+  const TITLE_SKIP = new Set(["official", "video", "audio", "lyric", "lyrics", "remastered", "remaster", "feat", "version", "explicit", "music", "full", "song", "track", "the", "and", "for", "from", "with"]);
+  const titleWords = (title) => (TT.lyrics ? TT.lyrics.words(title || "").filter((w) => w.length >= 3 && !TITLE_SKIP.has(w)) : []);
   const SUNG_EXTRA = 2;    // a sung word may be this many letters longer than its tile's plan allows
   // The word-length plan (planLengths): time to read a word before typing it, how much unused time
   // queue mode carries on (you can type ahead), the most letters a tile can get while an earlier
@@ -639,7 +643,7 @@
 
   TT.tilesCore = {
     DIFFS, DIFF_IDS, WIN, RULES, GRADE_NAMES, QUEUE_SPEED, modeDiff, nextUp, planLengths, LONG_WORDS, MULT_AT, level, multOf, toNext,
-    chart, columns, sungWords, newCore, dealWords, coreFor, applyKey, advance, gameStats, target, column, attribute, recorded, multiplier, letterGrade,
+    chart, columns, sungWords, titleWords, audioReady, newCore, dealWords, coreFor, applyKey, advance, gameStats, target, column, attribute, recorded, multiplier, letterGrade,
   };
 
   // ---------- sound ----------
@@ -651,6 +655,22 @@
     if (!audioCtx) audioCtx = new AC({ latencyHint: "interactive" });
     if (audioCtx.state === "suspended") audioCtx.resume();
     return audioCtx;
+  }
+
+  // Waits until the audio clock is really running (it's moved on), at most `wait` ms. The round's
+  // clock mustn't start before it: anything scheduled while the audio device is still waking (which
+  // can take a moment, more so on Bluetooth) plays late, and the music then jumps to catch up.
+  function audioReady(ctx, wait = 2000) {
+    return new Promise((resolve) => {
+      if (!ctx) return resolve();
+      if (ctx.state !== "running") ctx.resume().catch(() => {});
+      const t0 = performance.now(), c0 = ctx.currentTime;
+      const check = () => {
+        if ((ctx.state === "running" && ctx.currentTime > c0) || performance.now() - t0 > wait) resolve();
+        else setTimeout(check, 10);
+      };
+      check();
+    });
   }
 
   function tone(ctx, bus, n, at) {
@@ -699,6 +719,8 @@
     o.stop(at + 0.05);
   }
 
+  const RESYNC_S = 0.08; // how far an added song's audio may drift from the game before it's lined up again
+
   // Plays a song in step with the game clock. startPerf: performance.now() time of song time 0.
   // Notes are scheduled a little ahead on the audio clock, and started early by the output
   // latency so they're heard right when the tiles reach the line.
@@ -728,7 +750,7 @@
     let ci = 0;
     let sync = null;
     let stopped = false;
-    let source = null;
+    let source = null, sourceZero = 0;
     return {
       tap,
       pump() {
@@ -739,6 +761,12 @@
         const lat = ctx.outputLatency || ctx.baseLatency || 0;
         const zero = startPerf / 1000 + sync - lat; // song time 0 on the audio clock
         const horizon = ctx.currentTime + 0.3;
+        // if the audio clock and the game's have drifted apart (the audio stalled, say), the file
+        // starts again from where the game is, rather than playing on out of step
+        if (source && Math.abs(zero - sourceZero) > RESYNC_S) {
+          try { source.stop(); } catch {}
+          source = null;
+        }
         if (music && song.buffer && !source && zero < horizon) {
           // an added song: the whole file, started so its time 0 lines up with the game
           source = ctx.createBufferSource();
@@ -748,6 +776,7 @@
           source.connect(gain).connect(bus);
           const late = Math.max(0, ctx.currentTime - zero);
           source.start(Math.max(zero, ctx.currentTime), late);
+          sourceZero = zero;
         }
         if (music) {
           for (; ni < song.notes.length && zero + song.notes[ni].t < horizon; ni++) {
@@ -1177,7 +1206,9 @@
         return sungNow;
       }
       // Lyrics without times: most words come from the song itself, when one fits.
-      const sung = live.lyricWords.length && Math.random() < LYRIC_SHARE ? live.lyricWords.filter(ok) : [];
+      let sung = live.lyricWords.length && Math.random() < LYRIC_SHARE ? live.lyricWords.filter(ok) : [];
+      // no lyrics: now and then a word from the title
+      if (!sung.length && live.titleWords.length && Math.random() < TITLE_SHARE) sung = live.titleWords.filter(ok);
       let pool = sung;
       if (!sung.length) {
         if (live.pool.filter(ok).length < 5) live.pool = A.practiceWords(80, live.targets, live.missed, TT.store.settings.mix);
@@ -1459,10 +1490,19 @@
         // with timed lyrics, sung words go on the tiles where they're sung and the rest are
         // practice words; with untimed lyrics, most words are drawn from them at random
         sungFor: sound.lyrics !== false ? sungWords(song, diff, queue) : [],
-        lyricWords: [],
+        lyricWords: [], titleWords: [],
         targets: A.weakKeys(), missed: A.weakWords(20),
       };
       if (sound.lyrics !== false && !live.sungFor.some(Boolean) && TT.lyrics) live.lyricWords = TT.lyrics.words(song.lyrics);
+      // A few words come from the song's title. With lyrics they're just more lyric words; without,
+      // they're dealt now and then (TITLE_SHARE), since a title has only a handful.
+      if (sound.lyrics !== false && TT.lyrics) {
+        const title = titleWords(song.title);
+        if (live.lyricWords.length) live.lyricWords = [...new Set([...live.lyricWords, ...title])];
+        else live.titleWords = title;
+      }
+      // wake the audio now, while the click that opened the round still counts
+      if (sound.music || sound.metronome) getAudio();
       const lanes = columns(song, diff, queue);
       live.plan = planLengths(hits, lanes, diff, queue, D.fall);
       g = newCore({ hits, fall: D.fall, endT, diff, lanes, cols: D.cols, queue });
@@ -1485,11 +1525,17 @@
       render();
     }
 
-    function start() {
-      live.state = "running";
-      live.startedAt = performance.now();
-      live.player = createPlayer({ song, startPerf: live.startedAt + live.offset, ...live.sound });
-      live.player.pump();
+    // The round starts once the audio is running, so the music is in step from the first note.
+    async function start() {
+      const round = live;
+      round.state = "starting";
+      const s = round.sound;
+      await audioReady(s.music || s.metronome ? getAudio() : null);
+      if (live !== round || round.state !== "starting") return; // left or restarted meanwhile
+      round.state = "running";
+      round.startedAt = performance.now();
+      round.player = createPlayer({ song, startPerf: round.startedAt + round.offset, ...round.sound });
+      round.player.pump();
       el.over.hidden = true;
       onStart && onStart();
       raf = requestAnimationFrame(frame);
@@ -1526,8 +1572,13 @@
       el.over.hidden = false;
     }
 
-    function resume() {
+    async function resume() {
       if (!live || live.state !== "paused") return;
+      const round = live;
+      round.state = "starting";
+      const s = round.sound;
+      await audioReady(s.music || s.metronome ? getAudio() : null);
+      if (live !== round || round.state !== "starting") return;
       live.startedAt += performance.now() - live.pausedAt;
       live.state = "running";
       live.player = createPlayer({ song, startPerf: live.startedAt + live.offset, ...live.sound });
@@ -1537,7 +1588,7 @@
     }
 
     function handleKey(e) {
-      if (!live || live.state === "over" || live.state === "stopped" || live.state === "paused") return;
+      if (!live || live.state === "over" || live.state === "stopped" || live.state === "paused" || live.state === "starting") return;
       let k;
       if (e.key === "Backspace") k = e.ctrlKey || e.altKey ? BACK_WORD : BACK;
       else if (e.ctrlKey || e.altKey || e.metaKey) return;
