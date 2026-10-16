@@ -27,7 +27,22 @@ function createWindow() {
   });
 
   win.loadFile(path.join(__dirname, "..", "src", "index.html"));
-  win.once("ready-to-show", () => win.show());
+  // Opens full screen, with no title bar. Leaving full screen (Esc on a main screen, or F11) goes back
+  // to a maximized window with the taskbar showing.
+  win.once("ready-to-show", () => {
+    win.show(); // full screen only takes the whole screen once the window is showing
+    win.maximize();
+    win.setFullScreen(true);
+  });
+  // Tell the page whether it's in full screen. Windows doesn't always send the full screen events for
+  // the switch made while opening, so the state is also sent on every resize and once after opening.
+  const sendFullScreen = () => {
+    if (!win.isDestroyed()) win.webContents.send("fullscreen", win.isFullScreen());
+  };
+  win.on("enter-full-screen", sendFullScreen);
+  win.on("leave-full-screen", sendFullScreen);
+  win.on("resize", sendFullScreen);
+  win.webContents.on("did-finish-load", () => setTimeout(sendFullScreen, 600));
 
   // The app has no external links today; if one is added, open it in the default browser.
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -131,6 +146,10 @@ if (!app.requestSingleInstanceLock()) {
 
   Menu.setApplicationMenu(null);
   ipcMain.handle("app-version", () => app.getVersion());
+  // Window controls for the page: full screen hides the title bar, so the page offers its own close button.
+  ipcMain.handle("window-is-fullscreen", () => !!win && win.isFullScreen());
+  ipcMain.handle("window-set-fullscreen", (_e, on) => win && win.setFullScreen(!!on));
+  ipcMain.handle("window-close", () => win && win.close());
   setUpUpdates();
   app.whenReady().then(createWindow);
   app.on("window-all-closed", () => app.quit());

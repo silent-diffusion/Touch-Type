@@ -3,6 +3,12 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("touchType", {
   getVersion: () => ipcRenderer.invoke("app-version"),
+  window: {
+    isFullScreen: () => ipcRenderer.invoke("window-is-fullscreen"),
+    setFullScreen: (on) => ipcRenderer.invoke("window-set-fullscreen", !!on),
+    close: () => ipcRenderer.invoke("window-close"),
+    onFullScreen: (cb) => ipcRenderer.on("fullscreen", (_e, on) => cb(on)),
+  },
   update: {
     getState: () => ipcRenderer.invoke("update-get"),
     check: () => ipcRenderer.invoke("update-check"),

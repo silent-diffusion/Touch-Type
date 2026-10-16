@@ -11,6 +11,13 @@
 <body>
   <div id="app">
 
+    <!-- Full screen has no title bar: this close button shows when the mouse reaches the top edge. -->
+    <div id="fs-bar" class="fs-bar" hidden>
+      <button data-act="window:close" aria-label="Close Touch Type" title="Close">
+        <svg aria-hidden="true" width="12" height="12" viewBox="0 0 12 12"><path d="M1 1l10 10M11 1L1 11" stroke="currentColor" stroke-width="1.6" fill="none"/></svg>
+      </button>
+    </div>
+
     <!-- Brand and profile, above the folder tabs -->
     <header class="topline">
       <span class="brand">TOUCH TYPE</span>

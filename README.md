@@ -32,7 +32,7 @@ Your data stays on your computer.
 |---|---|
 | Tab | Restart the test or game |
 | Tab / Enter | Start the next round from the results screen |
-| Esc | Open or close the menu |
+| Esc | Leave full screen on a main screen (Test, Practice, Games, Leaderboard, Stats, Settings); elsewhere, go back |
 | P | Practice weak keys (on the results and stats screens) |
 | Enter | Play the selected game |
 | Space / Enter | Jump in Forest Hop, once a direction's word is typed |
@@ -41,7 +41,7 @@ Your data stays on your computer.
 | ↑ ↓ / ← → / A / M / T | Choose a song and difficulty, add your own song, and turn music or the metronome on or off, in Tiles |
 | R | Replay the round (on the results and game-over screens) |
 | Space / ← → | Play or pause, and skip, in a replay |
-| F11 | Full screen |
+| F11 | Switch full screen on or off (the app opens full screen; move the mouse to the top edge for the close button) |
 
 ## Development
 

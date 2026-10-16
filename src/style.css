@@ -1183,3 +1183,19 @@ html.scope-storm .ftab.on::before { background: color-mix(in srgb, var(--fill, v
   .folder .tl { min-height: 400px; }
   .folder { padding-top: 16px; padding-bottom: 20px; }
 }
+
+/* ---------- full screen close button (desktop app) ---------- */
+
+.fs-bar { position: fixed; top: 0; right: 0; z-index: 100; display: flex; }
+.fs-bar button {
+  width: 52px;
+  height: 36px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ink);
+  color: var(--ground);
+  border-bottom-left-radius: 10px;
+}
+.fs-bar button:hover, .fs-bar button:focus-visible { background: #c42b1c; color: #ffffff; outline: none; }

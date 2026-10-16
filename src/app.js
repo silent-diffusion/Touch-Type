@@ -349,9 +349,38 @@
         [key, act === "restart" ? "PRACTICE AGAIN" : label, act]);
     }
     if (ui.view === "games" && selectedGame().playable) hints = [["ENTER", "PLAY", playAct(selectedGame().id)], ...hints];
+    // In full screen, Esc on a main screen leaves full screen.
+    if (ui.fullscreen && ROOT_VIEWS.includes(ui.view)) {
+      hints = hints.map(([key, label, act]) => (key === "ESC" ? [key, "EXIT FULL SCREEN", "window:windowed"] : [key, label, act]));
+    }
     els.hints.innerHTML = hints.map(([key, label, act]) => `<button data-act="${act}"><kbd>${key}</kbd>${label}</button>`).join("");
     els.statusLine.textContent = STATUS[ui.view];
   }
+
+  // ---------- full screen (desktop app) ----------
+
+  // The main screens, one per tab. Esc on one of these leaves full screen.
+  const ROOT_VIEWS = ["test", "practice", "games", "leaderboard", "stats", "settings"];
+  ui.fullscreen = false;
+
+  function setFullscreenState(on) {
+    ui.fullscreen = !!on;
+    document.documentElement.classList.toggle("fullscreen", ui.fullscreen);
+    if (!ui.fullscreen) $("fs-bar").hidden = true;
+    renderHints();
+  }
+
+  // Full screen has no title bar, so moving the mouse to the very top shows a close button,
+  // which hides again once the mouse moves away.
+  document.addEventListener("mousemove", (e) => {
+    if (!ui.fullscreen) return;
+    const bar = $("fs-bar");
+    if (e.clientY <= 4) bar.hidden = false;
+    else if (!bar.hidden && e.clientY > 56) bar.hidden = true;
+  });
+  document.documentElement.addEventListener("mouseleave", (e) => {
+    if (ui.fullscreen && e.clientY > 0) $("fs-bar").hidden = true;
+  });
 
   // ---------- folder tabs ----------
 
@@ -1823,6 +1852,11 @@
       case "gtab": ui.gamesTab = x; renderGames(); break;
       case "game": ui.game = x; renderGames(); break;
       case "set": setSetting(x, y); break;
+      case "window":
+        if (!window.touchType) break;
+        if (x === "close") window.touchType.window.close();
+        else if (x === "windowed") window.touchType.window.setFullScreen(false);
+        break;
       case "update":
         if (window.touchType && ["check", "download", "install"].includes(x)) window.touchType.update[x]();
         break;
@@ -1865,6 +1899,11 @@
     }
     const v = ui.view;
 
+    if (e.key === "Escape" && ui.fullscreen && ROOT_VIEWS.includes(v)) {
+      e.preventDefault();
+      act("window:windowed");
+      return;
+    }
     if (v === "replay") {
       const keys = { " ": "rp:toggle", ArrowLeft: "rp:skip:-2000", ArrowRight: "rp:skip:2000", Escape: "rp:back" };
       if (keys[e.key]) {
@@ -1975,6 +2014,8 @@
   TT.ui = { statusRows, keyTiles };
   // Only the desktop app provides window.touchType; in a plain browser there are no updates.
   if (window.touchType) {
+    window.touchType.window.isFullScreen().then(setFullscreenState);
+    window.touchType.window.onFullScreen(setFullscreenState);
     const refresh = () => {
       if (ui.view === "settings" && ui.settingsTab === "updates") renderSettings();
     };
