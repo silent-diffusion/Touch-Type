@@ -79,6 +79,7 @@
     lbTab: "forest",
     lbSong: null,
     lbDiff: null,
+    lbQueue: null,
     settingsTab: "appearance",
     gamesTab: "all",
     game: "forest",
@@ -126,6 +127,7 @@
     s.tilesMetronome = !!s.tilesMetronome;
     s.tilesScope = s.tilesScope !== false;
     s.tilesLyrics = s.tilesLyrics !== false;
+    s.tilesQueue = !!s.tilesQueue;
   }
 
   const isDark = () => S().theme === "night";
@@ -257,8 +259,8 @@
     return { best, isFirst: prior.length === 0 };
   }
 
-  const testName = (kind, mode, amount, game, title) =>
-    kind === "game" && game === "tiles" ? `tiles, ${(title || "song").toLowerCase()} (${mode})`
+  const testName = (kind, mode, amount, game, title, queue) =>
+    kind === "game" && game === "tiles" ? `tiles, ${(title || "song").toLowerCase()} (${mode}${queue ? ", queue" : ""})`
       : kind === "game" ? `${game === "forest" ? "forest hop" : "path runner"}, ${amount} steps` : `${kind === "practice" ? "practice" : mode} ${amount}`;
 
   function statusRows(rows) {
@@ -316,7 +318,7 @@
     "forest-select": [["← →", "CHOOSE", "fh:next"], ["ENTER", "PLAY", "fh:play"], ["H", "HOW TO PLAY", "fh:guide"], ["ESC", "MENU", "menu"]],
     "forest-guide": [["ENTER", "PLAY", "fh:play"], ["ESC", "BACK", "fh:select"]],
     tiles: [["ENTER / SPACE", "HIT", "noop"], ["TAB", "RESTART", "tl:play"], ["ESC", "PAUSE", "pause"]],
-    "tiles-select": [["↑ ↓", "SONG", "tl:next"], ["← →", "DIFFICULTY", "tl:harder"], ["ENTER", "PLAY", "tl:play"], ["A", "ADD A SONG", "tl:import"], ["M", "MUSIC", "tl:music"], ["T", "METRONOME", "tl:metronome"], ["ESC", "MENU", "menu"]],
+    "tiles-select": [["↑ ↓", "SONG", "tl:next"], ["← →", "DIFFICULTY", "tl:harder"], ["ENTER", "PLAY", "tl:play"], ["A", "ADD A SONG", "tl:import"], ["Q", "MODE", "tl:mode:toggle"], ["M", "MUSIC", "tl:music"], ["T", "METRONOME", "tl:metronome"], ["ESC", "MENU", "menu"]],
     replay: [["SPACE", "PLAY / PAUSE", "rp:toggle"], ["← →", "SKIP 2S", "rp:skip:2000"], ["ESC", "BACK", "rp:back"]],
     stats: [["P", "PRACTICE WEAK KEYS", "practice"], ["ESC", "CLOSE MENU", "close"]],
     leaderboard: [["ESC", "CLOSE MENU", "close"]],
@@ -708,7 +710,7 @@
   const tiles = TT.createTiles({
     root: $("view-tiles"),
     onStart() {
-      els.statusLine.textContent = "Type a column's word, then hit Enter as its tile crosses the line.";
+      els.statusLine.textContent = S().tilesQueue ? "Type the next tile's word and press Enter to lock it in." : "Type a column's word, then hit Enter as its tile crosses the line.";
     },
     onEnd(id) {
       ui.lastTilesId = id;
@@ -722,6 +724,12 @@
     hard: "Four columns and slightly longer words, a tile every couple of seconds.",
     expert: "Four columns and the longest words, a tile about every second, falling fastest.",
   };
+  const MODE_HINT = {
+    timed: "Press Enter as each tile crosses the line. Timing counts.",
+    queue: "Lock in the next tile's word with Enter and type on. Each tile takes its word at the line, so only typing counts, and tiles come twice as often.",
+  };
+  // a song's best at a difficulty, in timed or queue mode
+  const bestKey = (id, diff, queue) => `${id}:${diff}${queue ? ":queue" : ""}`;
   const tilesData = () => {
     const d = (TT.store.games.tiles ||= { best: 0, plays: 0, history: [], bestBy: {} });
     d.bestBy ||= {};
@@ -745,7 +753,7 @@
     const C = TT.tilesCore;
     const d = tilesData();
     const song = TT.songs.get(s.tilesSong) || TT.songs.get(TT.songs.list[0].id);
-    const best = (id, diff) => d.bestBy[`${id}:${diff}`];
+    const best = (id, diff) => d.bestBy[bestKey(id, diff, s.tilesQueue)];
     const item = (x) => {
       const b = best(x.id, s.tilesDiff);
       const on = x.id === song.id;
@@ -756,9 +764,9 @@
     const songs = TT.songs.list.map(item).join("") +
       `<li class="tl-group caps-label">YOUR MUSIC</li>` + mine.map(item).join("") +
       `<li><button class="tl-add" data-act="tl:import" ${ui.tlBusy ? "disabled" : ""}>+ ADD A SONG</button></li>`;
-    const words = C.chart(song, s.tilesDiff).length;
+    const words = C.chart(song, s.tilesDiff, s.tilesQueue).length;
     const lyricCount = TT.lyrics.words(song.lyrics).length;
-    const sungCount = (song.sungWords || []).length ? C.sungWords(song, s.tilesDiff).filter(Boolean).length : 0;
+    const sungCount = (song.sungWords || []).length ? C.sungWords(song, s.tilesDiff, s.tilesQueue).filter(Boolean).length : 0;
     let lyricLine = "";
     if (lyricCount && !s.tilesLyrics) lyricLine = "Lyrics are off, so the words are practice words.";
     else if (sungCount) lyricLine = `The lyrics are timed: ${sungCount === words ? `all ${words} tiles fall` : `${sungCount} of the ${words} tiles fall`} as a word is sung, and get that word when it fits the difficulty. ${sungCount === words ? "Words that don't fit are" : "The rest are"} practice words.`;
@@ -831,20 +839,30 @@
           <div class="side-label">Difficulty:</div>
           <div class="seg tl-diffs" aria-label="Difficulty">${C.DIFF_IDS.map((id) =>
             `<button class="${id === s.tilesDiff ? "on" : ""}" aria-pressed="${id === s.tilesDiff}" data-act="tl:diff:${id}">${C.DIFFS[id].name}</button>`).join("")}</div>
-          <p class="note">${DIFF_HINT[s.tilesDiff]} The music plays at the same speed on every difficulty.</p>
+          <p class="note">${DIFF_HINT[s.tilesDiff]}${s.tilesQueue ? " In queue mode the tiles come twice as often." : ""} The music plays at the same speed on every difficulty.</p>
           <button class="fh-play tl-play" data-act="tl:play">PLAY <kbd>ENTER</kbd></button>
         </section>`}
         <aside class="col-side">
+          <div class="rule-head">MODE</div>
+          <div class="seg tl-modes" aria-label="Mode">${[["timed", "TIMED"], ["queue", "QUEUE"]].map(([id, label]) => {
+            const on = (id === "queue") === s.tilesQueue;
+            return `<button class="${on ? "on" : ""}" aria-pressed="${on}" data-act="tl:mode:${id}">${label}</button>`;
+          }).join("")}</div>
+          <p class="note">${MODE_HINT[s.tilesQueue ? "queue" : "timed"]}</p>
           <div class="rule-head">SOUND</div>
           <div class="tl-toggles">${toggle("MUSIC", s.tilesMusic, "tl:music")}${toggle("METRONOME", s.tilesMetronome, "tl:metronome")}${toggle("SCOPE", s.tilesScope, "tl:scope")}${toggle("LYRICS", s.tilesLyrics, "tl:lyrics")}</div>
-          <div class="rule-head">YOUR BEST</div>
+          <div class="rule-head">YOUR BEST${s.tilesQueue ? " · QUEUE" : ""}</div>
           <dl class="status">${statusRows(rows)}</dl>
           <div class="side-label">How to play:</div>
-          <ol class="fh-rules">
+          <ol class="fh-rules">${s.tilesQueue ? `
+            <li>Each column has a word at the bottom. Tiles fall down the columns in time with the music, higher notes further right.</li>
+            <li>Type the word under the next tile's column (it has a dashed outline) and press <strong>Enter</strong> or <strong>Space</strong> to lock it in. That tile shows the word, the column gets a new one, and you type the next tile's word.</li>
+            <li>Each tile takes its word as it crosses the line, so there's no timing to worry about. A tile that reaches the line with no word is a miss. You can lock in a word once its tile has appeared.</li>
+            <li>Typos cost health and have to be backspaced. Lock in a mistyped or unfinished word anyway and it's a <strong>sloppy</strong> hit, worth the fewest points.</li>` : `
             <li>Each column has a word at the bottom. Tiles fall down the columns in time with the music, higher notes further right.</li>
             <li>Type a column's word, then press <strong>Enter</strong> or <strong>Space</strong> as that column's tile crosses the line. Its word then changes.</li>
             <li>Close to the line counts, and a little early gets more room than a little late. Enter on the wrong column counts as a mistake, but your typing stays. Misses and typos cost health, and a typo has to be backspaced before you can go on.</li>
-            <li>Mistyped or didn't finish the word, but you're in the right column? Press Enter on time anyway: it's a <strong>sloppy</strong> hit, worth the fewest points, and it won't cost health.</li>
+            <li>Mistyped or didn't finish the word, but you're in the right column? Press Enter on time anyway: it's a <strong>sloppy</strong> hit, worth the fewest points, and it won't cost health.</li>`}
           </ol>
         </aside>
       </div>`;
@@ -882,7 +900,7 @@
     document.body.classList.remove("typing");
     show("tiles");
     renderBar();
-    tiles.newGame(s.tilesSong, s.tilesDiff, { music: s.tilesMusic, metronome: s.tilesMetronome, scope: s.tilesScope, lyrics: s.tilesLyrics });
+    tiles.newGame(s.tilesSong, s.tilesDiff, { music: s.tilesMusic, metronome: s.tilesMetronome, scope: s.tilesScope, lyrics: s.tilesLyrics, queue: s.tilesQueue });
   }
 
   // ---- your own music ----
@@ -1049,6 +1067,7 @@
     else if (x === "metronome") s.tilesMetronome = !s.tilesMetronome;
     else if (x === "scope") s.tilesScope = !s.tilesScope;
     else if (x === "lyrics") s.tilesLyrics = !s.tilesLyrics;
+    else if (x === "mode") s.tilesQueue = y === "toggle" ? !s.tilesQueue : y === "queue";
     else return;
     TT.save();
     if (ui.view === "tiles-select") renderTilesSelect();
@@ -1094,7 +1113,7 @@
     $("view-replay").innerHTML = `
       <div class="cols">
         <section class="col-main">
-          <div class="title-row"><h1>REPLAY</h1><span class="title-meta">${testName(rec.kind, rec.mode, rec.amount, rec.game, rec.title).toUpperCase()}</span></div>
+          <div class="title-row"><h1>REPLAY</h1><span class="title-meta">${testName(rec.kind, rec.mode, rec.amount, rec.game, rec.title, rec.queue).toUpperCase()}</span></div>
           <div class="kind-line">${fmtDate.format(new Date(rec.date))}</div>
           <div id="rp-stage" class="rp-stage">${game ? "" : `
             <div class="live"><span id="rp-live-num" class="live-num"></span><span id="rp-live-label" class="caps-label"></span></div>
@@ -1292,13 +1311,15 @@
       const songs = [...TT.songs.list, ...TT.music.list()];
       const song = songs.find((x) => x.id === (ui.lbSong || s.tilesSong)) || songs[0];
       const diff = TT.tilesCore.DIFFS[ui.lbDiff] ? ui.lbDiff : s.tilesDiff;
-      const key = `${song.id}:${diff}`;
+      const queue = ui.lbQueue ?? s.tilesQueue;
+      const key = bestKey(song.id, diff, queue);
       const btn = (label, on, act) => `<button class="${on ? "on" : ""}" aria-pressed="${on}" data-act="${act}">${esc(label)}</button>`;
       filters = `<div class="lb-filters">
           <div class="seg lb-songs" aria-label="Song">${songs.map((x) => btn(x.title, x.id === song.id, `lb:song:${x.id}`)).join("")}</div>
           <div class="seg" aria-label="Difficulty">${TT.tilesCore.DIFF_IDS.map((d) => btn(TT.tilesCore.DIFFS[d].name, d === diff, `lb:diff:${d}`)).join("")}</div>
+          <div class="seg" aria-label="Mode">${btn("TIMED", !queue, "lb:mode:timed")}${btn("QUEUE", queue, "lb:mode:queue")}</div>
         </div>`;
-      what = `${song.title}, ${TT.tilesCore.DIFFS[diff].name.toLowerCase()}`;
+      what = `${song.title}, ${TT.tilesCore.DIFFS[diff].name.toLowerCase()}${queue ? ", queue" : ""}`;
       head = ["SCORE", "GRADE", "WPM", "ACCURACY", "CLEARED"];
       rows = players.map((p) => {
         const b = p.games.tiles && p.games.tiles.bestBy && p.games.tiles.bestBy[key];
@@ -1423,7 +1444,7 @@
         <thead><tr><th>DATE</th><th>TEST</th><th class="num">WPM</th><th class="num">ACCURACY</th><th class="num">RAW</th><th class="num">REPLAY</th></tr></thead>
         <tbody>${rows.map((h) => `<tr>
           <td>${fmt.format(new Date(h.date))}</td>
-          <td>${testName(h.kind || "test", h.mode, h.amount, h.game, h.title)}</td>
+          <td>${testName(h.kind || "test", h.mode, h.amount, h.game, h.title, h.queue)}</td>
           <td class="num"><strong>${Math.round(h.wpm)}</strong></td>
           <td class="num">${Math.round(h.acc)}%</td>
           <td class="num">${Math.round(h.raw)}</td>
@@ -1795,6 +1816,7 @@
         if (x === "tab") ui.lbTab = y;
         else if (x === "song") ui.lbSong = y;
         else if (x === "diff") ui.lbDiff = y;
+        else if (x === "mode") ui.lbQueue = y === "queue";
         renderLeaderboard();
         break;
       case "settab": ui.settingsTab = x; renderSettings(); break;
@@ -1881,7 +1903,7 @@
         else if (e.key === "Backspace") { e.preventDefault(); act("tl:tapundo"); }
         else if (e.key === "Escape") { e.preventDefault(); act("tl:tapcancel"); }
       } else {
-        const keys = { ArrowDown: "tl:next", ArrowUp: "tl:prev", ArrowRight: "tl:harder", ArrowLeft: "tl:easier", Enter: "tl:play", a: "tl:import", m: "tl:music", t: "tl:metronome", Escape: "menu" };
+        const keys = { ArrowDown: "tl:next", ArrowUp: "tl:prev", ArrowRight: "tl:harder", ArrowLeft: "tl:easier", Enter: "tl:play", a: "tl:import", q: "tl:mode:toggle", m: "tl:music", t: "tl:metronome", Escape: "menu" };
         if (keys[e.key] && !e.ctrlKey && !e.altKey && !e.metaKey) { e.preventDefault(); act(keys[e.key]); }
       }
       return;

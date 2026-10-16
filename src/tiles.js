@@ -12,7 +12,12 @@
   // v2: wrong letters are typed and must be backspaced. v3: a missed tile clears the typing unless
   // it's a correct start on another tile. v4: blank tiles, a word under each column. v5: Enter on
   // time in the right column with the word mistyped or unfinished is a sloppy hit.
+  //
+  // Queue mode (g.queue, with v5 rules): no timing. Space locks the typed word in for the next tile
+  // in falling order and you type on; each tile takes its locked-in word as it reaches the line.
+  // Its tiles come QUEUE_SPEED times as often as in timed mode.
   const RULES = 5;
+  const QUEUE_SPEED = 2;
   const LANES = 4;
 
   // gap: seconds between tiles the chart aims for (it snaps to the song's beats)
@@ -26,13 +31,18 @@
     expert: { name: "EXPERT", gap: 1.25, min: 0.75, fall: 2600, cols: 4, len: [4, 6], missHp: 14 },
   };
   const DIFF_IDS = Object.keys(DIFFS);
+  // A difficulty's settings in a mode: queue mode halves the spacing, so tiles come twice as often.
+  const modeDiff = (diff, queue) => {
+    const D = DIFFS[diff] || DIFFS.medium;
+    return queue ? { ...D, gap: D.gap / QUEUE_SPEED, min: D.min / QUEUE_SPEED } : D;
+  };
   // Timing windows in ms. Early presses get more room than late ones.
   const WIN = { perfect: 60, great: 130, early: 250, late: 180 };
   // S: sloppy, on time in the right column but with the word mistyped or unfinished (v5)
   const POINTS = { P: 300, G: 200, O: 100, S: 50 };
   const HEAL = { P: 4, G: 3, O: 2, S: 0 };
   const TYPO_HP = 2, START_HP = 80, MAX_HP = 100;
-  const GRADE_NAMES = { P: "PERFECT", G: "GREAT", O: "GOOD", S: "SLOPPY", M: "MISS", E: "TOO EARLY", X: "WRONG COLUMN" };
+  const GRADE_NAMES = { P: "PERFECT", G: "GREAT", O: "GOOD", S: "SLOPPY", M: "MISS", E: "TOO EARLY", X: "WRONG COLUMN", Q: "LOCKED IN" };
   const LEAD_MS = 1200; // quiet time before the first tile shows up
   const LYRIC_SHARE = 0.6; // for a song with untimed lyrics, about this share of words come from them
   const SUNG_EXTRA = 2;    // a sung word may be this many letters longer than the difficulty allows
@@ -56,20 +66,22 @@
   // moments: long and phrase-starting melody notes in built-in songs, the hardest hits in added ones.
   // (Dynamic programming, like the beat tracker in beats.js.) If a difficulty comes out as sparse
   // as the easier one, it aims a little tighter, so a harder one has more tiles whenever it can.
-  function chart(song, diff) {
-    if (!song.charts) {
-      song.charts = {};
+  function chart(song, diff, queue = false) {
+    const mode = queue ? "queue" : "timed";
+    song.charts ||= {};
+    if (!song.charts[mode]) {
+      const out = (song.charts[mode] = {});
       const meanGap = (h) => (h.length > 1 ? (h[h.length - 1] - h[0]) / 1000 / (h.length - 1) : Infinity);
       let prev = Infinity;
       for (const id of DIFF_IDS) {
-        const D = DIFFS[id];
+        const D = modeDiff(id, queue);
         let hits = pick(song, D, D.gap);
         if (meanGap(hits) > prev * 0.97) hits = pick(song, D, prev * 0.85);
-        song.charts[id] = hits;
+        out[id] = hits;
         prev = meanGap(hits);
       }
     }
-    return song.charts[diff];
+    return song.charts[mode][diff];
   }
 
   function pick(song, D, target) {
@@ -103,11 +115,11 @@
 
   // The column of each of a chart's tiles: its note's pitch against the chart's other notes, so the
   // lowest notes fall on the left and the highest on the right. Equal notes share a column.
-  function columns(song, diff) {
+  function columns(song, diff, queue = false) {
     const cols = DIFFS[diff].cols;
     const at = new Map(song.beats.map((b) => [Math.round(b.t * 1000), b.p]));
     let last = null;
-    const ps = chart(song, diff).map((h) => (last = at.get(h) ?? last));
+    const ps = chart(song, diff, queue).map((h) => (last = at.get(h) ?? last));
     const known = ps.filter((p) => p != null).sort((a, b) => a - b);
     if (!known.length) return ps.map((_, i) => i % cols);
     const below = (p) => {
@@ -120,8 +132,8 @@
 
   // Timed lyrics: the word sung as each of a chart's tiles reaches the line, or null. Each sung
   // word goes to the nearest tile within its tolerance (song.sungWords), and to only one tile.
-  function sungWords(song, diff) {
-    const hits = chart(song, diff), sw = song.sungWords || [];
+  function sungWords(song, diff, queue = false) {
+    const hits = chart(song, diff, queue), sw = song.sungWords || [];
     const out = hits.map(() => null);
     if (!sw.length) return out;
     const used = new Set();
@@ -148,14 +160,14 @@
 
   // hits: game-time ms at which each tile reaches the line. endT: when the round ends.
   // From v4, lanes: each tile's column, and cols: how many columns there are.
-  function newCore({ hits, fall, endT, diff, v = RULES, lanes = null, cols = 4 }) {
+  function newCore({ hits, fall, endT, diff, v = RULES, lanes = null, cols = 4, queue = false }) {
     return {
-      v, hits, fall, endT, diff, lanes, cols,
+      v, hits, fall, endT, diff, lanes, cols, queue,
       words: null,      // v4: the word under each column
       wordN: 0,         // v4: how many words have been dealt
       missHp: (DIFFS[diff] || DIFFS.medium).missHp,
       next: 0,          // index of the next tile to appear
-      tiles: [],        // on screen, oldest first: { i, l, born } (and w, the word, before v4)
+      tiles: [],        // on screen, oldest first: { i, l, born } (and w, the word, before v4; q, the locked-in word, in queue mode)
       res: [],          // per tile: { grade, d, t }
       buf: "", bad: -1,
       score: 0, combo: 0, maxCombo: 0, hp: START_HP,
@@ -175,9 +187,21 @@
     return typed && g.words ? g.words.findIndex((w) => w.startsWith(typed)) : -1;
   };
 
+  // Queue mode: the next tile in falling order without a locked-in word. It may not have appeared
+  // yet ({ i, l, unseen: true }), so you can type ahead; null once every tile has a word.
+  function nextUp(g) {
+    const tile = g.tiles.find((x) => !x.q);
+    if (tile) return tile;
+    return g.next < g.hits.length ? { i: g.next, l: g.lanes[g.next], unseen: true } : null;
+  }
+
   // The tile you're typing toward: before v4, the first one whose word the typed letters fit;
-  // from v4, the lowest tile in the column you're typing.
+  // from v4, the lowest tile in the column you're typing; in queue mode, the next one up.
   const target = (g) => {
+    if (g.queue) {
+      const up = nextUp(g);
+      return up && !up.unseen ? up : null;
+    }
     if (g.v >= 4) {
       const c = column(g);
       return c < 0 ? null : g.tiles.find((x) => x.l === c) || null;
@@ -311,10 +335,15 @@
   function advance(g, t, provider) {
     while (!g.over) {
       const spawnT = g.next < g.hits.length ? g.hits[g.next] - g.fall : Infinity;
-      const missT = g.tiles.length ? g.hits[g.tiles[0].i] + WIN.late : Infinity;
+      // queue mode: a tile with a locked-in word takes it at the line; one without is missed as usual
+      const head = g.tiles[0];
+      const missT = head ? g.hits[head.i] + (head.q ? 0 : WIN.late) : Infinity;
       const ev = Math.min(spawnT, missT, g.endT);
       if (ev > t) break;
-      if (ev === missT) miss(g, g.tiles[0], ev);
+      if (ev === missT) {
+        if (head.q) register(g, head, ev);
+        else miss(g, head, ev);
+      }
       else if (ev === spawnT) spawn(g, ev, provider);
       else finish(g, ev, "done");
     }
@@ -329,6 +358,7 @@
       if (b) W.mark(g, t);
       return b && { type: "back", ...b, buf: g.buf };
     }
+    if (k === " " && g.queue) return lockIn(g, t, provider);
     if (k === " " && g.v >= 4) return strikeColumn(g, t, provider);
     if (k === " ") {
       const tile = target(g);
@@ -346,7 +376,10 @@
       }
       return { type: "strike", ok: false, buf: g.buf, empty: !g.buf };
     }
-    const fits = g.v >= 4 ? (s) => g.words.some((w) => w.startsWith(s)) : (s) => g.tiles.some((x) => x.w.startsWith(s));
+    // queue mode: only the next tile's word fits, so another column's word shows as a typo at once
+    const up = g.queue ? nextUp(g) : null;
+    const fits = up ? (s) => g.words[up.l].startsWith(s)
+      : g.v >= 4 ? (s) => g.words.some((w) => w.startsWith(s)) : (s) => g.tiles.some((x) => x.w.startsWith(s));
     const r = W.letter(g, k, fits, g.v < 2);
     if (!r) return null;
     W.mark(g, t);
@@ -397,6 +430,66 @@
     return out;
   }
 
+  // Queue mode: Space locks the typed word in for the next tile in falling order, once that tile has
+  // appeared. Typed right, the tile will be a perfect hit; mistyped or unfinished (but begun right),
+  // a sloppy one. The column gets a new word straight away, and the tile takes its word as it
+  // reaches the line, or at once if it's already there. Space before the tile has appeared is a
+  // mistake, and the typing stays for when it has.
+  function lockIn(g, t, provider) {
+    if (!g.buf) return { type: "strike", ok: false, buf: "", empty: true };
+    const up = nextUp(g);
+    const c = column(g);
+    if (c < 0 || !up || c !== up.l) {
+      g.keys++;
+      g.mistakes++;
+      return { type: "strike", ok: false, buf: g.buf, empty: false };
+    }
+    const word = g.words[c];
+    if (up.unseen) {
+      g.keys++;
+      g.mistakes++;
+      g.last = { grade: "E", t, i: up.i, l: c, d: null };
+      return { type: "early", wrong: false, d: null, word, col: c };
+    }
+    const ok = W.ready(g, word);
+    const typed = W.good(g);
+    g.keys++;
+    let misses;
+    if (ok) {
+      g.correct++;
+      misses = attribute(g, word);
+      g.chars += word.length + 1;
+      W.done(g, word);
+    } else {
+      misses = attribute(g, typed, word);
+      g.missedWords.add(word);
+      g.chars += typed.length;
+      W.drop(g);
+    }
+    W.reset(g);
+    up.q = { w: word, ok, t };
+    g.last = { grade: "Q", t, i: up.i, l: c, d: null };
+    deal(g, c, t, provider);
+    if (t >= g.hits[up.i]) register(g, up, t);
+    return { type: "hit", grade: ok ? "P" : "S", d: null, word, misses, i: up.i, sloppy: !ok, queued: true };
+  }
+
+  // Queue mode: a tile takes its locked-in word at the line. Like a hit (or a sloppy hit), without timing.
+  function register(g, tile, t) {
+    const { w, ok } = tile.q;
+    const grade = ok ? "P" : "S";
+    g.tiles = g.tiles.filter((x) => x !== tile);
+    g.res[tile.i] = { grade, d: null, t, w };
+    g.counts[grade]++;
+    if (ok) {
+      g.combo++;
+      g.maxCombo = Math.max(g.maxCombo, g.combo);
+      g.hp = Math.min(MAX_HP, g.hp + HEAL.P);
+    }
+    g.score += POINTS[grade] * multiplier(g.combo);
+    g.last = { grade, t, i: tile.i, l: tile.l, d: null };
+  }
+
   function gameStats(g, ms) {
     const minutes = ms / 60000;
     const c = g.counts;
@@ -418,7 +511,7 @@
   const recorded = (rec) => ((rec.v || 1) >= 4 ? recordedWords(rec) : recordedTiles(rec));
   // A fresh core for a recording, ready to replay.
   function coreFor(rec) {
-    const g = newCore({ hits: rec.hits, fall: rec.fall, endT: rec.endT, diff: rec.diff, v: rec.v || 1, lanes: rec.lanes, cols: rec.cols });
+    const g = newCore({ hits: rec.hits, fall: rec.fall, endT: rec.endT, diff: rec.diff, v: rec.v || 1, lanes: rec.lanes, cols: rec.cols, queue: !!rec.queue });
     g.wpmScale = rec.wpmScale ?? W.scale();
     dealWords(g, recorded(rec));
     return g;
@@ -427,7 +520,7 @@
   TT.tilesAudio = { get: () => getAudio() };
 
   TT.tilesCore = {
-    DIFFS, DIFF_IDS, WIN, RULES, GRADE_NAMES,
+    DIFFS, DIFF_IDS, WIN, RULES, GRADE_NAMES, QUEUE_SPEED, modeDiff, nextUp,
     chart, columns, sungWords, newCore, dealWords, coreFor, applyKey, advance, gameStats, target, column, attribute, recorded, multiplier, letterGrade,
   };
 
@@ -867,7 +960,8 @@
         <div class="tl-typed-row"><span class="word-box tl-typed" data-t="typed"></span></div>
       </div>
       <div class="tl-side tl-right">
-        <div class="tl-box">
+        <div class="tl-box" data-t="qbox" hidden><div class="caps-label">LOCKED IN</div><div class="tl-big" data-t="queued">0</div></div>
+        <div class="tl-box" data-t="timingbox">
           <div class="caps-label">TIMING</div>
           <div class="tl-meter" data-t="meter"></div>
           <div class="tl-meter-l"><span>EARLY</span><span>LATE</span></div>
@@ -922,7 +1016,8 @@
     // picks the column. A word needed soon (its column's next tile is close) is kept short.
     function provide(state, col, t) {
       const D = DIFFS[live.diff];
-      const j = state.hits.findIndex((h, i) => state.lanes[i] === col && h > t + WIN.late && !state.res[i]);
+      const locked = (i) => state.queue && state.tiles.some((x) => x.i === i && x.q);
+      const j = state.hits.findIndex((h, i) => state.lanes[i] === col && h > t + WIN.late && !state.res[i] && !locked(i));
       const gap = j < 0 ? 9 : (state.hits[j] - t) / 1000;
       const maxLen = Math.min(D.len[1], Math.max(3, Math.round(gap * 8)));
       const minLen = Math.min(D.len[0], maxLen);
@@ -988,12 +1083,15 @@
         const y = hitY - ((g.hits[t.i] - viewT) / g.fall) * (hitY + TILE_H / 2) - TILE_H / 2;
         e.style.transform = `translateY(${y.toFixed(1)}px)`;
         const typed = W.good(g);
-        const sig = t === tg ? `1${typed}` : "0";
+        const sig = t.q ? `q${t.q.ok}${t.q.w}` : t === tg ? `1${typed}` : "0";
         if (e.sig !== sig) {
           e.sig = sig;
           e.classList.toggle("on", t === tg);
+          // queue mode: a tile with a locked-in word shows it (sloppy ones marked)
+          e.classList.toggle("queued", !!t.q);
+          e.classList.toggle("sloppy", !!t.q && !t.q.ok);
           // from v4 the tiles are blank; the words are under the columns
-          e.innerHTML = g.v >= 4 ? "" : t === tg ? `<span><b>${typed}</b>${t.w.slice(typed.length)}</span>` : `<span>${t.w}</span>`;
+          e.innerHTML = t.q ? `<span>${t.q.w}</span>` : g.v >= 4 ? "" : t === tg ? `<span><b>${typed}</b>${t.w.slice(typed.length)}</span>` : `<span>${t.w}</span>`;
         }
       }
       for (const [i, e] of tileEls) {
@@ -1012,13 +1110,16 @@
       if (!show) return;
       const c = column(g);
       const typed = W.good(g);
-      const sig = [g.words.join(" "), c, typed, g.bad].join("|");
+      // queue mode: the column of the next tile to type for
+      const up = g.queue ? nextUp(g) : null;
+      const nextCol = up ? up.l : -1;
+      const sig = [g.words.join(" "), c, typed, g.bad, nextCol].join("|");
       if (el.words.sig === sig) return;
       el.words.sig = sig;
       el.words.innerHTML = g.words.map((w, i) => {
         const on = i === c;
         const n = on ? typed.length : 0;
-        const cls = ["tl-word", on ? "on" : "", on && W.ready(g, w) ? "ready" : "", !on && typed ? "dim" : ""].filter(Boolean).join(" ");
+        const cls = ["tl-word", on ? "on" : "", on && W.ready(g, w) ? "ready" : "", i === nextCol && !on ? "next" : "", !on && (typed || (g.queue && i !== nextCol)) ? "dim" : ""].filter(Boolean).join(" ");
         return `<div class="${cls}" style="left: ${colLeft(i)}; width: ${100 / colCount()}%"><span><b>${w.slice(0, n)}</b>${w.slice(n)}</span></div>`;
       }).join("");
     }
@@ -1052,7 +1153,8 @@
       el.typed.classList.toggle("shake", viewT - shakeT < 250);
       // v4: a word card pushes up into the tile it hit, then settles back
       const cards = el.words.children;
-      const push = g.v >= 4 && last && "PGOS".includes(last.grade) && age >= 0 && age < PUSH_MS ? last.l : -1;
+      const pushes = g.queue ? "Q" : "PGOS";
+      const push = g.v >= 4 && last && pushes.includes(last.grade) && age >= 0 && age < PUSH_MS ? last.l : -1;
       for (let i = 0; i < cards.length; i++) {
         const p = i === push ? Math.sin((Math.PI * age) / PUSH_MS) : 0;
         const tf = p ? `translateY(${(-16 * p).toFixed(1)}px) scale(${(1 + 0.1 * p).toFixed(3)})` : "";
@@ -1066,9 +1168,14 @@
       const c = g.counts;
       const prog = Math.min(1, viewT / g.endT);
       const marks = g.offsets.slice(-14);
-      const sig = [g.score, g.combo, Math.round(g.hp), viewT < 5000 ? "-" : Math.round(st.wpm), c.P, c.G, c.O, c.M, Math.round(prog * 200), Math.floor(viewT / 1000), marks.length, g.offsets.length].join("|");
+      const locked = g.queue ? g.tiles.filter((x) => x.q).length : 0;
+      const sig = [g.score, g.combo, Math.round(g.hp), viewT < 5000 ? "-" : Math.round(st.wpm), c.P, c.G, c.O, c.S, c.M, Math.round(prog * 200), Math.floor(viewT / 1000), marks.length, g.offsets.length, g.queue, locked].join("|");
       if (sig === hudSig) return;
       hudSig = sig;
+      // queue mode has no timing, so the box shows how many tiles have a word locked in
+      el.timingbox.hidden = !!g.queue;
+      el.qbox.hidden = !g.queue;
+      el.queued.textContent = locked;
       el.wpm.textContent = viewT < 5000 ? "–" : Math.round(st.wpm);
       el.score.textContent = g.score.toLocaleString();
       el.combo.textContent = g.combo;
@@ -1117,37 +1224,41 @@
 
     // ---------- live play ----------
 
-    function newGame(songId, diff, sound = { music: true, metronome: false, scope: true, lyrics: true }) {
+    // sound: the toggles (music, metronome, scope, lyrics), and queue for queue mode
+    function newGame(songId, diff, sound = { music: true, metronome: false, scope: true, lyrics: true, queue: false }) {
       stop();
       replay = null;
       song = TT.songs.get(songId);
-      const D = DIFFS[diff];
-      const songHits = chart(song, diff);
+      const queue = !!sound.queue;
+      const D = modeDiff(diff, queue);
+      const songHits = chart(song, diff, queue);
       const offset = Math.max(0, D.fall + LEAD_MS - (songHits[0] || 0));
       const hits = songHits.map((h) => h + offset);
       const endT = Math.round(offset + song.duration * 1000 + 800);
       live = {
-        state: "ready", diff, song: songId, offset, sound, startedAt: 0, player: null,
+        state: "ready", diff, queue, song: songId, offset, sound, startedAt: 0, player: null,
         keys: "", times: [], words: [], recent: [], pool: [],
         // with timed lyrics, sung words go on the tiles where they're sung and the rest are
         // practice words; with untimed lyrics, most words are drawn from them at random
-        sungFor: sound.lyrics !== false ? sungWords(song, diff) : [],
+        sungFor: sound.lyrics !== false ? sungWords(song, diff, queue) : [],
         lyricWords: [],
         targets: A.weakKeys(), missed: A.weakWords(20),
       };
       if (sound.lyrics !== false && !live.sungFor.some(Boolean) && TT.lyrics) live.lyricWords = TT.lyrics.words(song.lyrics);
-      g = newCore({ hits, fall: D.fall, endT, diff, lanes: columns(song, diff), cols: D.cols });
+      g = newCore({ hits, fall: D.fall, endT, diff, lanes: columns(song, diff, queue), cols: D.cols, queue });
       g.wpmScale = W.scale();
       dealWords(g, provide);
       beatTimes = song.beats.map((b) => ({ t: offset + b.t * 1000, down: b.down, w: b.w }));
       viewT = 0;
       hudSig = "";
       clearTiles();
-      setHead(song.title.toUpperCase(), `${song.composer.toUpperCase()} · ${D.name}`);
+      setHead(song.title.toUpperCase(), `${song.composer.toUpperCase()} · ${D.name}${queue ? " · QUEUE" : ""}`);
       el.over.innerHTML = `
         <h2>${song.title.toUpperCase()}</h2>
-        <p class="tl-over-sub">${song.composer} · ${D.name.toLowerCase()} · ${Math.round(song.duration)} seconds</p>
-        <p>Type the word under a column, then press <strong>Enter</strong> or <strong>Space</strong> as that column's tile crosses the line.</p>
+        <p class="tl-over-sub">${song.composer} · ${D.name.toLowerCase()}${queue ? " · queue mode" : ""} · ${Math.round(song.duration)} seconds</p>
+        <p>${queue
+          ? "Type the word under the next tile's column and press <strong>Enter</strong> or <strong>Space</strong> to lock it in, then type the next. Each tile takes its word as it crosses the line."
+          : "Type the word under a column, then press <strong>Enter</strong> or <strong>Space</strong> as that column's tile crosses the line."}</p>
         <div class="tl-start"><kbd>ENTER</kbd>START</div>`;
       el.over.hidden = false;
       render();
@@ -1248,19 +1359,19 @@
       const date = new Date().toISOString();
       const id = TT.newRoundId();
       const rec = progress();
-      const key = `${live.song}:${live.diff}`;
+      const key = `${live.song}:${live.diff}${live.queue ? ":queue" : ""}`;
       const prev = rec.bestBy[key];
       const cleared = g.cause === "done";
       rec.plays++;
       rec.best = Math.max(rec.best, g.score);
       if (!prev || g.score > prev.score) rec.bestBy[key] = { score: g.score, grade, timing: round(st.timing), wpm: round(st.wpm), acc: round(st.acc), cleared };
       else if (cleared && !prev.cleared) prev.cleared = true;
-      rec.history.push({ date, song: live.song, diff: live.diff, score: g.score, grade, timing: round(st.timing), wpm: round(st.wpm), acc: round(st.acc), cleared });
+      rec.history.push({ date, song: live.song, diff: live.diff, ...(live.queue ? { queue: true } : {}), score: g.score, grade, timing: round(st.timing), wpm: round(st.wpm), acc: round(st.acc), cleared });
       if (rec.history.length > HISTORY_CAP) rec.history.splice(0, rec.history.length - HISTORY_CAP);
 
       const store = TT.store;
       store.history.push({
-        id, date, kind: "game", game: "tiles", mode: live.diff, amount: g.score, song: live.song, title: song.title,
+        id, date, kind: "game", game: "tiles", mode: live.diff, ...(live.queue ? { queue: true } : {}), amount: g.score, song: live.song, title: song.title,
         wpm: round(st.wpm), raw: round(st.wpm), acc: round(st.acc), seconds: round(g.endAt / 1000),
         keys: Object.fromEntries(Object.entries(g.keyStats).map(([k, v]) => [k, [v.expected, v.missed]])),
         missedWords: [...g.missedWords],
@@ -1274,13 +1385,13 @@
       TT.save();
       TT.rounds.save({
         id, date, kind: "game", game: "tiles", mode: live.diff, amount: g.score, song: live.song, title: song.title,
-        songKey: song.key, offset: live.offset, wpmScale: g.wpmScale, v: RULES, diff: live.diff, fall: g.fall, hits: g.hits, endT: g.endT, lanes: g.lanes, cols: g.cols, words: live.words,
+        songKey: song.key, offset: live.offset, wpmScale: g.wpmScale, v: RULES, diff: live.diff, ...(live.queue ? { queue: true } : {}), fall: g.fall, hits: g.hits, endT: g.endT, lanes: g.lanes, cols: g.cols, words: live.words,
         keys: live.keys, times: live.times, duration: g.endAt,
       });
 
       const best = prev && g.score > prev.score
         ? `<strong class="hl">New best!</strong> Previous best was ${prev.score.toLocaleString()}.`
-        : prev ? `Best ${prev.score.toLocaleString()}` : "First time on this song and difficulty.";
+        : prev ? `Best ${prev.score.toLocaleString()}` : `First time on this song and difficulty${live.queue ? " in queue mode" : ""}.`;
       const c = g.counts;
       el.over.innerHTML = `
         <h2>${cleared ? "SONG COMPLETE" : "OUT OF HEALTH"}</h2>
@@ -1333,7 +1444,7 @@
       viewT = 0;
       hudSig = "";
       clearTiles();
-      setHead((rec.title || "Tiles").toUpperCase(), (DIFFS[rec.diff] || DIFFS.medium).name);
+      setHead((rec.title || "Tiles").toUpperCase(), (DIFFS[rec.diff] || DIFFS.medium).name + (rec.queue ? " · QUEUE" : ""));
       el.over.hidden = true;
       render();
     }

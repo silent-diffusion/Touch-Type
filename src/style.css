@@ -928,6 +928,9 @@ body:not(.typing) .caret.caret-block { animation-name: blink-block; }
 .tl-tile.blank { background: color-mix(in srgb, var(--ink) 12%, transparent); border-width: 4px; }
 .tl-tile.blank.on { background: color-mix(in srgb, var(--accent) 16%, transparent); border-color: var(--accent); }
 .tl-tile b { font-weight: inherit; color: var(--accent); }
+/* queue mode: a tile with its word locked in, waiting for the line (sloppy ones in the accent) */
+.tl-tile.blank.queued { background: var(--ink); color: var(--ground); border-color: var(--ink); }
+.tl-tile.blank.queued.sloppy { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
 .tl-judge {
   position: absolute;
   left: 0;
@@ -963,6 +966,8 @@ body:not(.typing) .caret.caret-block { animation-name: blink-block; }
 .tl-word.ready span { background: var(--ink); color: var(--ground); }
 .tl-word.ready b { text-decoration: none; }
 .tl-word.dim { opacity: 0.45; }
+/* queue mode: the column of the next tile to type for */
+.tl-word.next span { border-color: var(--accent); border-style: dashed; }
 .tl-word.hit span { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
 
 .tl-typed-row { display: flex; justify-content: center; margin-top: 18px; min-height: 60px; }
@@ -1005,6 +1010,8 @@ body:not(.typing) .caret.caret-block { animation-name: blink-block; }
 .tl-diffs button { min-width: 96px; }
 .tl-play { margin-top: 28px; }
 .tl-toggles { display: flex; gap: 8px; padding: 14px 0 20px; flex-wrap: wrap; }
+.tl-modes { align-self: flex-start; margin: 14px 0 6px; }
+.tl-modes button { min-width: 96px; }
 .tl-songs .tl-group { padding: 18px 0 6px; border-top: var(--rule); margin-top: 10px; }
 /* timing the lyrics: the last words timed, the one to tap next, and what's coming */
 .tl-lyric-run { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 18px; min-height: 70px; margin: 18px 0 8px; font-family: var(--type-font); }
