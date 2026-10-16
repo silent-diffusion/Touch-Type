@@ -931,21 +931,24 @@
   // across the whole window, under the rest of the app: by 50 (×4) it reaches the window's edges.
   // At ×4 a storm of sparks joins it, thrown out from the play area and swirling round it to the
   // window's edges, and the music comes apart into three (the player's feeds): the vocals draw a
-  // line straight across the middle of the window that bounces up as they're sung, the bass and
+  // line straight across the bottom of the window that bounces up as they're sung, the bass and
   // drums drive the outline, and the other instruments throw the sparks. Nothing is ever drawn
   // over the play area, and at ×4 it and the boxes beside it are opaque. A miss flattens it all
   // out, and it fades away.
   const SCOPE_START = 10, SCOPE_AT = 25, SCOPE_FULL = 50, COLLAPSE_MS = 450;
   const SPARKS_MAX = 900; // the most sparks in the storm at once
-  // From ×3 the line's colour goes round the colour wheel, HUE_SPEED degrees a second (a new colour
-  // about every five seconds), starting from the orange it always had. The sparks are always its
-  // complement, 180 degrees round. The storm's swirl turns the other way now and then: on a
+  // From ×3 the outline's colour goes round the colour wheel, HUE_SPEED degrees a second (a new
+  // colour about every five seconds), starting from the orange it always had. At ×4 the vocal line
+  // and the sparks make a triad with it, a third of the wheel round each (TRIAD), turning together.
+  // The storm's swirl turns the other way now and then: on a
   // downbeat, every FLIP_MS to twice that, easing round over about a second.
-  const HUE_START = 16, HUE_SPEED = 12, FLIP_MS = 6000;
+  const HUE_START = 16, HUE_SPEED = 12, FLIP_MS = 6000, TRIAD = 120;
+  const vocalHue = (hue) => (hue + TRIAD) % 360, sparkHue = (hue) => (hue + 2 * TRIAD) % 360;
   const SCOPE_LOWPASS = 1200, SCOPE_SETTLE = 128, SCOPE_MATCH = 128; // Hz the trace is smoothed to; samples the filter needs to settle; points compared to hold the trace still
   const SWING_START = 5, SWING_AT = 60; // px the line swings out: at the start of ×2, and by ×3
   const OUTLINE_GAP = 10; // px between the playable area and the line at rest
   const VOCAL_SWING = 0.22; // how far the vocal line can bounce up, as a share of the window's height
+  const VOCAL_FLOOR = 14; // px from the bottom of the window the vocal line lies at rest
   const ONSET_RISE = 1.35, ONSET_GAP_MS = 110; // a burst of sparks: the other instruments this much louder than lately, this far apart
 
   function createScope() {
@@ -1055,15 +1058,14 @@
       return m[i] + (m[Math.min(m.length - 1, i + 1)] - m[i]) * (u * view - (i - from));
     };
 
-    // ×4: the vocals as a line straight across the middle of the window, from the left edge to the
-    // right, bouncing up as they're sung and lying flat when nobody is. It's behind the opaque play
-    // area and boxes (and clipped out of the play area anyway), in a colour between the outline's
-    // and the sparks'.
+    // ×4: the vocals as a line straight across the bottom of the window, from the left edge to the
+    // right, bouncing up as they're sung and lying flat when nobody is. It's behind the UI, the
+    // opaque play area and boxes (and clipped out of the play area anyway), in the triad's second colour.
     function drawVocal(feed, W, H, sr, shrink) {
       const { from, view } = readTrace(vocal, readFeed("vocal", feed), sr);
       const level = Math.min(1, vocal.rms / vocal.peak);
       const amp = H * VOCAL_SWING * storm * shrink * level;
-      const mid = H / 2, N = 600;
+      const mid = H - VOCAL_FLOOR, N = 600;
       ctx.beginPath();
       for (let k = 0; k <= N; k++) {
         const v = Math.tanh(traceAt(vocal, from, view, k / N) / (vocal.peak * 2.5));
@@ -1071,7 +1073,7 @@
         if (k) ctx.lineTo(x, y);
         else ctx.moveTo(x, y);
       }
-      const vh = ((hue + 90) % 360).toFixed(1);
+      const vh = vocalHue(hue).toFixed(1);
       ctx.globalCompositeOperation = "lighter";
       ctx.strokeStyle = `hsla(${vh},70%,62%,${(0.45 * storm).toFixed(3)})`;
       ctx.lineWidth = 7;
@@ -1128,7 +1130,7 @@
       spin += (spinTo - spin) * Math.min(1, dt * 3);
       // each burst (each beat, without the parts) flashes the sparks bright, then they cool
       const glow = others ? Math.max(0, 1 - (now - lastOnset) / 260) : beat ? Math.max(0, 1 - beat.since / 260) : 0;
-      const comp = (hue + 180) % 360;
+      const comp = sparkHue(hue);
       ctx.globalCompositeOperation = "lighter";
       const keep = [];
       for (const p of sparks) {
@@ -1147,7 +1149,7 @@
         keep.push(p);
         const fade = (1 - p.life / p.max) * shrink;
         const a = Math.min(1, (0.5 + 0.5 * glow) * fade);
-        // the line's complement: a bright tint for the hot ones
+        // the triad's third colour: a bright tint for the hot ones
         ctx.strokeStyle = p.hot ? `hsla(${comp.toFixed(1)},85%,90%,${a.toFixed(3)})` : `hsla(${comp.toFixed(1)},60%,60%,${a.toFixed(3)})`;
         ctx.lineWidth = p.size * (1 + 0.6 * glow);
         ctx.beginPath();
@@ -1293,7 +1295,7 @@
         lastNow = 0;
       },
       sparks: () => sparks.length, // for tests
-      colours: () => ({ hue, spark: (hue + 180) % 360, spin: spinTo }), // for tests
+      colours: () => ({ hue, vocal: vocalHue(hue), spark: sparkHue(hue), spin: spinTo }), // for tests
     };
   }
 
