@@ -121,6 +121,7 @@
     if (!TT.tilesCore.DIFFS[s.tilesDiff]) s.tilesDiff = "medium";
     s.tilesMusic = s.tilesMusic !== false;
     s.tilesMetronome = !!s.tilesMetronome;
+    s.tilesScope = s.tilesScope !== false;
   }
 
   const isDark = () => S().theme === "night";
@@ -713,7 +714,7 @@
         </section>`}
         <aside class="col-side">
           <div class="rule-head">SOUND</div>
-          <div class="tl-toggles">${toggle("MUSIC", s.tilesMusic, "tl:music")}${toggle("METRONOME", s.tilesMetronome, "tl:metronome")}</div>
+          <div class="tl-toggles">${toggle("MUSIC", s.tilesMusic, "tl:music")}${toggle("METRONOME", s.tilesMetronome, "tl:metronome")}${toggle("SCOPE", s.tilesScope, "tl:scope")}</div>
           <div class="rule-head">YOUR BEST</div>
           <dl class="status">${statusRows(rows)}</dl>
           <div class="side-label">How to play:</div>
@@ -748,7 +749,7 @@
     document.body.classList.remove("typing");
     show("tiles");
     renderBar();
-    tiles.newGame(s.tilesSong, s.tilesDiff, { music: s.tilesMusic, metronome: s.tilesMetronome });
+    tiles.newGame(s.tilesSong, s.tilesDiff, { music: s.tilesMusic, metronome: s.tilesMetronome, scope: s.tilesScope });
   }
 
   // ---- your own music ----
@@ -869,6 +870,7 @@
     else if (x === "harder" || x === "easier") s.tilesDiff = diffs[Math.max(0, Math.min(diffs.length - 1, diffs.indexOf(s.tilesDiff) + (x === "harder" ? 1 : -1)))];
     else if (x === "music") s.tilesMusic = !s.tilesMusic;
     else if (x === "metronome") s.tilesMetronome = !s.tilesMetronome;
+    else if (x === "scope") s.tilesScope = !s.tilesScope;
     else return;
     TT.save();
     if (ui.view === "tiles-select") renderTilesSelect();

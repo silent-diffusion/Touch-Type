@@ -82,11 +82,14 @@
     if (g.wordT == null) g.wordT = t;
     g.lastT = t;
   };
-  // The word was finished correctly.
+  // The word was finished correctly. Each gap counts at least MIN_GAP_MS (about 400 wpm, faster
+  // than anyone types), so keys landing in the same instant can't make the speed run away.
+  const MIN_GAP_MS = 30;
   const done = (g, word) => {
     if (g.wordT != null) {
-      g.typeMs = (g.typeMs || 0) + (g.lastT - g.wordT);
-      g.typeChars = (g.typeChars || 0) + Math.max(0, word.length - 1);
+      const gaps = Math.max(0, word.length - 1);
+      g.typeMs = (g.typeMs || 0) + Math.max(g.lastT - g.wordT, gaps * MIN_GAP_MS);
+      g.typeChars = (g.typeChars || 0) + gaps;
     }
     g.wordT = null;
   };

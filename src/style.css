@@ -33,7 +33,20 @@
 
 * { box-sizing: border-box; }
 
-html, body { margin: 0; background: var(--ground); }
+html, body { margin: 0; background: var(--ground); transition: background-color 0.8s; }
+
+/* Tiles' Scope mode: the night colours over any theme, with the oscilloscope behind the whole app */
+html.scope[data-theme] {
+  --ground: #2b2a26;
+  --ink: #d6d1bc;
+  --muted: #aba690;
+  --sub: #8e8977;
+  --on-accent: #1e1d1a;
+}
+canvas.scope { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 0; pointer-events: none; opacity: 0; transition: opacity 0.8s; }
+canvas.scope.on { opacity: 1; }
+html.scope .tl-hw { background: color-mix(in srgb, var(--ground) 25%, transparent); }
+html.scope .tl-box { background: color-mix(in srgb, var(--ground) 60%, transparent); }
 
 body {
   color: var(--ink);
@@ -41,6 +54,8 @@ body {
 }
 
 #app {
+  position: relative;
+  z-index: 1;
   min-height: 100vh;
   padding: 40px 64px 32px;
   display: flex;
@@ -830,6 +845,8 @@ body:not(.typing) .caret.caret-block { animation-name: blink-block; }
 .tl-box { border: var(--rule); padding: 10px 14px 12px; }
 .tl-big { font-size: 40px; font-weight: 800; line-height: 1.05; font-variant-numeric: tabular-nums; display: flex; align-items: baseline; gap: 10px; }
 .tl-mult { font-size: 20px; color: var(--accent); }
+.tl-scope { height: 6px; border: 2px solid var(--ink); margin-top: 8px; }
+.tl-scope i { display: block; height: 100%; width: 0; background: var(--accent); transition: width 0.3s; }
 .tl-bar { height: 14px; border: var(--rule); margin-top: 8px; }
 .tl-bar i { display: block; height: 100%; background: var(--ink); transition: width 0.15s; }
 .tl-bar i.low { background: var(--accent); }

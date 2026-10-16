@@ -429,7 +429,13 @@
     env.gain.setValueAtTime(0.0001, at);
     env.gain.exponentialRampToValueAtTime(peak, at + 0.008);
     env.gain.exponentialRampToValueAtTime(0.0008, at + len);
-    env.connect(bus);
+    // Stereo: the melody mostly left and the bass mostly right, so Scope mode's X/Y trace (left
+    // across, right up) draws the music itself.
+    if (ctx.createStereoPanner) {
+      const pan = ctx.createStereoPanner();
+      pan.pan.value = n.voice ? 0.6 : -0.6;
+      env.connect(pan).connect(bus);
+    } else env.connect(bus);
     const o = ctx.createOscillator();
     o.type = "triangle";
     o.frequency.value = f;
@@ -470,6 +476,14 @@
     const bus = ctx.createGain();
     bus.gain.value = 0.9;
     bus.connect(ctx.destination);
+    // What's playing, split into left and right, for Scope mode to draw.
+    const split = ctx.createChannelSplitter(2);
+    const left = ctx.createAnalyser(), right = ctx.createAnalyser();
+    left.fftSize = right.fftSize = 2048;
+    bus.connect(split);
+    split.connect(left, 0);
+    split.connect(right, 1);
+    const tap = { left, right, rate: ctx.sampleRate };
     // metronome: a one-bar count-in, then every beat
     const clicks = [];
     if (metronome) {
@@ -484,6 +498,7 @@
     let stopped = false;
     let source = null;
     return {
+      tap,
       pump() {
         if (stopped) return;
         const now = performance.now() / 1000;
@@ -527,6 +542,110 @@
     };
   }
 
+  // ---------- Scope mode ----------
+  // At a streak of 25 (×3) the whole window becomes an oscilloscope: the app switches to its night
+  // colours and what's playing is traced X/Y behind everything, left channel across and right up,
+  // like oscilloscope music. It grows with the streak, from about a fifth of the window at 25 to
+  // filling it at 75, with a brighter glow and a longer phosphor tail. A miss shrinks it to a dot
+  // and the colours fade back. A mono song is drawn against itself 2 ms earlier, which still loops.
+  const SCOPE_AT = 25, SCOPE_FULL = 75, COLLAPSE_MS = 450;
+
+  function createScope() {
+    let canvas = null, ctx = null, bufL = null, bufR = null;
+    let on = false, size = 0, peak = 0.05, collapseAt = null;
+
+    function show(yes) {
+      on = yes;
+      document.documentElement.classList.toggle("scope", yes);
+      if (canvas) canvas.classList.toggle("on", yes);
+    }
+
+    function setup() {
+      if (canvas) return;
+      canvas = document.createElement("canvas");
+      canvas.className = "scope";
+      canvas.setAttribute("aria-hidden", "true");
+      document.body.appendChild(canvas);
+      ctx = canvas.getContext("2d");
+    }
+
+    function draw(tap, shrink) {
+      const dpr = window.devicePixelRatio || 1;
+      const W = window.innerWidth, H = window.innerHeight;
+      if (canvas.width !== Math.round(W * dpr) || canvas.height !== Math.round(H * dpr)) {
+        canvas.width = Math.round(W * dpr);
+        canvas.height = Math.round(H * dpr);
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      // phosphor: older frames fade rather than clear, longer as the scope grows
+      ctx.fillStyle = `rgba(34,33,29,${(0.3 - 0.16 * size).toFixed(3)})`;
+      ctx.fillRect(0, 0, W, H);
+      ctx.strokeStyle = "rgba(204,200,179,0.05)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let i = 1; i < 16; i++) { ctx.moveTo((W * i) / 16, 0); ctx.lineTo((W * i) / 16, H); }
+      for (let j = 1; j < 10; j++) { ctx.moveTo(0, (H * j) / 10); ctx.lineTo(W, (H * j) / 10); }
+      ctx.stroke();
+      if (!tap) return;
+      const len = tap.left.fftSize;
+      if (!bufL || bufL.length !== len) { bufL = new Float32Array(len); bufR = new Float32Array(len); }
+      tap.left.getFloatTimeDomainData(bufL);
+      tap.right.getFloatTimeDomainData(bufR);
+      const n = Math.min(len - 1, Math.round(tap.rate * 0.024)); // the last 24 ms
+      const from = len - n;
+      const echo = Math.round(tap.rate * 0.002);
+      let maxL = 0, maxR = 0;
+      for (let i = from; i < len; i++) { maxL = Math.max(maxL, Math.abs(bufL[i])); maxR = Math.max(maxR, Math.abs(bufR[i])); }
+      const mono = maxR < 1e-4 && maxL > 1e-3;
+      const yOf = (i) => (mono ? bufL[Math.max(0, i - echo)] : bufR[i]);
+      peak = Math.max(0.02, Math.max(maxL, mono ? maxL : maxR), peak * 0.985); // auto gain, slow to fall
+      const R = (0.09 + 0.41 * size) * Math.min(W, H) * shrink;
+      const cx = W / 2, cy = H / 2;
+      const jitter = shrink < 1 ? (1 - shrink) * 8 : 0;
+      ctx.beginPath();
+      for (let i = from; i < len; i++) {
+        const x = cx + (bufL[i] / peak) * R * 1.3 + (jitter ? Math.sin(i) * jitter : 0);
+        const y = cy - (yOf(i) / peak) * R + (jitter ? Math.cos(i) * jitter : 0);
+        if (i === from) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.globalCompositeOperation = "lighter";
+      ctx.strokeStyle = `rgba(224,118,79,${(0.25 + 0.2 * size).toFixed(3)})`;
+      ctx.lineWidth = 5 + 5 * size;
+      ctx.stroke();
+      ctx.strokeStyle = "rgba(250,232,205,0.8)";
+      ctx.lineWidth = 1.3 + 0.6 * size;
+      ctx.stroke();
+      ctx.globalCompositeOperation = "source-over";
+    }
+
+    return {
+      // Called every frame of a running round with the streak and the audio tap.
+      frame(now, combo, tap) {
+        if (!on && combo >= SCOPE_AT) {
+          setup();
+          collapseAt = null;
+          size = 0;
+          show(true);
+        }
+        if (!on) return;
+        if (combo < SCOPE_AT && collapseAt == null) collapseAt = now;
+        if (combo >= SCOPE_AT) collapseAt = null;
+        if (collapseAt != null && now - collapseAt >= COLLAPSE_MS) return show(false);
+        size += (Math.min(1, (combo - SCOPE_AT) / (SCOPE_FULL - SCOPE_AT)) - size) * 0.04;
+        if (size < 0) size = 0;
+        const shrink = collapseAt == null ? 1 : Math.max(0.01, 1 - (now - collapseAt) / COLLAPSE_MS);
+        // with reduced motion asked for, the colours change but nothing is traced
+        const calm = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        draw(calm ? null : tap, shrink);
+      },
+      off() {
+        if (on) show(false);
+        collapseAt = null;
+      },
+    };
+  }
+
   // ---------- screen ----------
 
   const TILE_H = 52;     // tile height in px
@@ -538,7 +657,7 @@
       <div class="tl-side tl-left">
         <div class="tl-box"><div class="caps-label">WPM</div><div class="tl-big" data-t="wpm">–</div></div>
         <div class="tl-box"><div class="caps-label">SCORE</div><div class="tl-big" data-t="score">0</div></div>
-        <div class="tl-box"><div class="caps-label">COMBO</div><div class="tl-big"><span data-t="combo">0</span><span class="tl-mult" data-t="mult"></span></div></div>
+        <div class="tl-box"><div class="caps-label">COMBO</div><div class="tl-big"><span data-t="combo">0</span><span class="tl-mult" data-t="mult"></span></div><div class="tl-scope" data-t="scope" hidden><i></i></div></div>
         <div class="tl-box"><div class="caps-label">HEALTH</div><div class="tl-bar"><i data-t="hp"></i></div></div>
       </div>
       <div class="tl-center">
@@ -585,6 +704,7 @@
     let H = 0;
     let shakeT = -1000;
     const tileEls = new Map();
+    const scope = replayOnly ? null : createScope();
 
     // The tiles fall down a track tilted back in 3D, like a Guitar Hero highway. It pivots on the
     // line, so a tile at the line sits exactly on its word.
@@ -759,6 +879,10 @@
         : "AVG —";
       el.counts.innerHTML = [["PERFECT", c.P], ["GREAT", c.G], ["GOOD", c.O], ["SLOPPY", c.S || 0], ["MISS", c.M]]
         .map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join("");
+      // how far the scope has grown (live rounds with Scope mode on)
+      const scopeOn = !!live && live.sound.scope && g.combo >= SCOPE_AT;
+      el.scope.hidden = !scopeOn;
+      if (scopeOn) el.scope.firstChild.style.width = `${Math.round(Math.min(1, (g.combo - SCOPE_AT) / (SCOPE_FULL - SCOPE_AT)) * 100)}%`;
     }
 
     function render() {
@@ -783,7 +907,7 @@
 
     // ---------- live play ----------
 
-    function newGame(songId, diff, sound = { music: true, metronome: false }) {
+    function newGame(songId, diff, sound = { music: true, metronome: false, scope: true }) {
       stop();
       replay = null;
       song = TT.songs.get(songId);
@@ -830,6 +954,7 @@
       live.player.pump();
       if (advance(g, viewT, provide)) return end();
       render();
+      if (scope && live.sound.scope && live.player.tap) scope.frame(performance.now(), g.combo, live.player.tap);
       raf = requestAnimationFrame(frame);
     }
 
@@ -888,6 +1013,7 @@
       live.state = "over";
       cancelAnimationFrame(raf);
       if (live.player) live.player.stop();
+      if (scope) scope.off();
       viewT = g.endAt;
       // a half-typed word counts toward its column's word
       const col = column(g);
@@ -957,6 +1083,7 @@
 
     function stop() {
       cancelAnimationFrame(raf);
+      if (scope) scope.off();
       if (live) {
         if (live.player) live.player.stop();
         if (live.state !== "over") live.state = "stopped";

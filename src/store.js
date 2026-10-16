@@ -30,6 +30,7 @@ window.TT = window.TT || {};
     tilesDiff: "medium",
     tilesMusic: true,
     tilesMetronome: false,
+    tilesScope: true,
     autoUpdate: false, // desktop app only; off means the app never goes online by itself
   };
 
