@@ -978,6 +978,16 @@ body:not(.typing) .caret.caret-block { animation-name: blink-block; }
 .tl-word.next span { border-style: dashed; }
 .tl-word.hit span { background: var(--col, var(--accent)); color: var(--on-col, var(--on-accent)); }
 
+/* queue mode: the locked-in words, in a line above the typing box, the next to land first */
+.tl-queue { display: flex; justify-content: center; align-items: center; gap: 8px; height: 40px; margin-top: 14px; overflow: hidden; }
+.tl-queue[hidden] { display: none; }
+.tl-queue.empty::before { content: "LOCKED-IN WORDS LINE UP HERE"; font-size: 12px; font-weight: 700; letter-spacing: 0.12em; color: var(--sub); }
+.tl-chip { flex: none; padding: 3px 12px; border: 2px solid var(--col); background: var(--col); color: var(--on-col); font-family: var(--type-font); font-size: 19px; line-height: 1.3; animation: tl-chip-in 0.18s ease-out; }
+.tl-chip.first { outline: 3px solid var(--ink); outline-offset: 2px; }
+.tl-chip.sloppy { background: repeating-linear-gradient(-45deg, var(--col) 0 8px, color-mix(in srgb, var(--col) 55%, var(--ground)) 8px 16px); text-decoration: line-through; text-decoration-color: var(--accent); text-decoration-thickness: 3px; }
+@keyframes tl-chip-in { from { transform: translateY(14px) scale(0.8); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .tl-chip { animation: none; } }
+.tl-queue:not([hidden]) + .tl-typed-row { margin-top: 10px; }
 .tl-typed-row { display: flex; justify-content: center; margin-top: 18px; min-height: 60px; }
 .tl-typed { min-width: 80px; justify-content: center; font-size: 34px; padding: 6px 20px; }
 /* the colour of the column you're typing for */

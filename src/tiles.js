@@ -957,6 +957,7 @@
           </div>
           <div class="tl-judge" data-t="judge"></div>
         </div>
+        <div class="tl-queue" data-t="queue" hidden aria-label="Locked-in words"></div>
         <div class="tl-typed-row"><span class="word-box tl-typed" data-t="typed"></span></div>
       </div>
       <div class="tl-side tl-right">
@@ -987,6 +988,7 @@
     let H = 0;
     let shakeT = -1000;
     const tileEls = new Map();
+    const chipEls = new Map(); // queue mode: the line of locked-in words, by tile
     const scope = replayOnly ? null : createScope();
     // The playable area Scope mode outlines: the field with its words, and the typing box under it.
     const playArea = () => {
@@ -1127,6 +1129,35 @@
       }).join("");
     }
 
+    // Queue mode: the locked-in words in a line above the typing box, in their columns' colours,
+    // the next to reach the line first. A word leaves as its tile takes it.
+    function renderQueue() {
+      el.queue.hidden = !g.queue;
+      if (!g.queue) return;
+      const locked = g.tiles.filter((x) => x.q);
+      const seen = new Set();
+      locked.forEach((t, k) => {
+        let c = chipEls.get(t.i);
+        if (!c) {
+          c = document.createElement("span");
+          c.className = t.q.ok ? "tl-chip" : "tl-chip sloppy";
+          c.style.setProperty("--col", colVar(t.l));
+          c.textContent = t.q.w;
+          el.queue.appendChild(c);
+          chipEls.set(t.i, c);
+        }
+        c.classList.toggle("first", k === 0);
+        seen.add(t.i);
+      });
+      for (const [i, c] of chipEls) {
+        if (!seen.has(i)) {
+          c.remove();
+          chipEls.delete(i);
+        }
+      }
+      el.queue.classList.toggle("empty", !locked.length);
+    }
+
     function renderEffects() {
       const last = g.last;
       const age = last ? viewT - last.t : Infinity;
@@ -1216,6 +1247,7 @@
       renderColumns();
       renderTiles();
       renderWords();
+      renderQueue();
       renderEffects();
       renderHud();
     }
@@ -1228,6 +1260,8 @@
     function clearTiles() {
       for (const e of tileEls.values()) e.remove();
       tileEls.clear();
+      for (const c of chipEls.values()) c.remove();
+      chipEls.clear();
       el.words.sig = "";
     }
 
