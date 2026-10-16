@@ -574,13 +574,14 @@
   // all out, and it fades away.
   const SCOPE_START = 10, SCOPE_AT = 25, SCOPE_FULL = 50, COLLAPSE_MS = 450;
   const SPARKS_MAX = 900; // the most sparks in the storm at once
+  const SCOPE_LOWPASS = 1200, SCOPE_SETTLE = 128, SCOPE_MATCH = 128; // Hz the trace is smoothed to; samples the filter needs to settle; points compared to hold the trace still
   const SWING_START = 5, SWING_AT = 60; // px the line swings out: at the start of ×2, and by ×3
   const OUTLINE_GAP = 10; // px between the playable area and the line at rest
 
   function createScope() {
     let canvas = null, ctx = null, bufL = null, bufR = null;
     // level: 0 to 1 through ×2 (10 to 25), then 1 to 2 through ×3 (25 to 75)
-    let on = false, dark = false, level = 0, peak = 0.05, collapseAt = null;
+    let on = false, dark = false, level = 0, loud = 0.05, mono = null, last = null, collapseAt = null;
     // the storm: 0 to 1 as ×4 comes in; each spark is { x, y, vx, vy, life, max, size, hot }
     let storm = 0, sparks = [], lastBeat = null, lastNow = 0;
 
@@ -716,16 +717,47 @@
           ctx.fillRect(0, 0, W, H);
         }
       }
-      // what's playing, left and right mixed, over the last ~40 ms; auto gain, slow to fall
+      // What's playing, made readable the way a real oscilloscope does it:
+      // - left and right mixed, then low-passed, so cymbals and the high parts don't turn the line to fuzz;
+      // - triggered: the trace starts at a rising zero crossing, so a held tone stands still from frame
+      //   to frame instead of sliding (which, with the trails at ×3, smeared into a blur);
+      // - the gain follows the loudness (quick to rise, slow to fall) and peaks are soft-limited, so a
+      //   quiet song and a loud one both show their shape.
       const len = tap.left.fftSize;
-      if (!bufL || bufL.length !== len) { bufL = new Float32Array(len); bufR = new Float32Array(len); }
+      if (!bufL || bufL.length !== len) { bufL = new Float32Array(len); bufR = new Float32Array(len); mono = new Float32Array(len); }
       tap.left.getFloatTimeDomainData(bufL);
       tap.right.getFloatTimeDomainData(bufR);
-      let max = 0;
-      for (let i = 0; i < len; i++) max = Math.max(max, Math.abs((bufL[i] + bufR[i]) / 2));
-      peak = Math.max(0.02, max, peak * 0.985);
+      const sr = (tap.left.context && tap.left.context.sampleRate) || 48000;
+      const a = 1 - Math.exp((-2 * Math.PI * SCOPE_LOWPASS) / sr);
+      let y1 = 0, y2 = 0, sum = 0;
+      for (let i = 0; i < len; i++) {
+        y1 += a * ((bufL[i] + bufR[i]) / 2 - y1);
+        y2 += a * (y1 - y2);
+        mono[i] = y2;
+        if (i >= SCOPE_SETTLE) sum += y2 * y2;
+      }
+      const rms = Math.sqrt(sum / (len - SCOPE_SETTLE));
+      loud += (rms - loud) * (rms > loud ? 0.3 : 0.03);
+      loud = Math.max(0.004, loud);
+      // Of the rising zero crossings, start at the one whose trace looks most like the last frame's,
+      // so a chord (which crosses zero several times a cycle) stands still too.
+      const view = len >> 1; // ~21 ms shown round the outline
+      let from = -1, best = Infinity;
+      for (let i = SCOPE_SETTLE, armed = false; i < len - view; i++) {
+        if (mono[i] < -0.1 * loud) armed = true;
+        else if (armed && mono[i - 1] < 0 && mono[i] >= 0) {
+          armed = false;
+          if (!last) { from = i; break; }
+          let diff = 0;
+          for (let j = 0; j < SCOPE_MATCH && diff < best; j++) diff += Math.abs(mono[i + Math.floor((j * view) / SCOPE_MATCH)] / loud - last[j]);
+          if (diff < best) { best = diff; from = i; }
+        }
+      }
+      if (from < 0) from = len - view;
+      if (!last) last = new Float32Array(SCOPE_MATCH);
+      for (let j = 0; j < SCOPE_MATCH; j++) last[j] = mono[from + Math.floor((j * view) / SCOPE_MATCH)] / loud;
       // How far the line may swing out: from SWING_START to SWING_AT px through ×2, then through ×3
-      // further and further toward the window's edge on each side, reaching it at 75.
+      // further and further toward the window's edge on each side, reaching it at ×4.
       const base = SWING_START + (SWING_AT - SWING_START) * low;
       const perim = 2 * (r.x1 - r.x0 + (r.y1 - r.y0));
       const N = 1600;
@@ -734,9 +766,10 @@
         const [x, y, nx, ny] = edgePoint(r, ((k % N) / N) * perim);
         const edge = Math.max(0, nx < 0 ? x : nx > 0 ? W - x : ny < 0 ? y : H - y);
         const amp = calm ? 0 : Math.min(edge, base + Math.max(0, edge - base) * high) * shrink;
-        const i = Math.min(len - 1, Math.floor((k / N) * len));
-        const v = (bufL[i] + bufR[i]) / 2 / peak;
-        const d = (amp * (Math.max(-1, Math.min(1, v)) + 1)) / 2; // 0..amp, outward only
+        const f = from + ((k % N) / N) * view, i = Math.floor(f);
+        const s = mono[i] + (mono[Math.min(len - 1, i + 1)] - mono[i]) * (f - i);
+        const v = Math.tanh(s / (loud * 2.5));
+        const d = (amp * (v + 1)) / 2; // 0..amp, outward only
         if (k) ctx.lineTo(x + nx * d, y + ny * d);
         else ctx.moveTo(x + nx * d, y + ny * d);
       }
