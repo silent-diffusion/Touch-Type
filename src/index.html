@@ -11,29 +11,20 @@
 <body>
   <div id="app">
 
-    <!-- Bar shown on the test, practice and results screens -->
-    <header id="bar" class="bar">
-      <div class="bar-left">
-        <span class="brand">TOUCH TYPE</span>
-        <button class="outline-btn" data-act="menu">
-          <svg aria-hidden="true" width="18" height="14" viewBox="0 0 18 14"><path d="M0 1.5h18M0 7h18M0 12.5h18" stroke="currentColor" stroke-width="2.5" fill="none"/></svg>
-          MENU
-        </button>
-        <span id="practice-badge" class="badge" hidden>PRACTICE</span>
-        <button id="profile-chip" class="profile-chip" data-act="profiles"></button>
-      </div>
-      <nav id="test-config" class="seg" aria-label="Test settings"></nav>
+    <!-- Brand and profile, above the folder tabs -->
+    <header class="topline">
+      <span class="brand">TOUCH TYPE</span>
+      <button id="profile-chip" class="profile-chip" data-act="profiles"></button>
     </header>
 
-    <!-- Full menu, shown on the games, stats and settings screens -->
-    <nav id="menu-nav" class="menu-nav" aria-label="Main menu" hidden>
-      <button data-act="nav:test">TEST</button>
-      <button data-act="nav:practice">PRACTICE</button>
-      <button data-act="nav:games" data-view="games">GAMES</button>
-      <button data-act="nav:leaderboard" data-view="leaderboard">LEADERBOARD</button>
-      <button data-act="nav:stats" data-view="stats">STATS</button>
-      <button data-act="nav:settings" data-view="settings">SETTINGS</button>
-    </nav>
+    <!-- The main menu: folder tabs. A section with its own menu (games, stats, settings, leaderboard)
+         gets a second row of tabs on a folder in front; the back folder's edge shows behind it. -->
+    <nav id="tabs" class="ftabs" aria-label="Main menu"></nav>
+    <div class="folder-back" aria-hidden="true"></div>
+    <div class="folder-stack">
+      <nav id="subtabs" class="ftabs sub" aria-label="Section menu" hidden></nav>
+      <div id="folder" class="folder">
+    <div class="folder-head"><nav id="test-config" class="seg" aria-label="Test settings"></nav></div>
 
     <main id="view-typing" class="view typing-view">
       <div class="typing-top">
@@ -86,6 +77,8 @@
     <main id="view-leaderboard" class="view menu-view" hidden></main>
     <main id="view-stats" class="view menu-view" hidden></main>
     <main id="view-settings" class="view menu-view" hidden></main>
+      </div>
+    </div>
 
     <footer class="bar footer">
       <div id="hints" class="hints"></div>

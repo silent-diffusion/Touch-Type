@@ -86,10 +86,10 @@
   };
 
   const els = {
-    bar: $("bar"),
+    app: $("app"),
+    tabs: $("tabs"),
+    subtabs: $("subtabs"),
     config: $("test-config"),
-    badge: $("practice-badge"),
-    menuNav: $("menu-nav"),
     typing: $("view-typing"),
     results: $("view-results"),
     liveNum: $("live-num"),
@@ -201,13 +201,11 @@
     const s = S();
     const btn = (label, on, act) => `<button class="${on ? "on" : ""}" aria-pressed="${on}" data-act="${act}">${label}</button>`;
     const divider = `<span class="divider" aria-hidden="true"></span>`;
-    const special = ui.view === "game" || ui.view === "replay" || FOREST_VIEWS.includes(ui.view) || TILES_VIEWS.includes(ui.view);
+    // The test settings show in the folder on the test, practice and results screens only.
+    const special = !["test", "practice", "results"].includes(ui.view);
     els.config.hidden = special;
-    els.badge.hidden = !special && ui.lastTyping !== "practice";
     $("profile-chip").textContent = TT.profiles.active().name;
     $("profile-chip").setAttribute("aria-label", `Profile: ${TT.profiles.active().name}. Manage profiles`);
-    els.badge.textContent = ui.view === "replay" ? "REPLAY" : ui.view === "game" ? "PATH RUNNER"
-      : FOREST_VIEWS.includes(ui.view) ? "FOREST HOP" : TILES_VIEWS.includes(ui.view) ? "TILES" : "PRACTICE";
     if (special) return;
 
     if (ui.lastTyping === "practice") {
@@ -353,11 +351,57 @@
     els.statusLine.textContent = STATUS[ui.view];
   }
 
+  // ---------- folder tabs ----------
+
+  const MAIN_TABS = [
+    ["test", "TEST", "nav:test"], ["practice", "PRACTICE", "nav:practice"], ["games", "GAMES", "nav:games"],
+    ["leaderboard", "LEADERBOARD", "nav:leaderboard"], ["stats", "STATS", "nav:stats"], ["settings", "SETTINGS", "nav:settings"],
+  ];
+  // While you're in the games, the second row of tabs is the library and each playable game.
+  const GAME_TABS = [["library", "LIBRARY", "nav:games"], ["forest", "FOREST HOP", "fh:select"], ["tiles", "TILES", "tl:select"], ["path", "PATH RUNNER", "play"]];
+  const FOLDER_VIEWS = ["leaderboard", "stats", "settings"]; // these draw their own second row of tabs
+
+  // Which main tab a screen belongs to.
+  function tabFor(view) {
+    if (view === "replay") return rp.returnTo === "replay" ? "test" : tabFor(rp.returnTo);
+    if (view === "results") return ui.lastTyping === "practice" ? "practice" : "test";
+    if (MAIN_TABS.some(([id]) => id === view)) return view;
+    return "games"; // the game screens
+  }
+
+  // Which game tab a screen inside the games belongs to.
+  function gameTabFor(view) {
+    if (view === "replay") return rp.rec && rp.rec.game === "forest" ? "forest" : rp.rec && rp.rec.game === "tiles" ? "tiles" : "path";
+    if (FOREST_VIEWS.includes(view)) return "forest";
+    if (TILES_VIEWS.includes(view)) return "tiles";
+    if (view === "game") return "path";
+    return "library";
+  }
+
+  const tabNum = (id) => MAIN_TABS.findIndex(([t]) => t === id) + 1;
+
+  function renderTabs(view) {
+    const main = tabFor(view);
+    els.tabs.innerHTML = MAIN_TABS.map(([id, label, act], i) =>
+      `<button class="ftab ${id === main ? "on" : ""}" data-act="${act}"${id === main ? ' aria-current="page"' : ""}><span class="n">0${i + 1}</span>${label}</button>`).join("");
+    if (main === "games") setSubtabs(GAME_TABS, gameTabFor(view), main);
+    else if (!FOLDER_VIEWS.includes(view)) setSubtabs(null);
+  }
+
+  // The second row of tabs. tabs: [[id, label, action], ...], or null for none.
+  function setSubtabs(tabs, current, main) {
+    els.subtabs.hidden = !tabs;
+    els.app.classList.toggle("has-sub", !!tabs);
+    if (!tabs) return (els.subtabs.innerHTML = "");
+    const n = tabNum(main);
+    els.subtabs.innerHTML = tabs.map(([id, label, act], i) =>
+      `<button class="ftab ${id === current ? "on" : ""}" data-act="${act}"${id === current ? ' aria-current="page"' : ""}><span class="n">0${n}.${i + 1}</span>${label}</button>`).join("");
+  }
+
   function show(view) {
     ui.view = view;
-    const inMenu = MENU_VIEWS.includes(view);
-    els.bar.hidden = inMenu;
-    els.menuNav.hidden = !inMenu;
+    els.config.hidden = !["test", "practice", "results"].includes(view);
+    renderTabs(view);
     els.typing.hidden = view !== "test" && view !== "practice";
     els.results.hidden = view !== "results";
     $("view-game").hidden = view !== "game";
@@ -369,12 +413,6 @@
     $("view-replay").hidden = view !== "replay";
     if (view !== "replay") pauseReplay();
     for (const v of MENU_VIEWS) $(`view-${v}`).hidden = v !== view;
-    for (const b of els.menuNav.querySelectorAll("button")) {
-      const on = b.dataset.view === view;
-      b.classList.toggle("on", on);
-      if (on) b.setAttribute("aria-current", "page");
-      else b.removeAttribute("aria-current");
-    }
     renderHints();
   }
 
@@ -389,9 +427,11 @@
     ({ games: renderGames, leaderboard: renderLeaderboard, stats: renderStats, settings: renderSettings })[view]();
   }
 
-  const subtabs = (tabs, current, act) =>
-    `<div class="subtabs">${tabs.map(([id, label]) =>
-      `<button class="${id === current ? "on" : ""}" aria-pressed="${id === current}" data-act="${act}:${id}">${label}</button>`).join("")}</div>`;
+  // A section's own menu becomes the folder's second row of tabs (it returns no markup of its own).
+  const subtabs = (tabs, current, act) => {
+    setSubtabs(tabs.map(([id, label]) => [id, label, `${act}:${id}`]), current, tabFor(ui.view));
+    return "";
+  };
 
   function statusPanel(title = "STATUS") {
     const sum = A.summary();
@@ -422,7 +462,10 @@
     if (!list.some((g) => g.id === ui.game)) ui.game = list[0].id;
     const g = selectedGame();
 
-    $("view-games").innerHTML = subtabs([["all", "All"], ["arcade", "Arcade"], ["rhythm", "Rhythm"], ["drills", "Drills"]], ui.gamesTab, "gtab") + `
+    const filters = [["all", "ALL"], ["arcade", "ARCADE"], ["rhythm", "RHYTHM"], ["drills", "DRILLS"]];
+    $("view-games").innerHTML = `
+      <div class="seg game-filter" aria-label="Show games">${filters.map(([id, label]) =>
+        `<button class="${id === ui.gamesTab ? "on" : ""}" aria-pressed="${id === ui.gamesTab}" data-act="gtab:${id}">${label}</button>`).join("")}</div>` + `
       <div class="cols">
         <ul class="list col-list">
           ${list.map((x) => `<li><button class="${x.id === g.id ? "on" : ""}" aria-pressed="${x.id === g.id}" data-act="game:${x.id}">${x.name}<span class="tag">${gameTag(x)}</span></button></li>`).join("")}
@@ -1711,7 +1754,11 @@
       case "rp": replayAct(x, y); break;
       case "fh": forestAct(x, y); break;
       case "tl": tilesAct(x, y); break;
-      case "stab": ui.statsTab = x; renderStats(); break;
+      case "stab":
+        ui.statsTab = x;
+        if (ui.view === "stats") renderStats();
+        else openMenu("stats"); // from a replay opened in the stats
+        break;
       case "lb":
         if (x === "tab") ui.lbTab = y;
         else if (x === "song") ui.lbSong = y;

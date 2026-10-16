@@ -33,7 +33,7 @@
 
 * { box-sizing: border-box; }
 
-html, body { margin: 0; background: var(--ground); transition: background-color 0.8s; }
+html, body { margin: 0; background: var(--desk); transition: background-color 0.8s; }
 
 /* Tiles' Scope mode: the night colours over any theme, with the oscilloscope behind the whole app */
 html.scope[data-theme] {
@@ -57,7 +57,7 @@ body {
   position: relative;
   z-index: 1;
   min-height: 100vh;
-  padding: 40px 64px 32px;
+  padding: 22px 48px 24px;
   display: flex;
   flex-direction: column;
 }
@@ -803,7 +803,7 @@ body:not(.typing) .caret.caret-block { animation-name: blink-block; }
 
 /* ---------- footer ---------- */
 
-.footer { margin-top: 40px; padding-top: 20px; border-top: var(--rule); }
+.footer { margin-top: 18px; }
 .hints { display: flex; flex-wrap: wrap; gap: 8px 20px; }
 .hints button {
   display: inline-flex;
@@ -1033,4 +1033,116 @@ body:not(.typing) .caret.caret-block { animation-name: blink-block; }
   .tl-word span { font-size: 16px; }
   .tl-right { order: 3; }
   .rp-tiles .tl { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ---------- folder tabs (the main menu) ---------- */
+
+/* the desk behind the folders, the shade of tabs you're not on, and their shadow */
+:root, [data-theme="sand"] { --desk: #b8b39d; --tab-back: #bfbaa3; --shade: rgba(40, 37, 30, 0.45); }
+[data-theme="ash"] { --desk: #a7a8a1; --tab-back: #b0b1aa; --shade: rgba(30, 32, 28, 0.45); }
+[data-theme="night"] { --desk: #1c1b18; --tab-back: #24231f; --shade: rgba(0, 0, 0, 0.7); }
+
+.topline { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding-bottom: 12px; }
+
+.ftabs { display: flex; align-items: flex-end; padding-left: 4px; position: relative; z-index: 2; min-width: 0; }
+.ftab {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 46px;
+  padding: 0 34px;
+  margin: 0 -12px -2px 0;
+  color: var(--muted);
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  transition: transform 0.15s ease;
+}
+/* the tab's shape: slanted sides with rounded top corners */
+.ftab::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--tab-back);
+  border: var(--rule);
+  border-bottom: none;
+  border-radius: 14px 14px 0 0;
+  transform: perspective(40px) rotateX(5deg);
+  transform-origin: bottom;
+  box-shadow: inset 0 -10px 12px -8px var(--shade);
+}
+.ftab .n { font-family: var(--type-font); font-size: 12px; font-weight: 500; letter-spacing: 0; color: var(--sub); }
+/* tabs lift a little under the cursor */
+.ftab:hover, .ftab:focus-visible { transform: translateY(-8px); outline: none; }
+.ftab:focus-visible::before { border-color: var(--accent); }
+/* the tab you're on opens into its folder */
+.ftab.on { z-index: 2; color: var(--ink); }
+.ftab.on::before { inset: 0 0 -2px 0; background: var(--ground); box-shadow: none; }
+.ftab.on .n { color: var(--ink); }
+
+/* a section's own menu: a second row of tabs on a folder in front, a little lower and further over */
+.ftabs.sub { padding-left: 72px; }
+.ftabs.sub .ftab { height: 40px; padding: 0 28px; font-size: 13px; }
+.folder-back {
+  display: none;
+  height: 40px;
+  background: var(--tab-back);
+  border: var(--rule);
+  border-bottom: none;
+  border-radius: 0 16px 0 0;
+  position: relative;
+  z-index: 1;
+}
+#app.has-sub .folder-back { display: block; }
+.folder-stack { flex: 1; display: flex; flex-direction: column; position: relative; z-index: 3; }
+#app.has-sub .folder-stack { margin-top: -54px; }
+
+.folder {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: var(--ground);
+  border: var(--rule);
+  border-radius: 0 16px 16px 16px;
+  padding: 22px 36px 32px;
+  position: relative;
+  z-index: 1;
+}
+#app.has-sub .folder { border-radius: 16px; box-shadow: 0 -6px 12px -6px var(--shade); }
+.folder-head { display: flex; justify-content: flex-end; }
+/* the folder takes a little width, so columns sit a bit closer than they used to */
+.folder .cols { gap: 48px 56px; }
+.folder-head:has(> [hidden]) { display: none; }
+.game-filter { align-self: flex-start; margin-bottom: 24px; }
+
+/* Scope mode draws behind the whole app, so the folders turn see-through */
+html.scope[data-theme] { --desk: #1c1b18; --tab-back: #24231f; --shade: rgba(0, 0, 0, 0.7); }
+html.scope, html.scope body { background: var(--desk); }
+html.scope .folder { background: color-mix(in srgb, var(--ground) 30%, transparent); }
+html.scope .folder-back, html.scope .ftab::before { background: color-mix(in srgb, var(--tab-back) 50%, transparent); }
+html.scope .ftab.on::before { background: color-mix(in srgb, var(--ground) 30%, transparent); }
+
+@media (max-width: 1280px) {
+  .ftab { padding: 0 22px; gap: 8px; }
+  .ftabs.sub .ftab { padding: 0 20px; }
+}
+@media (max-width: 1120px) {
+  .ftab { font-size: 13px; padding: 0 18px; }
+  .ftab .n { display: none; }
+  .ftabs.sub { padding-left: 40px; }
+  #app { padding-left: 24px; padding-right: 24px; }
+  .folder { padding-left: 22px; padding-right: 22px; }
+  .folder .cols { gap: 40px 44px; }
+}
+
+/* short windows: the folder tabs take some height, so the game areas may shrink to fit */
+@media (max-height: 820px) {
+  .folder .fh { min-height: 380px; }
+  .folder .tl { min-height: 400px; }
+  .folder { padding-top: 16px; padding-bottom: 20px; }
 }
