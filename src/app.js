@@ -463,40 +463,28 @@
   }
 
   // ---------- jump to a tab by its number ----------
-  // Hold Ctrl and type a tab's number ("1", "6.4"), then let go of Ctrl: the main tab opens, then the
-  // numbered tab in its second row.
-  let jump = null;
+  // Hold Ctrl and press a tab's number: the first number opens that main tab right away, and each
+  // number after it (Ctrl still held) opens that tab in its second row. Letting go of Ctrl starts over.
+  let jumpMain = false; // a main tab has been chosen while Ctrl is held
 
-  function peekJump() {
-    const main = jump && jump.match(/^0*(\d)/);
-    for (const b of els.tabs.querySelectorAll(".ftab")) b.classList.toggle("peek", !!main && b.dataset.num === main[1]);
-    els.statusLine.textContent = jump ? `Go to ${jump}…` : STATUS[ui.view];
-  }
-
-  function jumpTo(code) {
-    const m = code.match(/^0*(\d+)(?:\.0*(\d+))?$/);
-    const tab = m && MAIN_TABS[Number(m[1]) - 1];
-    if (!tab) {
-      els.statusLine.textContent = `There's no tab ${code}.`;
+  function jumpKey(n) {
+    if (!jumpMain) {
+      const tab = MAIN_TABS[n - 1];
+      if (!tab) return (els.statusLine.textContent = `There's no tab ${n}.`);
+      act(tab[2]);
+      jumpMain = true;
       return;
     }
-    act(tab[2]);
-    if (!m[2]) return;
-    const sub = els.subtabs.hidden ? null : els.subtabs.querySelectorAll(".ftab")[Number(m[2]) - 1];
+    const sub = els.subtabs.hidden ? null : els.subtabs.querySelectorAll(".ftab")[n - 1];
     if (sub) act(sub.dataset.act);
-    else els.statusLine.textContent = `There's no tab ${code}.`;
+    else els.statusLine.textContent = `There's no tab ${tabNum(tabFor(ui.view))}.${n}.`;
   }
 
   document.addEventListener("keyup", (e) => {
-    if (e.key !== "Control" || jump === null) return;
-    const code = jump;
-    jump = null;
-    peekJump();
-    jumpTo(code);
+    if (e.key === "Control") jumpMain = false;
   });
   window.addEventListener("blur", () => {
-    jump = null;
-    peekJump();
+    jumpMain = false;
   });
 
   function show(view) {
@@ -1938,19 +1926,10 @@
     }
     const v = ui.view;
 
-    // Ctrl + digits (and ".") build up a tab number to jump to when Ctrl is let go.
-    if (e.ctrlKey && !e.altKey && !e.metaKey && /^[0-9.]$/.test(e.key)) {
+    // Ctrl + a number jumps to a tab (see jumpKey).
+    if (e.ctrlKey && !e.altKey && !e.metaKey && /^[1-9]$/.test(e.key)) {
       e.preventDefault();
-      if (!e.repeat) {
-        jump = (jump || "") + e.key;
-        peekJump();
-      }
-      return;
-    }
-    if (jump !== null && e.key === "Escape") {
-      e.preventDefault();
-      jump = null;
-      peekJump();
+      if (!e.repeat) jumpKey(Number(e.key));
       return;
     }
     if (e.key === "Escape" && ui.fullscreen && ROOT_VIEWS.includes(v)) {
