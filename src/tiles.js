@@ -568,9 +568,12 @@
   // oscilloscope trace, always outside it so it never gets in the way. From a streak of 10 (×2) it's
   // a thin line that ripples with the music, growing through ×2 until it swings about 60 px out by
   // 25. From 25 (×3) the app switches to its night colours, the line glows, and it can swing out
-  // across the whole window, under the rest of the app: by 75 it reaches the window's edges. It
-  // never crosses into the play area. A miss flattens it out, and it fades away.
-  const SCOPE_START = 10, SCOPE_AT = 25, SCOPE_FULL = 75, COLLAPSE_MS = 450;
+  // across the whole window, under the rest of the app: by 50 (×4) it reaches the window's edges.
+  // At ×4 a storm of sparks joins it, thrown out from the play area on every beat and swirling
+  // round it to the window's edges. Nothing is ever drawn over the play area. A miss flattens it
+  // all out, and it fades away.
+  const SCOPE_START = 10, SCOPE_AT = 25, SCOPE_FULL = 50, COLLAPSE_MS = 450;
+  const SPARKS_MAX = 900; // the most sparks in the storm at once
   const SWING_START = 5, SWING_AT = 60; // px the line swings out: at the start of ×2, and by ×3
   const OUTLINE_GAP = 10; // px between the playable area and the line at rest
 
@@ -578,6 +581,8 @@
     let canvas = null, ctx = null, bufL = null, bufR = null;
     // level: 0 to 1 through ×2 (10 to 25), then 1 to 2 through ×3 (25 to 75)
     let on = false, dark = false, level = 0, peak = 0.05, collapseAt = null;
+    // the storm: 0 to 1 as ×4 comes in; each spark is { x, y, vx, vy, life, max, size, hot }
+    let storm = 0, sparks = [], lastBeat = null, lastNow = 0;
 
     function setup() {
       if (canvas) return;
@@ -609,7 +614,62 @@
     function setDark(yes) {
       dark = yes;
       document.documentElement.classList.toggle("scope", yes);
+      if (!yes) setStorm(false);
       if (canvas) place();
+    }
+    function setStorm(yes) {
+      document.documentElement.classList.toggle("scope-storm", yes);
+      if (!yes) { sparks = []; storm = 0; lastBeat = null; }
+    }
+
+    // A burst of sparks from the outline, thrown outward with a swirl round the play area: more on a
+    // downbeat and on the song's strong beats.
+    function burst(r, perim, count, speed) {
+      for (let k = 0; k < count && sparks.length < SPARKS_MAX; k++) {
+        const [x, y, nx, ny] = edgePoint(r, Math.random() * perim);
+        const out = speed * (0.4 + Math.random() * 0.9), swirl = speed * (0.3 + Math.random() * 0.5);
+        // clockwise round the play area: the edge's way along is the way out turned a quarter
+        sparks.push({ x, y, vx: nx * out - ny * swirl, vy: ny * out + nx * swirl, life: 0, max: 0.9 + Math.random() * 1.4, size: 1.6 + Math.random() * 2.6, hot: Math.random() < 0.3 });
+      }
+    }
+    function drawStorm(r, W, H, perim, beat, dt, shrink) {
+      const cx = (r.x0 + r.x1) / 2, cy = (r.y0 + r.y1) / 2;
+      if (beat && beat.t !== lastBeat && collapseAt == null) {
+        lastBeat = beat.t;
+        const strong = beat.down ? 1 : 0.35 + 0.65 * (beat.w == null ? 0.5 : beat.w);
+        burst(r, perim, Math.round((50 + 110 * strong) * storm), 260 + 260 * strong);
+      }
+      // a steady drizzle between beats
+      if (collapseAt == null) burst(r, perim, Math.round(storm * 90 * dt), 160);
+      // each beat flashes the sparks bright, then they cool
+      const glow = beat ? Math.max(0, 1 - beat.since / 260) : 0;
+      ctx.globalCompositeOperation = "lighter";
+      const keep = [];
+      for (const p of sparks) {
+        p.life += dt;
+        if (p.life >= p.max) continue;
+        // drag, and a gentle pull that keeps the swirl going round the play area
+        const dx = p.x - cx, dy = p.y - cy, dist = Math.hypot(dx, dy) || 1;
+        p.vx += (-dy / dist) * 90 * dt;
+        p.vy += (dx / dist) * 90 * dt;
+        p.vx *= 1 - 0.9 * dt;
+        p.vy *= 1 - 0.9 * dt;
+        const ox = p.x, oy = p.y;
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        if (p.x < -20 || p.y < -20 || p.x > W + 20 || p.y > H + 20) continue;
+        keep.push(p);
+        const fade = (1 - p.life / p.max) * shrink;
+        const a = Math.min(1, (0.5 + 0.5 * glow) * fade);
+        ctx.strokeStyle = p.hot ? `rgba(220,246,250,${a.toFixed(3)})` : `rgba(86,196,212,${a.toFixed(3)})`; // ice blue, against the warm line
+        ctx.lineWidth = p.size * (1 + 0.6 * glow);
+        ctx.beginPath();
+        ctx.moveTo(ox, oy);
+        ctx.lineTo(p.x, p.y);
+        ctx.stroke();
+      }
+      sparks = keep;
+      ctx.globalCompositeOperation = "source-over";
     }
 
     // The point at distance d along a rectangle's edge (clockwise from the top left), and the way out.
@@ -624,7 +684,7 @@
       return [r.x0, r.y1 - d, -1, 0];
     }
 
-    function draw(tap, area, shrink, calm) {
+    function draw(tap, area, shrink, calm, beat, dt) {
       const dpr = window.devicePixelRatio || 1;
       // the canvas covers the folder (×2) or the window (×3); the area is in window coordinates
       const box = canvas.classList.contains("in-folder") ? canvas.parentNode.getBoundingClientRect() : { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
@@ -642,6 +702,20 @@
       } else ctx.clearRect(0, 0, W, H);
       if (!area) return;
       const r = { x0: area.left - box.left - OUTLINE_GAP, y0: area.top - box.top - OUTLINE_GAP, x1: area.right - box.left + OUTLINE_GAP, y1: area.bottom - box.top + OUTLINE_GAP };
+      // everything is drawn outside the play area, never on it
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0, 0, W, H);
+      ctx.rect(r.x0, r.y0, r.x1 - r.x0, r.y1 - r.y0);
+      ctx.clip("evenodd");
+      // at ×4 the whole window warms up on each beat
+      if (storm > 0 && beat && !calm) {
+        const pulse = Math.max(0, 1 - beat.since / 220) * storm * shrink * (beat.down ? 0.16 : 0.09);
+        if (pulse > 0.005) {
+          ctx.fillStyle = `rgba(224,118,79,${pulse.toFixed(3)})`;
+          ctx.fillRect(0, 0, W, H);
+        }
+      }
       // what's playing, left and right mixed, over the last ~40 ms; auto gain, slow to fall
       const len = tap.left.fftSize;
       if (!bufL || bufL.length !== len) { bufL = new Float32Array(len); bufR = new Float32Array(len); }
@@ -683,11 +757,16 @@
         ctx.stroke();
         ctx.globalAlpha = 1;
       }
+      if ((storm > 0 || sparks.length) && !calm) drawStorm(r, W, H, perim, beat, dt, shrink);
+      ctx.restore();
     }
 
     return {
-      // Called every frame of a running round with the streak, the audio tap and the playable area.
-      frame(now, combo, tap, area) {
+      // Called every frame of a running round with the streak, the audio tap, the playable area and
+      // the last beat ({ since: ms ago, down, w }, or null).
+      frame(now, combo, tap, area, beat = null) {
+        const dt = Math.min(0.05, Math.max(0, (now - (lastNow || now)) / 1000));
+        lastNow = now;
         const want = combo >= SCOPE_START;
         if (want) collapseAt = null;
         if (!on && want) {
@@ -702,15 +781,22 @@
           ? 1 + Math.min(1, (combo - SCOPE_AT) / (SCOPE_FULL - SCOPE_AT))
           : Math.max(0, Math.min(1, (combo - SCOPE_START) / (SCOPE_AT - SCOPE_START)));
         if (collapseAt == null) level += (target - level) * 0.04;
+        // ×4: the storm comes in over about a second
+        const stormy = collapseAt == null && combo >= SCOPE_FULL;
+        if (stormy && !document.documentElement.classList.contains("scope-storm")) setStorm(true);
+        if (stormy) storm = Math.min(1, storm + dt);
+        else if (collapseAt == null && storm > 0) { storm = Math.max(0, storm - dt * 2); if (!storm) setStorm(false); }
         const shrink = collapseAt == null ? 1 : Math.max(0, 1 - (now - collapseAt) / COLLAPSE_MS);
         // with reduced motion asked for, the outline stays still
         const calm = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
-        draw(tap, area, shrink, calm);
+        draw(tap, area, shrink, calm, beat, dt);
       },
       off() {
         if (on) setOn(false);
         collapseAt = null;
+        lastNow = 0;
       },
+      sparks: () => sparks.length, // for tests
     };
   }
 
@@ -1020,7 +1106,7 @@
       g = newCore({ hits, fall: D.fall, endT, diff, lanes: columns(song, diff), cols: D.cols });
       g.wpmScale = W.scale();
       dealWords(g, provide);
-      beatTimes = song.beats.map((b) => ({ t: offset + b.t * 1000, down: b.down }));
+      beatTimes = song.beats.map((b) => ({ t: offset + b.t * 1000, down: b.down, w: b.w }));
       viewT = 0;
       hudSig = "";
       clearTiles();
@@ -1044,13 +1130,21 @@
       raf = requestAnimationFrame(frame);
     }
 
+    // the last beat that has played, and how long ago, for the storm
+    function lastBeatNow() {
+      for (let k = beatTimes.length - 1; k >= 0; k--) {
+        if (beatTimes[k].t <= viewT) return { ...beatTimes[k], since: viewT - beatTimes[k].t, k };
+      }
+      return null;
+    }
+
     function frame() {
       if (!live || live.state !== "running") return;
       viewT = performance.now() - live.startedAt;
       live.player.pump();
       if (advance(g, viewT, provide)) return end();
       render();
-      if (scope && live.sound.scope && live.player.tap) scope.frame(performance.now(), g.combo, live.player.tap, playArea());
+      if (scope && live.sound.scope && live.player.tap) scope.frame(performance.now(), g.combo, live.player.tap, playArea(), lastBeatNow());
       raf = requestAnimationFrame(frame);
     }
 

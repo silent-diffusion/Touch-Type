@@ -1135,6 +1135,10 @@ html.scope, html.scope body { background: var(--desk); }
 html.scope .folder { background: color-mix(in srgb, var(--ground) 30%, transparent); }
 html.scope #app.has-sub .folder-stack, html.scope .ftab::before { background: color-mix(in srgb, var(--tab-back) 50%, transparent); }
 html.scope .ftab.on::before { background: color-mix(in srgb, var(--fill, var(--ground)) 30%, transparent); }
+/* at ×4 the storm takes the whole window: the folders all but vanish (the play area keeps its own tint) */
+html.scope-storm .folder { background: color-mix(in srgb, var(--ground) 8%, transparent); transition: background 0.8s; }
+html.scope-storm #app.has-sub .folder-stack, html.scope-storm .ftab::before { background: color-mix(in srgb, var(--tab-back) 20%, transparent); }
+html.scope-storm .ftab.on::before { background: color-mix(in srgb, var(--fill, var(--ground)) 10%, transparent); }
 
 @media (max-width: 1280px) {
   .ftab { padding: 0 22px; gap: 8px; }
