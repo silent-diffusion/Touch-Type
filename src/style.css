@@ -1090,7 +1090,7 @@ body:not(.typing) .caret.caret-block { animation-name: blink-block; }
   letter-spacing: 0.14em;
   text-transform: uppercase;
   white-space: nowrap;
-  transition: height 0.15s ease;
+  transition: height 0.15s ease, margin-top 0.15s ease;
 }
 /* the tab's shape: slanted sides with rounded top corners. Tabs you're not on stop at the folder's
    edge, so its outline runs in front of them. */
@@ -1108,8 +1108,9 @@ body:not(.typing) .caret.caret-block { animation-name: blink-block; }
   box-shadow: inset 0 -10px 12px -8px var(--shade);
 }
 .ftab .n { font-family: var(--type-font); font-size: 12px; font-weight: 500; letter-spacing: 0; color: var(--sub); }
-/* under the cursor a tab grows taller from its base, so it stays attached to its folder */
-.ftab:hover, .ftab:focus-visible { height: 54px; outline: none; }
+/* under the cursor a tab grows taller from its base, so it stays attached to its folder. The negative
+   margin takes back the extra height, so the row (and the page under it) doesn't move. */
+.ftab:hover, .ftab:focus-visible { height: 54px; margin-top: -8px; outline: none; }
 .ftab:focus-visible::before { border-color: var(--accent); }
 
 /* The open tab is part of its folder: one drawing (.tabshape, shaped in app.js) covers the folder's
@@ -1133,7 +1134,7 @@ body:not(.typing) .caret.caret-block { animation-name: blink-block; }
 }
 .ftabs.sub { padding-left: 58px; margin-top: -16px; z-index: 3; }
 .ftabs.sub .ftab { height: 40px; padding: 0 28px; font-size: 13px; }
-.ftabs.sub .ftab:hover, .ftabs.sub .ftab:focus-visible { height: 48px; }
+.ftabs.sub .ftab:hover, .ftabs.sub .ftab:focus-visible { height: 48px; margin-top: -8px; }
 
 .folder {
   flex: 1;
