@@ -1,9 +1,20 @@
 // Desktop shell: one window showing the web app in ../src, plus updates from GitHub Releases.
 // The app never goes online by itself: update checks only happen when the user clicks
-// "Check for updates" in Settings, or has turned on automatic updates there.
-const { app, BrowserWindow, Menu, dialog, ipcMain, screen, shell } = require("electron");
+// "Check for updates" in Settings, or has turned on automatic updates there, and the separation
+// pack (pack.js) only downloads when the user clicks Download for it in Settings.
+const { app, BrowserWindow, Menu, dialog, ipcMain, protocol, screen, shell } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const path = require("path");
+const pack = require("./pack");
+
+// For testing a development copy without touching the installed app's data: run with
+// TT_USER_DATA set to a scratch folder.
+if (process.env.TT_USER_DATA) app.setPath("userData", process.env.TT_USER_DATA);
+
+// The separation pack's files are served to the page from ttpack://pack/<file>.
+protocol.registerSchemesAsPrivileged([
+  { scheme: pack.SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true } },
+]);
 
 let win = null;
 
@@ -151,6 +162,12 @@ if (!app.requestSingleInstanceLock()) {
   ipcMain.handle("window-set-fullscreen", (_e, on) => win && win.setFullScreen(!!on));
   ipcMain.handle("window-close", () => win && win.close());
   setUpUpdates();
-  app.whenReady().then(createWindow);
+  pack.setUp(ipcMain, (state) => {
+    if (win && !win.isDestroyed()) win.webContents.send("pack-state", state);
+  });
+  app.whenReady().then(() => {
+    protocol.handle(pack.SCHEME, pack.serve);
+    createWindow();
+  });
   app.on("window-all-closed", () => app.quit());
 }

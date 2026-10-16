@@ -10,15 +10,17 @@
   const STORE = "rounds";
   let dbPromise = null;
 
-  // Version 2 added the "music" store for songs added to Tiles (see music.js).
+  // Version 2 added the "music" store for songs added to Tiles (see music.js), version 3 the "stems"
+  // store for their separated parts (separate.js).
   function open() {
     if (!dbPromise) {
       dbPromise = new Promise((resolve, reject) => {
-        const req = indexedDB.open(DB_NAME, 2);
+        const req = indexedDB.open(DB_NAME, 3);
         req.onupgradeneeded = () => {
           const db = req.result;
           if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE, { keyPath: "id" }).createIndex("date", "date");
           if (!db.objectStoreNames.contains("music")) db.createObjectStore("music", { keyPath: "id" });
+          if (!db.objectStoreNames.contains("stems")) db.createObjectStore("stems", { keyPath: "id" });
         };
         req.onsuccess = () => resolve(req.result);
         req.onerror = () => reject(req.error);

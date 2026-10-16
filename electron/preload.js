@@ -17,4 +17,13 @@ contextBridge.exposeInMainWorld("touchType", {
     setAuto: (on) => ipcRenderer.invoke("update-set-auto", !!on),
     onState: (cb) => ipcRenderer.on("update-state", (_e, state) => cb(state)),
   },
+  // the separation pack (electron/pack.js): its files are at ttpack://pack/ once installed
+  pack: {
+    base: "ttpack://pack/",
+    getState: () => ipcRenderer.invoke("pack-get"),
+    install: () => ipcRenderer.invoke("pack-install"),
+    cancel: () => ipcRenderer.invoke("pack-cancel"),
+    remove: () => ipcRenderer.invoke("pack-remove"),
+    onState: (cb) => ipcRenderer.on("pack-state", (_e, state) => cb(state)),
+  },
 });

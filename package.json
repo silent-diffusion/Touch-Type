@@ -21,7 +21,8 @@
     "productName": "Touch Type",
     "files": [
       "electron/**/*",
-      "src/**/*"
+      "src/**/*",
+      "!src/_pack/**"
     ],
     "directories": {
       "buildResources": "build",

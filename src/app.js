@@ -830,6 +830,18 @@
     else if (s.tilesLyrics && C.titleWords(song.title).length) lyricLine = "A few of the words come from the title." + (song.user ? " Add lyrics with LYRICS and most of them will come from the song." : "");
     else if (song.user) lyricLine = "No lyrics yet. Add them with LYRICS and most of the words will come from the song.";
     if (lyricLine) lyricLine = `<p class="note">${lyricLine}</p>`;
+    // An added song's parts for the ×4 visuals: split with the separation pack, or a link to get it.
+    let partsLine = "";
+    if (song.user) {
+      const sp = TT.separate, st = sp.statusOf(song.id), installed = sp.state().dev || sp.state().pack.status === "installed";
+      const parts = "vocals, drums, bass and other instruments";
+      if (st.status === "done") partsLine = `<p class="note">Split into ${parts}, for the ×4 visuals.</p>`;
+      else if (st.status === "working") partsLine = `<p class="note">Splitting into ${parts} for the ×4 visuals… ${st.percent || 0}%. You can play it meanwhile.</p>`;
+      else if (st.status === "queued") partsLine = `<p class="note">Waiting to be split into ${parts} for the ×4 visuals. You can play it meanwhile.</p>`;
+      else if (st.status === "failed") partsLine = `<p class="note">It couldn't be split into its parts: ${esc(st.error)}</p>`;
+      else if (!installed && sp.supported()) partsLine = `<p class="note">At ×4 the visuals follow this song's ${parts}. Get the separation pack for a cleaner split.</p>
+          <div class="tl-own"><button class="outline-btn" data-act="goto:music">GET THE SEPARATION PACK</button></div>`;
+    }
     const rows = C.DIFF_IDS.map((id) => {
       const b = best(song.id, id);
       return [`${C.DIFFS[id].name[0]}${C.DIFFS[id].name.slice(1).toLowerCase()}:`, b ? `${b.grade} · ${b.score.toLocaleString()}` : "—"];
@@ -886,6 +898,7 @@
           ${ui.tlNote ? `<p class="tl-msg" role="status">${esc(ui.tlNote)}</p>` : ""}
           <p class="tl-blurb">${esc(song.blurb)}</p>
           ${lyricLine}
+          ${partsLine}
           ${song.user ? `<div class="tl-own">
             <button class="outline-btn" data-act="tl:lyricsedit">LYRICS</button>
             ${lyricCount ? `<button class="outline-btn" data-act="tl:timelyrics">TIME LYRICS</button>` : ""}
@@ -948,6 +961,14 @@
         ui.tlNote = err.message;
         openTilesSelect();
         return;
+      }
+    }
+    // its separated parts for the ×4 visuals, if it has them (otherwise the quick split)
+    if (song.user && s.tilesMusic) {
+      try {
+        song.stems = await TT.separate.stemsFor(song.id);
+      } catch {
+        song.stems = null;
       }
     }
     engine.stop();
@@ -1784,8 +1805,52 @@
     </div>`;
   };
 
+  // Settings → Music: the separation pack, which splits the songs you add into their parts for
+  // Tiles' ×4 visuals (separate.js). One click downloads it; it can be removed again here.
+  const MB = (bytes) => `${Math.round(bytes / 1e6)} MB`;
+  SETTINGS_VIEWS.music = () => {
+    const sp = TT.separate;
+    const about = `<p class="note">With the separation pack, Touch Type splits the songs you add to Tiles into vocals, drums, bass and other instruments, on this computer, so the ×4 visuals can follow each part: the line along the bottom follows the vocals, the outline the bass and drums, and the sparks everything else. It runs in the background, on your graphics card when it can, and you can play a song while it's being split. Until then, Tiles uses a quicker, rougher split.</p>
+        <p class="note">The pack is about 100 MB. It's only downloaded when you click Download, from GitHub (github.com/silent-diffusion/Touch-Type). It uses Deezer's Spleeter model and Microsoft's ONNX Runtime; their licences come with it.</p>`;
+    if (!sp.supported()) {
+      return `<div class="cols"><section class="col-main">
+        <div class="settings-rows">${srow("Separation pack", `<span class="hint-text">Only available in the desktop app.</span>`)}</div>
+        ${about}
+      </section></div>`;
+    }
+    const st = sp.state(), p = st.pack;
+    let action = "", status;
+    if (st.dev) status = "A local copy is in use (for testing).";
+    else if (p.status === "installed") {
+      action = `<button class="opt outline" data-act="pack:remove">REMOVE</button>`;
+      status = `Installed (${MB(p.size)}). Songs already split keep their parts if you remove it.`;
+    } else if (p.status === "downloading") {
+      action = `<button class="opt outline" data-act="pack:cancel">CANCEL</button>`;
+      status = `Downloading… ${p.percent}%`;
+    } else {
+      action = `<button class="opt on" data-act="pack:install">DOWNLOAD (${MB(p.size || 100e6)})</button>`;
+      status = p.status === "error" ? `The download didn't finish: ${esc(p.error)}` : "Not installed.";
+    }
+    const songs = TT.music.list();
+    const c = sp.counts();
+    const working = songs.find((x) => sp.statusOf(x.id).status === "working");
+    const failed = songs.filter((x) => sp.statusOf(x.id).status === "failed");
+    let progress = !c.total ? "No added songs yet." : `${c.done} of ${c.total} ${c.total === 1 ? "song" : "songs"} split.`;
+    if (working) progress += ` Splitting “${esc(working.title)}”… ${sp.statusOf(working.id).percent || 0}%${st.device ? ` (on the ${st.device === "gpu" ? "graphics card" : "processor"})` : ""}.`;
+    if (failed.length) progress += ` ${failed.length === 1 ? "One song" : `${failed.length} songs`} couldn't be split: ${esc(sp.statusOf(failed[0].id).error)}`;
+    return `<div class="cols">
+      <section class="col-main">
+        <div class="settings-rows">
+          ${srow("Separation pack", `${action}<span class="hint-text" aria-live="polite">${status}</span>`)}
+          ${srow("Your songs", `<span class="hint-text" aria-live="polite">${progress}</span>`)}
+        </div>
+        ${about}
+      </section>
+    </div>`;
+  };
+
   function renderSettings() {
-    const tabs = [["appearance", "Appearance"], ["practice", "Practice"], ["profiles", "Profiles"], ["updates", "Updates"], ["data", "Data"]];
+    const tabs = [["appearance", "Appearance"], ["practice", "Practice"], ["profiles", "Profiles"], ["music", "Music"], ["updates", "Updates"], ["data", "Data"]];
     $("view-settings").innerHTML = subtabs(tabs, ui.settingsTab, "settab") + SETTINGS_VIEWS[ui.settingsTab]();
   }
 
@@ -1886,6 +1951,17 @@
         break;
       case "update":
         if (window.touchType && ["check", "download", "install"].includes(x)) window.touchType.update[x]();
+        break;
+      case "pack":
+        if (x === "remove" && !confirm("Remove the separation pack? Songs already split keep their parts.")) break;
+        if (["install", "cancel", "remove"].includes(x)) TT.separate[x]();
+        break;
+      case "goto":
+        // from the Tiles song screen to Settings → Music
+        if (x === "music") {
+          ui.settingsTab = "music";
+          openMenu("settings");
+        }
         break;
       case "profile": profileAct(x, y); break;
       case "profiles":
@@ -2065,6 +2141,13 @@
   refreshSpeedScale();
   TT.music.load().then(() => {
     if (ui.view === "tiles-select") renderTilesSelect();
+    TT.separate.start();
+  });
+  // The separation pack and the songs being split: keep the screens that show them up to date
+  // (but not the song screen while lyrics are being edited or tapped, which would lose the typing).
+  TT.separate.onChange(() => {
+    if (ui.view === "settings" && ui.settingsTab === "music") renderSettings();
+    if (ui.view === "tiles-select" && !ui.lyricsEdit && !ui.tap) renderTilesSelect();
   });
   document.fonts.ready.then(() => {
     if (ui.view === "test" || ui.view === "practice") engine.relayout();

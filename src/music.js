@@ -150,6 +150,8 @@
       metas.set(meta.id, meta);
       decoded = { id: meta.id, buffer };
       register(meta);
+      // with the separation pack installed, its parts are made in the background
+      if (TT.separate) TT.separate.add(PREFIX + meta.id);
       return PREFIX + meta.id;
     },
 
@@ -173,6 +175,15 @@
         register(meta);
       }
       return buffer;
+    },
+
+    // A fresh decode of an added song, not kept: for separating it in the background without
+    // touching the song being played.
+    async decodeCopy(songId) {
+      const id = savedId(songId);
+      const rec = id && (await tx("readonly", (s) => s.get(id)));
+      if (!rec || !rec.blob) throw new Error("That song's file is missing.");
+      return decode(rec.blob);
     },
 
     // Replaces the found beat with one from tapping along. Returns false if the taps didn't fit.
@@ -232,6 +243,7 @@
       metas.delete(id);
       if (decoded.id === id) decoded = { id: null, buffer: null };
       TT.songs.unregister(songId);
+      if (TT.separate) await TT.separate.forget(songId);
     },
   };
 })();

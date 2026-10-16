@@ -9,3 +9,6 @@ CLAUDE.md
 AGENTS.md
 *.local.md
 dist-test/
+
+# a local copy of the separation pack, for testing in the browser
+src/_pack/
