@@ -109,6 +109,11 @@ window.TT = window.TT || {};
       };
     },
 
+    // A profile's game progress, read-only (the leaderboard compares every profile).
+    games(id) {
+      return id === profiles.active ? TT.store.games : cleanData(read(dataKey(id))).games;
+    },
+
     create(name) {
       const clean = cleanName(name);
       if (!clean) return null;

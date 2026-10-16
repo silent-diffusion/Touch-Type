@@ -153,7 +153,8 @@ body.typing .seg { opacity: 0; pointer-events: none; }
 
 .menu-nav {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, auto);
+  justify-content: space-between;
   gap: 8px;
 }
 .menu-nav button {
@@ -854,8 +855,17 @@ body:not(.typing) .caret.caret-block { animation-name: blink-block; }
 .tl-center { display: flex; flex-direction: column; min-width: 0; }
 .tl-head { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
 .tl-song { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; font-weight: 800; font-size: 18px; letter-spacing: 0.06em; }
-.tl-progress { height: 6px; border: 2px solid var(--ink); }
+/* how far through the song: a bar you can read at a glance, with the time beside it */
+/* leaderboard */
+.lb-filters { display: flex; flex-direction: column; gap: 10px; margin: 6px 0 18px; }
+.lb-songs { flex-wrap: wrap; }
+.lb-table td:nth-child(2) { font-weight: 700; }
+.lb-you td { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+
+.tl-prog-row { display: flex; align-items: center; gap: 12px; }
+.tl-progress { flex: 1; height: 14px; border: 2px solid var(--ink); }
 .tl-progress i { display: block; height: 100%; background: var(--accent); }
+.tl-time { font-size: 15px; font-weight: 800; letter-spacing: 0.06em; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 .tl-hw {
   position: relative;

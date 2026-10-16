@@ -65,7 +65,7 @@
              <rect x="115" y="115" width="70" height="70" fill="var(--accent)"/>`,
   };
 
-  const MENU_VIEWS = ["games", "stats", "settings"];
+  const MENU_VIEWS = ["games", "leaderboard", "stats", "settings"];
   const FOREST_VIEWS = ["forest", "forest-select", "forest-guide"];
   const TILES_VIEWS = ["tiles", "tiles-select"];
   // What Enter (or the play button) does for each game in the library.
@@ -76,6 +76,9 @@
     lastTyping: "test",
     menuView: "games",
     statsTab: "overview",
+    lbTab: "forest",
+    lbSong: null,
+    lbDiff: null,
     settingsTab: "appearance",
     gamesTab: "all",
     game: "forest",
@@ -317,6 +320,7 @@
     "tiles-select": [["↑ ↓", "SONG", "tl:next"], ["← →", "DIFFICULTY", "tl:harder"], ["ENTER", "PLAY", "tl:play"], ["A", "ADD A SONG", "tl:import"], ["M", "MUSIC", "tl:music"], ["T", "METRONOME", "tl:metronome"], ["ESC", "MENU", "menu"]],
     replay: [["SPACE", "PLAY / PAUSE", "rp:toggle"], ["← →", "SKIP 2S", "rp:skip:2000"], ["ESC", "BACK", "rp:back"]],
     stats: [["P", "PRACTICE WEAK KEYS", "practice"], ["ESC", "CLOSE MENU", "close"]],
+    leaderboard: [["ESC", "CLOSE MENU", "close"]],
     settings: [["ESC", "CLOSE MENU", "close"]],
   };
   const STATUS = {
@@ -332,6 +336,7 @@
     "tiles-select": "Pick a song and a difficulty.",
     replay: "Click a moment to jump to it.",
     stats: "Select a view.",
+    leaderboard: "Everyone on this computer, ranked.",
     settings: "Changes save automatically.",
   };
 
@@ -380,7 +385,7 @@
     document.body.classList.remove("typing");
     ui.menuView = view;
     show(view);
-    ({ games: renderGames, stats: renderStats, settings: renderSettings })[view]();
+    ({ games: renderGames, leaderboard: renderLeaderboard, stats: renderStats, settings: renderSettings })[view]();
   }
 
   const subtabs = (tabs, current, act) =>
@@ -1096,6 +1101,78 @@
     <span style="background: color-mix(in srgb, var(--accent) 65%, transparent)"></span>
     <span style="background: var(--accent)"></span>MORE</span>`;
 
+  // ---------- leaderboard ----------
+  // Everyone on this computer, ranked by their best in each game. The game pages and Stats show only
+  // the active profile; this compares them all.
+  const LB_GAMES = [["forest", "Forest Hop"], ["tiles", "Tiles"], ["path", "Path Runner"]];
+
+  function renderLeaderboard() {
+    const s = S();
+    const tab = LB_GAMES.some(([id]) => id === ui.lbTab) ? ui.lbTab : "forest";
+    const me = TT.profiles.activeId();
+    const players = TT.profiles.list().map((p) => ({ name: p.name, you: p.id === me, games: TT.profiles.games(p.id) || {} }));
+    const day = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" });
+    const date = (iso) => (iso ? day.format(new Date(iso)) : "—");
+    let head, rows, filters = "", what;
+
+    if (tab === "tiles") {
+      const songs = [...TT.songs.list, ...TT.music.list()];
+      const song = songs.find((x) => x.id === (ui.lbSong || s.tilesSong)) || songs[0];
+      const diff = TT.tilesCore.DIFFS[ui.lbDiff] ? ui.lbDiff : s.tilesDiff;
+      const key = `${song.id}:${diff}`;
+      const btn = (label, on, act) => `<button class="${on ? "on" : ""}" aria-pressed="${on}" data-act="${act}">${esc(label)}</button>`;
+      filters = `<div class="lb-filters">
+          <div class="seg lb-songs" aria-label="Song">${songs.map((x) => btn(x.title, x.id === song.id, `lb:song:${x.id}`)).join("")}</div>
+          <div class="seg" aria-label="Difficulty">${TT.tilesCore.DIFF_IDS.map((d) => btn(TT.tilesCore.DIFFS[d].name, d === diff, `lb:diff:${d}`)).join("")}</div>
+        </div>`;
+      what = `${song.title}, ${TT.tilesCore.DIFFS[diff].name.toLowerCase()}`;
+      head = ["SCORE", "GRADE", "WPM", "ACCURACY", "CLEARED"];
+      rows = players.map((p) => {
+        const b = p.games.tiles && p.games.tiles.bestBy && p.games.tiles.bestBy[key];
+        return b && { p, best: b.score, cells: [b.score.toLocaleString(), b.grade, Math.round(b.wpm), `${Math.round(b.acc)}%`, b.cleared ? "Yes" : "No"] };
+      });
+    } else {
+      what = tab === "forest" ? "Forest Hop, steps in one run" : "Path Runner, steps in one run";
+      head = tab === "forest" ? ["BEST STEPS", "ANIMAL", "WPM", "ACCURACY", "PLAYS", "DATE"] : ["BEST STEPS", "WPM", "ACCURACY", "PLAYS", "DATE"];
+      rows = players.map((p) => {
+        const d = p.games[tab];
+        if (!d || !d.best) return null;
+        // the run that set the best, if it's still in the kept history
+        const run = (d.history || []).find((h) => h.score === d.best);
+        const cells = [d.best, run ? Math.round(run.wpm) : "—", run ? `${Math.round(run.acc)}%` : "—", d.plays || (d.history || []).length, date(run && run.date)];
+        if (tab === "forest") cells.splice(1, 0, run && run.animal ? run.animal[0].toUpperCase() + run.animal.slice(1) : "—");
+        return { p, best: d.best, cells };
+      });
+    }
+    rows = rows.filter(Boolean).sort((a, b) => b.best - a.best);
+    const mine = rows.findIndex((r) => r.p.you);
+
+    const table = rows.length
+      ? `<table class="table lb-table"><thead><tr><th>#</th><th>PLAYER</th>${head.map((h) => `<th class="num">${h}</th>`).join("")}</tr></thead><tbody>${rows.map((r, i) =>
+          `<tr class="${r.p.you ? "lb-you" : ""}"><td class="num">${i + 1}</td><td>${esc(r.p.name)}${r.p.you ? ` <span class="tag">YOU</span>` : ""}</td>${r.cells.map((c) => `<td class="num">${esc(c)}</td>`).join("")}</tr>`).join("")}</tbody></table>`
+      : `<p class="muted">Nobody has played this yet.</p>`;
+
+    $("view-leaderboard").innerHTML = subtabs(LB_GAMES, tab, "lb:tab") + `
+      <div class="cols">
+        <section class="col-main">
+          <div class="title-row"><h1>LEADERBOARD</h1><span class="title-meta">${esc(what.toUpperCase())}</span></div>
+          ${filters}
+          ${table}
+        </section>
+        <aside class="col-side">
+          <div class="rule-head">YOU</div>
+          <dl class="status">${statusRows([
+            ["Player:", TT.profiles.active().name],
+            ["Rank:", mine >= 0 ? `${mine + 1} of ${rows.length}` : "Not ranked yet"],
+            ["Players on this computer:", players.length, true],
+          ])}</dl>
+          <p class="note">${players.length < 2
+            ? "Only one profile so far. Add more in Settings → Profiles, and everyone who plays on this computer is ranked here."
+            : "Everyone who plays on this computer is ranked here by their best. The game pages show only your own."}</p>
+        </aside>
+      </div>`;
+  }
+
   const STATS_VIEWS = {
     overview() {
       const tests = A.typingTests();
@@ -1537,6 +1614,12 @@
       case "fh": forestAct(x, y); break;
       case "tl": tilesAct(x, y); break;
       case "stab": ui.statsTab = x; renderStats(); break;
+      case "lb":
+        if (x === "tab") ui.lbTab = y;
+        else if (x === "song") ui.lbSong = y;
+        else if (x === "diff") ui.lbDiff = y;
+        renderLeaderboard();
+        break;
       case "settab": ui.settingsTab = x; renderSettings(); break;
       case "gtab": ui.gamesTab = x; renderGames(); break;
       case "game": ui.game = x; renderGames(); break;
