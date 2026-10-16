@@ -719,10 +719,10 @@
   });
 
   const DIFF_HINT = {
-    easy: "Three columns and short words, with a tile every few bars, falling slowest.",
-    medium: "Three columns and short words, with tiles a little closer together.",
-    hard: "Four columns and slightly longer words, a tile every couple of seconds.",
-    expert: "Four columns and the longest words, a tile about every second, falling fastest.",
+    easy: "Three columns and words up to 6 letters, with a tile every few bars, falling slowest.",
+    medium: "Three columns and words up to 7 letters, with tiles a little closer together.",
+    hard: "Four columns and words up to 8 letters, a tile every couple of seconds.",
+    expert: "Four columns and words up to 9 letters, a tile about every second, falling fastest.",
   };
   const MODE_HINT = {
     timed: "Press Enter as each tile crosses the line. Timing counts.",
@@ -839,7 +839,7 @@
           <div class="side-label">Difficulty:</div>
           <div class="seg tl-diffs" aria-label="Difficulty">${C.DIFF_IDS.map((id) =>
             `<button class="${id === s.tilesDiff ? "on" : ""}" aria-pressed="${id === s.tilesDiff}" data-act="tl:diff:${id}">${C.DIFFS[id].name}</button>`).join("")}</div>
-          <p class="note">${DIFF_HINT[s.tilesDiff]}${s.tilesQueue ? " In queue mode the tiles come twice as often." : ""} The music plays at the same speed on every difficulty.</p>
+          <p class="note">${DIFF_HINT[s.tilesDiff]}${s.tilesQueue ? " In queue mode the tiles come twice as often." : ""} Long words only come when there's time to type them. The music plays at the same speed on every difficulty.</p>
           <button class="fh-play tl-play" data-act="tl:play">PLAY <kbd>ENTER</kbd></button>
         </section>`}
         <aside class="col-side">

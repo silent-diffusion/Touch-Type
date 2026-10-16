@@ -24,11 +24,13 @@
   // min: the closest two tiles can ever be, in seconds
   // fall: milliseconds a tile takes to fall from the top to the line
   // cols: how many columns (from rules v4, never fewer than three); len: word lengths
+  // rate: letters a second the word-length plan allows for the time a tile gives you to type
+  // (QUEUE_SPEED times as many in queue mode, so it gets the same mix of lengths, twice as often)
   const DIFFS = {
-    easy:   { name: "EASY",   gap: 5.0,  min: 2.5,  fall: 5000, cols: 3, len: [3, 4], missHp: 8 },
-    medium: { name: "MEDIUM", gap: 3.0,  min: 1.8,  fall: 4400, cols: 3, len: [3, 4], missHp: 10 },
-    hard:   { name: "HARD",   gap: 2.6,  min: 1.4,  fall: 3600, cols: 4, len: [3, 5], missHp: 12 },
-    expert: { name: "EXPERT", gap: 1.25, min: 0.75, fall: 2600, cols: 4, len: [4, 6], missHp: 14 },
+    easy:   { name: "EASY",   gap: 5.0,  min: 2.5,  fall: 5000, cols: 3, len: [3, 6], rate: 2.5, missHp: 8 },
+    medium: { name: "MEDIUM", gap: 3.0,  min: 1.8,  fall: 4400, cols: 3, len: [3, 7], rate: 2.6, missHp: 10 },
+    hard:   { name: "HARD",   gap: 2.6,  min: 1.4,  fall: 3600, cols: 4, len: [3, 8], rate: 3.5, missHp: 12 },
+    expert: { name: "EXPERT", gap: 1.25, min: 0.75, fall: 2600, cols: 4, len: [4, 9], rate: 7.5, missHp: 14 },
   };
   const DIFF_IDS = Object.keys(DIFFS);
   // A difficulty's settings in a mode: queue mode halves the spacing, so tiles come twice as often.
@@ -45,7 +47,41 @@
   const GRADE_NAMES = { P: "PERFECT", G: "GREAT", O: "GOOD", S: "SLOPPY", M: "MISS", E: "TOO EARLY", X: "WRONG COLUMN", Q: "LOCKED IN" };
   const LEAD_MS = 1200; // quiet time before the first tile shows up
   const LYRIC_SHARE = 0.6; // for a song with untimed lyrics, about this share of words come from them
-  const SUNG_EXTRA = 2;    // a sung word may be this many letters longer than the difficulty allows
+  const SUNG_EXTRA = 2;    // a sung word may be this many letters longer than its tile's plan allows
+  // The word-length plan (planLengths): time to read a word before typing it, how much unused time
+  // queue mode carries on (you can type ahead), the most letters a tile can get while an earlier
+  // tile in its column is still falling, the length that counts as long (never two in a row), and
+  // how much likelier each letter shorter is (1: every length up to the cap is as likely).
+  const REACT_S = 0.3, QUEUE_SLACK_S = 2, SHARED_ROW_MAX = 5, LONG_AT = 7, LONGER = 1;
+  // Longer common words for Tiles, which the main lists have few of (6 to 9 letters).
+  const LONG_WORDS = [
+    "always", "around", "before", "called", "change", "number", "people", "really", "should",
+    "system", "things", "better", "family", "friend", "garden", "ground", "listen", "market",
+    "minute", "moment", "nature", "office", "orange", "planet", "rather", "reason", "school",
+    "silver", "simple", "spring", "street", "summer", "ticket", "travel", "winter", "window",
+    "yellow", "animal", "bright", "castle", "circle", "coffee", "dinner", "follow", "forest",
+    "gentle", "island", "letter", "middle", "mirror", "pencil", "pocket", "rabbit", "purple",
+    "shadow", "another", "because", "between", "country", "through", "without", "against",
+    "nothing", "problem", "someone", "picture", "morning", "evening", "kitchen", "example",
+    "history", "journey", "library", "machine", "measure", "natural", "perfect", "popular",
+    "present", "quickly", "science", "special", "student", "teacher", "weather", "welcome",
+    "balance", "captain", "chapter", "careful", "comfort", "distant", "feather", "harvest",
+    "imagine", "lantern", "mineral", "mystery", "octopus", "pattern", "rainbow", "station",
+    "thunder", "uniform", "village", "whisper", "blanket", "compass", "dolphin", "freedom",
+    "anything", "children", "together", "question", "possible", "remember", "actually", "building",
+    "business", "complete", "consider", "continue", "describe", "discover", "elephant", "everyone",
+    "favorite", "hospital", "language", "mountain", "neighbor", "notebook", "painting", "pleasant",
+    "practice", "sentence", "shoulder", "somebody", "standard", "strength", "surprise", "swimming",
+    "thousand", "treasure", "umbrella", "vacation", "whatever", "yourself", "birthday", "calendar",
+    "daughter", "distance", "exercise", "festival", "keyboard", "lavender", "midnight", "sunlight",
+    "triangle", "tomorrow", "beautiful", "important", "chocolate", "different", "adventure",
+    "butterfly", "character", "community", "dangerous", "direction", "education", "encourage",
+    "everybody", "excellent", "furniture", "happiness", "knowledge", "landscape", "newspaper",
+    "orchestra", "paragraph", "pineapple", "president", "something", "telephone", "wonderful",
+    "yesterday", "afternoon", "attention", "breakfast", "celebrate", "crocodile", "delicious",
+    "discovery", "emergency", "fireplace", "invisible", "lightning", "marmalade", "signature",
+    "snowflake", "waterfall",
+  ];
   const HISTORY_CAP = 200;
 
   const multiplier = (combo) => (combo >= 50 ? 4 : combo >= 25 ? 3 : combo >= 10 ? 2 : 1);
@@ -128,6 +164,39 @@
       return (lo + eq / 2) / known.length;
     };
     return ps.map((p) => (p == null ? Math.floor(cols / 2) : Math.min(cols - 1, Math.floor(below(p) * cols))));
+  }
+
+  // How long each tile's word may be, and the length it aims for. You type one word at a time, so a
+  // tile's typing time is the gap since the tile before it in any column (less a moment to read).
+  // That time at the difficulty's rate caps the length, so a long word only follows a long gap and
+  // two long words never come in quick succession. In queue mode time you didn't need carries on,
+  // up to QUEUE_SLACK_S, since you can type ahead. A tile that appears while an earlier tile in its
+  // column is still falling gets no more than SHARED_ROW_MAX letters, and a long word (LONG_AT
+  // letters or more) is never straight after another. Within the cap, each extra letter is LONGER
+  // times as likely. Returns [{ L, max, raw }] per tile:
+  // the length to aim for, the cap, and the cap before the difficulty's limits.
+  function planLengths(hits, lanes, diff, queue = false, fall = DIFFS[diff].fall, rnd = Math.random) {
+    const D = DIFFS[diff];
+    const [lo, hi] = D.len;
+    const lastIn = new Map();
+    let slack = 0, prevL = 0;
+    return hits.map((h, i) => {
+      const rate = queue ? D.rate * QUEUE_SPEED : D.rate;
+      const avail = (h - (i ? hits[i - 1] : 0)) / 1000 - REACT_S + (queue ? slack : 0);
+      const raw = Math.floor(avail * rate);
+      let max = Math.max(lo, Math.min(hi, raw));
+      const prev = lastIn.get(lanes[i]);
+      if (prev != null && prev > h - fall) max = Math.min(max, Math.max(lo, SHARED_ROW_MAX));
+      lastIn.set(lanes[i], h);
+      if (prevL >= LONG_AT) max = Math.min(max, Math.max(lo, LONG_AT - 1));
+      let total = 0;
+      for (let n = lo; n <= max; n++) total += LONGER ** (n - lo);
+      let r = rnd() * total, L = lo;
+      while (L < max && (r -= LONGER ** (L - lo)) > 0) L++;
+      if (queue) slack = Math.min(QUEUE_SLACK_S, Math.max(0, avail - L / rate));
+      prevL = L;
+      return { L, max, raw };
+    });
   }
 
   // Timed lyrics: the word sung as each of a chart's tiles reaches the line, or null. Each sung
@@ -520,7 +589,7 @@
   TT.tilesAudio = { get: () => getAudio() };
 
   TT.tilesCore = {
-    DIFFS, DIFF_IDS, WIN, RULES, GRADE_NAMES, QUEUE_SPEED, modeDiff, nextUp,
+    DIFFS, DIFF_IDS, WIN, RULES, GRADE_NAMES, QUEUE_SPEED, modeDiff, nextUp, planLengths, LONG_WORDS,
     chart, columns, sungWords, newCore, dealWords, coreFor, applyKey, advance, gameStats, target, column, attribute, recorded, multiplier, letterGrade,
   };
 
@@ -1020,16 +1089,17 @@
       const D = DIFFS[live.diff];
       const locked = (i) => state.queue && state.tiles.some((x) => x.i === i && x.q);
       const j = state.hits.findIndex((h, i) => state.lanes[i] === col && h > t + WIN.late && !state.res[i] && !locked(i));
-      const gap = j < 0 ? 9 : (state.hits[j] - t) / 1000;
-      const maxLen = Math.min(D.len[1], Math.max(3, Math.round(gap * 8)));
-      const minLen = Math.min(D.len[0], maxLen);
+      // the word is for the column's next tile: its planned length, and the most it can take
+      const p = j >= 0 ? live.plan[j] : { L: D.len[0], max: D.len[1], raw: D.len[1] };
       const taken = new Set((state.words || []).filter((w, c) => w && c !== col).map((w) => w[0]));
-      const ok = (w) => w.length >= minLen && w.length <= maxLen && !taken.has(w[0]) && !live.recent.includes(w);
+      const fresh = (w) => !taken.has(w[0]) && !live.recent.includes(w);
+      const ok = (w) => w.length >= Math.min(D.len[0], p.max) && w.length <= p.max && fresh(w);
+      const exact = (w) => w.length === p.L && fresh(w);
       // Timed lyrics: the column's next tile falls as a word is sung, so it gets that word. It may
-      // run up to SUNG_EXTRA letters past the difficulty's limit when there's time to type it, and
-      // mustn't share a first letter with another column's word.
+      // run up to SUNG_EXTRA letters past the tile's cap when there's time to type it, and mustn't
+      // share a first letter with another column's word.
       const sungNow = j >= 0 ? live.sungFor[j] : null;
-      const sungMax = Math.min(D.len[1] + SUNG_EXTRA, Math.max(3, Math.round(gap * 8)));
+      const sungMax = Math.min(p.max + SUNG_EXTRA, Math.max(3, p.raw));
       if (sungNow && sungNow.length >= 2 && sungNow.length <= sungMax && !taken.has(sungNow[0])) {
         live.recent = [...live.recent, sungNow].slice(-12);
         live.words.push(sungNow);
@@ -1037,12 +1107,15 @@
       }
       // Lyrics without times: most words come from the song itself, when one fits.
       const sung = live.lyricWords.length && Math.random() < LYRIC_SHARE ? live.lyricWords.filter(ok) : [];
-      let pool = sung.length ? sung : live.pool.filter(ok);
-      if (!sung.length && pool.length < 5) {
-        live.pool = A.practiceWords(80, live.targets, live.missed, TT.store.settings.mix);
-        pool = live.pool.filter(ok);
+      let pool = sung;
+      if (!sung.length) {
+        if (live.pool.filter(ok).length < 5) live.pool = A.practiceWords(80, live.targets, live.missed, TT.store.settings.mix);
+        // practice words of the planned length, with the long-word list for 6 letters and up
+        const from = p.L >= 6 ? [...live.pool, ...LONG_WORDS] : live.pool;
+        pool = from.filter(exact);
+        if (!pool.length) pool = from.filter(ok);
       }
-      if (!pool.length) pool = PRACTICE_WORDS.filter(ok);
+      if (!pool.length) pool = [...PRACTICE_WORDS, ...LONG_WORDS].filter(ok);
       if (!pool.length) pool = WORDS.filter((w) => w.length >= 3 && !taken.has(w[0]));
       const w = pool[Math.floor(Math.random() * pool.length)];
       const at = live.pool.indexOf(w);
@@ -1288,7 +1361,9 @@
         targets: A.weakKeys(), missed: A.weakWords(20),
       };
       if (sound.lyrics !== false && !live.sungFor.some(Boolean) && TT.lyrics) live.lyricWords = TT.lyrics.words(song.lyrics);
-      g = newCore({ hits, fall: D.fall, endT, diff, lanes: columns(song, diff, queue), cols: D.cols, queue });
+      const lanes = columns(song, diff, queue);
+      live.plan = planLengths(hits, lanes, diff, queue, D.fall);
+      g = newCore({ hits, fall: D.fall, endT, diff, lanes, cols: D.cols, queue });
       g.wpmScale = W.scale();
       dealWords(g, provide);
       beatTimes = song.beats.map((b) => ({ t: offset + b.t * 1000, down: b.down, w: b.w }));
