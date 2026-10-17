@@ -421,19 +421,344 @@
     ctx.roundRect(x, y, w, h, r);
   }
 
-  // view: { viewT, cam, w, h, portrait, colors, shakeT }
+  // ---------- deaths: each way of dying has its own animation ----------
+
+  const DEATH_MS = 1600; // how long it plays before the end screen
+  const clamp01 = (x) => Math.max(0, Math.min(1, x));
+  const seg = (d, a, b) => clamp01((d - a) / (b - a)); // progress through [a, b]
+  const rnd = (i, j) => hash(i * 7 + 3, j * 13 + 5);   // stable 0..1, for scattering bits
+
+  // A sprite centred on (cx, cy), turned, squashed or faded.
+  function spriteAt(ctx, kind, cx, cy, size, o = {}) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    if (o.rot) ctx.rotate(o.rot);
+    ctx.scale(o.sx ?? 1, o.sy ?? 1);
+    if (o.alpha != null) ctx.globalAlpha *= clamp01(o.alpha);
+    TT.sprites.draw(ctx, kind, (-size * TT.sprites.aspect(kind)) / 2, -size / 2, size, o.flip);
+    ctx.restore();
+  }
+  function puff(ctx, x, y, r, a, rgb) {
+    if (a <= 0) return;
+    ctx.fillStyle = `rgba(${rgb},${a})`;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // a ripple on the water, seen from above at an angle
+  function ripple(ctx, x, y, r, a) {
+    if (a <= 0) return;
+    ctx.strokeStyle = `rgba(242,238,226,${a})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(x, y, r, r * 0.38, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  // drops thrown up from (x, y) at time t0 that fall back
+  function splash(ctx, x, y, d, t0, n, T, seed) {
+    const t = (d - t0) / 1000;
+    if (t < 0 || t > 0.7) return;
+    ctx.fillStyle = `rgba(242,238,226,${1 - t / 0.7})`;
+    for (let i = 0; i < n; i++) {
+      const ang = -Math.PI / 2 + (rnd(seed, i) - 0.5) * 2.2;
+      const v = T * (2.2 + rnd(seed, i + 20) * 1.8);
+      const s = T * (0.06 + rnd(seed, i + 40) * 0.05);
+      ctx.fillRect(x + Math.cos(ang) * v * t - s / 2, y + Math.sin(ang) * v * t + 7 * T * t * t, s, s);
+    }
+  }
+  // which side the hunter stands on (chosen when it steps out)
+  function huntSide(cam, g, px) {
+    if (cam.huntSince !== g.threatStart) {
+      cam.huntSince = g.threatStart;
+      cam.huntLeft = px > COLS / 2;
+    }
+    return cam.huntLeft;
+  }
+
+  function drawDeath(ctx, g, view, T, X, laneY, px, pl, th) {
+    const d = view.dieT;
+    const S = T * 0.9;                   // the animal's size
+    const pxs = X(px), pys = laneY(pl);
+    const cx = pxs + T / 2, cy = pys + T * 0.47;
+    const L = laneAt(g.world, g.lane);
+    const shadow = (sc = 1, a = 0.28) => {
+      if (sc <= 0) return;
+      ctx.fillStyle = `rgba(63,60,51,${a})`;
+      ctx.beginPath();
+      ctx.ellipse(cx, pys + T * 0.86, T * 0.3 * sc, T * 0.08 * sc, 0, 0, Math.PI * 2);
+      ctx.fill();
+    };
+    const c = g.cause;
+    const water = c === "drowned" || c === "swept";
+
+    if (water && th.water) {
+      // The orca: a fin closes in, it leaps out of the water over the animal, and dives back in.
+      const dir = L.dir || 1;
+      const wy = pys + T * 0.72;
+      if (d < 760) {
+        const k = seg(d, 600, 760);
+        spriteAt(ctx, g.animal, cx + Math.sin(d / 50) * T * 0.05 * (1 - k), cy + Math.sin(d / 80) * T * 0.05 + k * T * 0.2, S * (1 - 0.4 * k));
+      }
+      if (d < 540) {
+        const k = ease(seg(d, 0, 540));
+        const fx = cx - dir * T * 2.8 * (1 - k);
+        ctx.fillStyle = "#1E1D1A";
+        ctx.beginPath();
+        ctx.moveTo(fx - dir * T * 0.2, wy);
+        ctx.lineTo(fx + dir * T * 0.04, wy - T * 0.5);
+        ctx.lineTo(fx + dir * T * 0.16, wy);
+        ctx.closePath();
+        ctx.fill();
+        ripple(ctx, fx - dir * T * 0.3, wy, T * 0.25, 0.6);
+      }
+      if (d >= 540 && d < 1120) {
+        const k = seg(d, 540, 1100);
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(0, 0, view.w, wy + T * 0.08); // what's below the water doesn't show
+        ctx.clip();
+        spriteAt(ctx, th.water.sprite, cx + dir * (-0.5 + k) * T, wy + T * 0.35 - Math.sin(Math.PI * k) * T * 1.5, T * 1.15,
+          { rot: dir * (-0.9 + 1.8 * k), flip: dir > 0 });
+        ctx.restore();
+      }
+      splash(ctx, cx - dir * T * 0.4, wy, d, 540, 9, T, 3);
+      splash(ctx, cx + dir * T * 0.5, wy, d, 1080, 12, T, 4);
+      for (const [s, at] of [[540, -0.4], [1080, 0.5], [1250, 0.5]]) {
+        const t = seg(d, s, s + 900);
+        if (t > 0 && t < 1) ripple(ctx, cx + dir * at * T, wy, T * (0.3 + 1.1 * t), 0.75 * (1 - t));
+      }
+      return;
+    }
+
+    if (c === "drowned") {
+      // Fell in: a splash, a struggle, then it sinks out of sight among the ripples.
+      const wy = pys + T * 0.72;
+      const sink = ease(seg(d, 260, 1300));
+      const bob = d < 260 ? Math.sin(d / 40) * T * 0.05 : 0;
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0, 0, view.w, wy);
+      ctx.clip();
+      spriteAt(ctx, g.animal, cx, cy + bob + sink * S, S, { alpha: 1 - 0.4 * sink, rot: Math.sin(d / 90) * 0.18 * (1 - sink) });
+      ctx.restore();
+      for (const s of [0, 320, 680]) {
+        const t = seg(d, s, s + 900);
+        if (t > 0 && t < 1) ripple(ctx, cx, wy, T * (0.25 + 0.8 * t), 0.75 * (1 - t));
+      }
+      splash(ctx, cx, wy, d, 0, 8, T, 1);
+      // bubbles coming up after it
+      for (let i = 0; i < 7; i++) {
+        const t = seg(d, 600 + i * 130, 900 + i * 130);
+        if (t <= 0 || t >= 1) continue;
+        ctx.strokeStyle = `rgba(242,238,226,${1 - t * 0.6})`;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(cx + (rnd(6, i) - 0.5) * T * 0.6, wy - T * 0.04 - t * T * 0.12, T * (0.03 + 0.05 * t), 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      return;
+    }
+
+    if (c === "swept") {
+      // Swept away: the current carries it off the edge, spinning, leaving a wake.
+      const dir = L.dir || 1;
+      const sp = (L.speed || 2) * T;
+      const k = seg(d, 0, 1500);
+      spriteAt(ctx, g.animal, cx + dir * sp * (d / 1000), cy + Math.sin(d / 110) * T * 0.07, S * (1 - 0.35 * k), { rot: dir * (d / 1000) * 7, alpha: 1 - k });
+      for (let i = 0; i < 6; i++) {
+        const s = i * 220, t = seg(d, s, s + 800);
+        if (t > 0 && t < 1) ripple(ctx, cx + dir * sp * (s / 1000), pys + T * 0.72, T * (0.2 + 0.55 * t), 0.65 * (1 - t));
+      }
+      splash(ctx, cx, pys + T * 0.7, d, 0, 6, T, 2);
+      return;
+    }
+
+    if (c === "trampled") {
+      // Trampled: the herd runs over it, stomp by stomp, kicking up dust and leaving hoofprints.
+      shadow(1.2);
+      const STOMPS = [0, 220, 440];
+      let sy = 1 - 0.68 * ease(seg(d, 0, 200));
+      for (const s of STOMPS) sy -= 0.1 * Math.sin(Math.PI * seg(d, s, s + 140));
+      spriteAt(ctx, g.animal, cx, pys + T * 0.92 - (S * sy) / 2, S, { sx: 1 + (1 - sy) * 0.55, sy });
+      ctx.fillStyle = "rgba(63,60,51,0.55)";
+      STOMPS.forEach((s, i) => {
+        if (d < s + 60) return;
+        ctx.beginPath();
+        ctx.ellipse(cx + (rnd(1, i) - 0.5) * S * 0.9, pys + T * 0.8 + (rnd(2, i) - 0.5) * T * 0.12, T * 0.07, T * 0.045, 0, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      STOMPS.forEach((s, i) => {
+        for (let j = 0; j < 3; j++) {
+          const t = seg(d, s, s + 650);
+          if (t <= 0 || t >= 1) continue;
+          puff(ctx, cx + (rnd(i, j) - 0.5) * T * 1.1 + (rnd(i, j + 9) - 0.5) * T * 0.6 * t, pys + T * 0.85 - T * 0.35 * t, T * (0.1 + 0.22 * t), 0.45 * (1 - t), "150,124,88");
+        }
+      });
+      return;
+    }
+
+    if (c === "crushed") {
+      // Flattened: one hit from the boulder, which rolls on. The ground cracks, stones fly and
+      // the screen shakes (in drawWorld).
+      shadow(1.6, 0.35);
+      const crack = ease(seg(d, 0, 160));
+      ctx.strokeStyle = "rgba(63,60,51,0.55)";
+      ctx.lineWidth = 2;
+      for (let i = 0; i < 5; i++) {
+        const ang = (i % 2 ? Math.PI : 0) + (rnd(9, i) - 0.5) * 0.9;
+        const len = T * (0.35 + rnd(10, i) * 0.3) * crack;
+        ctx.beginPath();
+        ctx.moveTo(cx, pys + T * 0.86);
+        ctx.lineTo(cx + Math.cos(ang) * len, pys + T * 0.86 + Math.sin(ang) * len * 0.35);
+        ctx.stroke();
+      }
+      const f = ease(seg(d, 0, 70));
+      const sy = 1 - 0.86 * f;
+      spriteAt(ctx, g.animal, cx, pys + T * 0.92 - (S * sy) / 2, S, { sx: 1 + 0.75 * f, sy });
+      const ring = seg(d, 0, 700);
+      if (ring < 1) {
+        ctx.strokeStyle = `rgba(150,124,88,${0.5 * (1 - ring)})`;
+        ctx.lineWidth = T * 0.12 * (1 - ring) + 1;
+        ctx.beginPath();
+        ctx.ellipse(cx, pys + T * 0.86, T * (0.3 + 1.1 * ease(ring)), T * (0.1 + 0.36 * ease(ring)), 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      const t = d / 1000;
+      if (t < 0.9) {
+        for (let i = 0; i < 8; i++) {
+          const ang = -Math.PI / 2 + (rnd(3, i) - 0.5) * 2.6;
+          const v = T * (2 + rnd(4, i) * 2.5);
+          const s = T * (0.06 + rnd(5, i) * 0.08);
+          ctx.save();
+          ctx.globalAlpha = 1 - t / 0.9;
+          ctx.translate(cx + Math.cos(ang) * v * t, pys + T * 0.8 + Math.sin(ang) * v * t + 8 * T * t * t);
+          ctx.rotate(t * 9 * (i % 2 ? 1 : -1));
+          ctx.fillStyle = "#9C9886";
+          ctx.fillRect(-s / 2, -s / 2, s, s);
+          ctx.strokeStyle = "#3F3C33";
+          ctx.lineWidth = 1;
+          ctx.strokeRect(-s / 2, -s / 2, s, s);
+          ctx.restore();
+        }
+      }
+      return;
+    }
+
+    // caught by its predator
+    const kind = g.v < 2 ? "hawk" : th.predator;
+    const mode = g.v < 2 ? "circle" : th.mode;
+    if (mode === "circle") {
+      // A last dive, then it carries the animal up and away, leaving feathers drifting down.
+      const size = T * 1.3;
+      const dive = ease(seg(d, 0, 360));
+      const sx0 = cx + T * 1.4, sy0 = cy - T * 2.6;
+      const up = seg(d, 360, DEATH_MS);
+      const lift = up ** 1.6;
+      const bx = sx0 + (cx - sx0) * dive + Math.sin(up * 5) * T * 0.25 * lift;
+      const by = sy0 + (cy - T * 0.35 - sy0) * dive - lift * (cy + T * 3);
+      shadow(1 - lift * 1.5, 0.22);
+      for (let i = 0; i < 6; i++) {
+        const t = seg(d, 360, DEATH_MS);
+        if (t <= 0 || t >= 1) continue;
+        ctx.save();
+        ctx.globalAlpha = 1 - t;
+        ctx.translate(cx + (rnd(8, i) - 0.5) * T * 0.9 + Math.sin(t * 7 + i) * T * 0.25, cy - T * 0.2 + t * T * (0.6 + rnd(11, i) * 0.6));
+        ctx.rotate(Math.sin(t * 5 + i) * 0.9);
+        ctx.fillStyle = kind === "eagle" ? "#4E3A28" : "#A8957A";
+        ctx.strokeStyle = "#3F3C33";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, T * 0.11, T * 0.035, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+      }
+      if (d < 360) spriteAt(ctx, g.animal, cx, cy + T * 0.05 * dive, S, { sy: 1 - 0.12 * dive });
+      else spriteAt(ctx, g.animal, bx, by + size * 0.45, S * 0.85, { rot: Math.sin(d / 140) * 0.3 });
+      spriteAt(ctx, kind, bx, by, size, { sy: 1 - 0.25 * Math.abs(Math.sin(d / 60)) });
+    } else if (mode === "stalk") {
+      // A pounce from behind, a scuffle in a cloud of dust, then it drags the animal away.
+      const size = T * 1.15;
+      const p = ease(seg(d, 0, 300));
+      const fight = d >= 300 && d < 1050;
+      const jx = fight ? Math.sin(d / 23) * T * 0.08 : 0, jy = fight ? Math.cos(d / 31) * T * 0.06 : 0;
+      const drag = seg(d, 1050, DEATH_MS) ** 2 * (view.h - cy + T * 2);
+      const py = cy + T * 0.75 - T * 0.8 * p - Math.sin(Math.PI * p) * T * 0.6;
+      shadow(1 - seg(d, 1050, 1300));
+      spriteAt(ctx, g.animal, cx + jx * 0.6, cy + jy * 0.5 + drag, S, { rot: (Math.PI / 2) * seg(d, 300, 650) });
+      spriteAt(ctx, kind, cx - jx, py + jy + drag, size);
+      const cloud = Math.min(seg(d, 280, 420), 1 - seg(d, 950, 1200));
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * Math.PI * 2 + d / 300;
+        puff(ctx, cx + Math.cos(a) * T * 0.45, cy + Math.sin(a) * T * 0.3 + T * 0.1, T * (0.18 + rnd(12, i) * 0.12), 0.5 * cloud, "160,140,110");
+      }
+    } else {
+      // The hunter fires: a flash and a trail, the animal is knocked back and lands upside down.
+      const size = T * 1.15;
+      const left = huntSide(view.cam, g, px);
+      const toward = left ? 1 : -1;
+      const recoil = d < 250 ? Math.sin(Math.PI * seg(d, 0, 250)) * T * 0.12 : 0;
+      const hx = (left ? 8 : view.w - size - 8) - toward * recoil;
+      const hy = cy - size / 2;
+      const mx = left ? hx + size + 4 : hx - 4, my = cy - T * 0.05;
+      const k = seg(d, 0, 110);
+      ctx.save();
+      ctx.strokeStyle = view.colors.accent;
+      ctx.globalAlpha = 1 - seg(d, 110, 320);
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(mx, my);
+      ctx.lineTo(mx + (cx - mx) * k, my + (cy - my) * k);
+      ctx.stroke();
+      ctx.restore();
+      if (d < 120) {
+        ctx.strokeStyle = view.colors.accent;
+        ctx.lineWidth = 3;
+        for (let i = 0; i < 6; i++) {
+          const a = (i / 6) * Math.PI * 2;
+          ctx.beginPath();
+          ctx.moveTo(mx + Math.cos(a) * T * 0.08, my + Math.sin(a) * T * 0.08);
+          ctx.lineTo(mx + Math.cos(a) * T * 0.28, my + Math.sin(a) * T * 0.28);
+          ctx.stroke();
+        }
+      }
+      for (let i = 0; i < 4; i++) {
+        const t = seg(d, 60 + i * 70, 1300 + i * 70);
+        if (t > 0 && t < 1) puff(ctx, mx + toward * T * 0.15 * t + Math.sin(t * 4 + i) * T * 0.08, my - T * 0.6 * t, T * (0.08 + 0.18 * t), 0.45 * (1 - t), "200,196,180");
+      }
+      const kb = ease(seg(d, 110, 600));
+      shadow(1, 0.28);
+      spriteAt(ctx, g.animal, cx + toward * T * 0.7 * kb, cy - Math.sin(Math.PI * seg(d, 110, 600)) * T * 0.45 + kb * T * 0.08, S, { rot: toward * Math.PI * kb });
+      const hit = seg(d, 110, 450);
+      if (hit > 0 && hit < 1) {
+        ctx.save();
+        ctx.strokeStyle = view.colors.accent;
+        ctx.globalAlpha = 1 - hit;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(cx, cy, T * (0.1 + 0.45 * hit), 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+      TT.sprites.draw(ctx, kind, hx, hy, size, !left);
+    }
+  }
+
+  // view: { viewT, cam, w, h, portrait, colors, shakeT, dieT }  dieT: ms since dying, once over
+  // Returns where the typed word goes: under the animal, below the word for hopping back.
   function drawWorld(ctx, g, view) {
     const { viewT, cam, w, h, portrait, colors } = view;
     const T = portrait
       ? Math.floor(Math.min(w / 9.5, h / 9.5))
-      : Math.max(24, Math.floor(Math.min(64, w / (COLS + 3), h / 7.6)));
+      : Math.max(24, Math.floor(Math.min(64, w / (COLS + 3), h / 8.2)));
     const hopP = Math.min(1, Math.max(0, (viewT - g.hopT) / 130));
     const px = g.from.x + (g.x - g.from.x) * ease(hopP);
     const pl = g.from.lane + (g.lane - g.from.lane) * ease(hopP);
     if (cam.lane == null || Math.abs(cam.lane - pl) > 4) cam.lane = pl;
     else cam.lane += (pl - cam.lane) * 0.18;
 
-    const baseY = h - T * 3.1; // top of the camera's lane, leaving room for the back word
+    // top of the camera's lane, leaving room below for the back word and what you've typed
+    const baseY = h - T * 3.55 - 20;
     const laneY = (k) => baseY - (k - cam.lane) * T;
     const worldW = COLS * T;
     let ox = (w - worldW) / 2;
@@ -445,6 +770,11 @@
     const th = theme(g.animal);
 
     ctx.clearRect(0, 0, w, h);
+    // a boulder (hard) or a herd (lightly) shakes the screen as it hits
+    const amp = !g.over ? 0 : g.cause === "crushed" ? 0.14 : g.cause === "trampled" ? 0.04 : 0;
+    const shake = amp * T * (1 - seg(view.dieT ?? DEATH_MS, 0, 420));
+    ctx.save();
+    if (shake) ctx.translate(Math.sin(view.dieT / 16) * shake, Math.cos(view.dieT / 21) * shake * 0.6);
     for (let k = kMax; k >= kMin; k--) {
       const L = laneAt(g.world, k);
       const y = laneY(k);
@@ -571,32 +901,28 @@
 
     // the player
     const pxs = X(px), pys = laneY(pl);
-    const lift = Math.sin(Math.PI * hopP) * T * 0.35;
     const caught = g.over && (g.cause === "predator" || g.cause === "hawk");
-    const watered = g.over && (g.cause === "drowned" || g.cause === "swept");
-    ctx.fillStyle = "rgba(63,60,51,0.28)";
-    ctx.beginPath();
-    ctx.ellipse(pxs + T / 2, pys + T * 0.86, T * 0.3, T * 0.08, 0, 0, Math.PI * 2);
-    ctx.fill();
-    if (g.over && g.cause === "trampled") {
-      TT.sprites.draw(ctx, g.animal, pxs + T * 0.05, pys + T * 0.5, T * 0.9);
-    } else {
-      if (watered || (caught && th.mode === "side")) ctx.globalAlpha = 0.4;
+    if (g.over) drawDeath(ctx, g, { ...view, dieT: view.dieT ?? DEATH_MS }, T, X, laneY, px, pl, th);
+    else {
+      const lift = Math.sin(Math.PI * hopP) * T * 0.35;
+      ctx.fillStyle = "rgba(63,60,51,0.28)";
+      ctx.beginPath();
+      ctx.ellipse(pxs + T / 2, pys + T * 0.86, T * 0.3, T * 0.08, 0, 0, Math.PI * 2);
+      ctx.fill();
       TT.sprites.draw(ctx, g.animal, pxs + T * 0.05, pys + T * 0.02 - lift, T * 0.9);
-      ctx.globalAlpha = 1;
-    }
-    if (watered && th.water) {
-      // something big comes up out of the water
-      TT.sprites.draw(ctx, th.water.sprite, pxs - T * 0.2, pys - T * 0.35, T * 1.4);
     }
 
     drawWords(ctx, g, view, T, X, laneY, matches);
-    drawPredator(ctx, g, view, T, X, laneY, px, pl, th);
+    if (!caught) drawPredator(ctx, g, view, T, X, laneY, px, pl, th);
+    ctx.restore();
 
     if (colors.night) {
       ctx.fillStyle = "rgba(20,19,16,0.35)";
       ctx.fillRect(0, 0, w, h);
     }
+    // what you've typed: under the animal, below the back word (and its SPACE tab)
+    const fs = Math.max(13, Math.round(T * 0.34));
+    return { x: pxs + T / 2, y: laneY(pl - 1) + T + 3 + fs * 2.45 + 4, fs: Math.max(16, Math.round(T * 0.42)) };
   }
 
   // The four words sit around the animal, each beside the tile it leads to.
@@ -673,14 +999,10 @@
     ctx.restore();
   }
 
-  // The predator appears once the countdown starts and closes in as it runs down.
+  // The predator appears once the countdown starts and closes in as it runs down. (When it
+  // catches the animal, drawDeath takes over.)
   function drawPredator(ctx, g, view, T, X, laneY, px, pl, th) {
-    if (g.v < 2) {
-      if (g.over && g.cause === "hawk") TT.sprites.draw(ctx, "hawk", X(px) - T * 0.25, laneY(pl) - T * 0.55, T * 1.5);
-      return;
-    }
-    const caught = g.over && g.cause === "predator";
-    if (g.threatStart == null && !caught) return;
+    if (g.v < 2 || g.threatStart == null) return;
     const { viewT, w, h, cam, colors } = view;
     const since = viewT - g.threatStart;
     const p = Math.min(1, since / g.threatGrace);
@@ -688,7 +1010,6 @@
     const size = T * 1.15;
 
     if (th.mode === "circle") {
-      if (caught) return TT.sprites.draw(ctx, th.predator, cx - size * 0.6, cy - size * 0.75, size * 1.2);
       const enter = Math.min(1, since / 900);
       const a = since / 650;
       const r = T * (1.7 - p * 0.6); // circles tighter as time runs out
@@ -703,36 +1024,25 @@
       // creeps up from the bottom of the screen, right behind you
       const endY = cy + T * 0.75;
       const startY = h + size;
-      const near = caught ? 1 : ease(Math.min(1, 0.3 * Math.min(1, since / 1200) + 0.7 * p));
-      const y = caught ? cy - size * 0.4 : startY + (endY - startY) * near;
+      const near = ease(Math.min(1, 0.3 * Math.min(1, since / 1200) + 0.7 * p));
+      const y = startY + (endY - startY) * near;
       TT.sprites.draw(ctx, th.predator, cx - size / 2, y - size / 2, size, false);
     } else {
       // a hunter steps out at the side of the screen and takes aim
-      if (cam.huntSince !== g.threatStart) {
-        cam.huntSince = g.threatStart;
-        cam.huntLeft = px > COLS / 2;
-      }
-      const left = cam.huntLeft;
+      const left = huntSide(cam, g, px);
       const slide = ease(Math.min(1, since / 600));
       const hx = left ? -size + slide * (size + 8) : w + 8 - slide * (size + 16);
       const hy = cy - size / 2;
-      const aiming = caught || p > 0.6;
-      if (aiming && (caught || Math.floor(viewT / 200) % 2 === 0)) {
+      if (p > 0.6 && Math.floor(viewT / 200) % 2 === 0) {
         ctx.save();
         ctx.strokeStyle = colors.accent;
-        ctx.lineWidth = caught ? 3 : 2;
-        if (!caught) ctx.setLineDash([8, 6]);
+        ctx.lineWidth = 2;
+        ctx.setLineDash([8, 6]);
         ctx.beginPath();
         ctx.moveTo(left ? hx + size : hx, cy - T * 0.05);
         ctx.lineTo(cx, cy);
         ctx.stroke();
         ctx.restore();
-      }
-      if (caught) {
-        ctx.fillStyle = colors.accent;
-        ctx.beginPath();
-        ctx.arc(left ? hx + size + 4 : hx - 4, cy - T * 0.05, T * 0.18, 0, Math.PI * 2);
-        ctx.fill();
       }
       TT.sprites.draw(ctx, th.predator, hx, hy, size, !left);
     }
@@ -769,6 +1079,8 @@
     let live = null;   // { state, startedAt, keys, times, words, recent, targets, missed }
     let replay = null; // { rec, pos, lastT, provider }
     let viewT = 0;
+    let dieT = null;   // while the death animation plays: ms into it
+    let typedAt = null; // where the typed word goes (from drawWorld)
     let shakeT = -1000;
     let raf = 0;
     let cam = { lane: null };
@@ -845,7 +1157,33 @@
         canvas.height = Math.round(h * dpr);
       }
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      drawWorld(ctx, g, { viewT, cam, w, h, portrait: fh.classList.contains("portrait"), colors, shakeT });
+      typedAt = drawWorld(ctx, g, { viewT, cam, w, h, portrait: fh.classList.contains("portrait"), colors, shakeT, dieT: g.over ? dieT ?? DEATH_MS : null });
+      placeTyped();
+    }
+
+    // The typed word sits under the animal, kept inside the field.
+    function placeTyped() {
+      if (!typedAt) return;
+      const box = el.typed;
+      box.style.fontSize = `${typedAt.fs}px`;
+      const half = box.offsetWidth / 2;
+      box.style.left = `${Math.max(half + 8, Math.min(canvas.clientWidth - half - 8, typedAt.x))}px`;
+      box.style.top = `${typedAt.y}px`;
+    }
+
+    // The death plays out (the world carries on around it), then done() shows the end screen.
+    function playDeath(done) {
+      cancelAnimationFrame(raf);
+      const t0 = performance.now();
+      const step = () => {
+        dieT = Math.min(DEATH_MS, performance.now() - t0);
+        viewT = g.endT + dieT;
+        draw();
+        if (dieT >= DEATH_MS) return done();
+        raf = requestAnimationFrame(step);
+      };
+      dieT = 0;
+      raf = requestAnimationFrame(step);
     }
 
     function renderHud() {
@@ -865,6 +1203,7 @@
       if (left != null) el.threat.innerHTML = `${TT.sprites.svg(th.predator, 26)}<span>${th.name} · ${left}</span>`;
       el.typed.innerHTML = W.html(g);
       el.typed.hidden = !g.buf || g.over;
+      placeTyped();
     }
 
     // Screen readers get the four words and what has been typed.
@@ -895,6 +1234,7 @@
       g.wpmScale = W.scale();
       assignWords(g, makeWords);
       viewT = 0;
+      dieT = null;
       cam = { lane: null };
       hudSig = srSig = "";
       el.over.hidden = true;
@@ -939,7 +1279,7 @@
     }
 
     function handleKey(e) {
-      if (!live || live.state === "over" || live.state === "stopped" || live.state === "paused") return;
+      if (!live || (live.state !== "ready" && live.state !== "running")) return;
       let k;
       if (e.key === "Backspace") k = e.ctrlKey || e.altKey ? BACK_WORD : BACK;
       else if (e.ctrlKey || e.altKey || e.metaKey) return;
@@ -963,8 +1303,9 @@
       render();
     }
 
+    // Saves the run straight away, plays the death, then shows the end screen.
     function end() {
-      live.state = "over";
+      live.state = "dying";
       cancelAnimationFrame(raf);
       viewT = g.endT;
 
@@ -1014,7 +1355,7 @@
         ? `<strong class="hl">New best!</strong> Previous best was ${prevBest}.`
         : `Best ${rec.best} · ${Math.round(wpm)} wpm · ${Math.round(acc)}% accuracy`;
       const got = g.treats ? ` · ${g.treats} ${th.treats[g.treats > 1 ? 1 : 0]}` : "";
-      el.over.innerHTML = `
+      const overHtml = `
         <h2>${causeText(g.cause, g.animal)}</h2>
         <div class="fh-over-score">${s}</div>
         <div class="caps-label">STEPS</div>
@@ -1024,10 +1365,17 @@
           <button data-act="replay:${id}"><kbd>R</kbd>REPLAY</button>
           <button data-act="fh:select"><kbd>ESC</kbd>ANIMALS</button>
         </div>`;
-      el.over.hidden = false;
       hudSig = "";
-      render();
-      onEnd && onEnd(id);
+      renderHud();
+      renderSr();
+      const me = live;
+      playDeath(() => {
+        if (live !== me || me.state !== "dying") return;
+        me.state = "over";
+        el.over.innerHTML = overHtml;
+        el.over.hidden = false;
+        onEnd && onEnd(id);
+      });
     }
 
     function stop() {
@@ -1042,7 +1390,8 @@
       live = null;
       colors = themeColors();
       const provider = recordedWords(rec);
-      replay = { rec, pos: 0, lastT: 0, provider };
+      replay = { rec, pos: 0, lastT: 0, provider, over: false };
+      dieT = null;
       g = newCore(rec.seed, rec.animal || "frog", rec.v || 1);
       g.wpmScale = rec.wpmScale ?? W.scale();
       assignWords(g, provider);
@@ -1070,9 +1419,30 @@
       }
       advance(g, Math.min(T, rec.duration));
       replay.lastT = T;
-      viewT = g.over ? g.endT : T;
-      if (g.over) el.over.innerHTML = `<h2>${causeText(g.cause, g.animal)}</h2><div class="fh-over-score">${score(g)}</div><div class="caps-label">STEPS</div>`;
-      el.over.hidden = !g.over;
+      const overHtml = () => `<h2>${causeText(g.cause, g.animal)}</h2><div class="fh-over-score">${score(g)}</div><div class="caps-label">STEPS</div>`;
+      if (g.over && !replay.over) {
+        // reaching the end plays the death, then shows how the run ended
+        replay.over = true;
+        el.over.hidden = true;
+        viewT = g.endT;
+        render();
+        playDeath(() => {
+          if (!replay || !replay.over) return;
+          el.over.innerHTML = overHtml();
+          el.over.hidden = false;
+        });
+        return g;
+      }
+      if (!g.over) {
+        if (replay.over) cancelAnimationFrame(raf);
+        replay.over = false;
+        dieT = null;
+      }
+      viewT = g.over ? g.endT + (dieT ?? DEATH_MS) : T;
+      if (g.over && dieT >= DEATH_MS) {
+        el.over.innerHTML = overHtml();
+        el.over.hidden = false;
+      } else if (!g.over) el.over.hidden = true;
       render();
       return g;
     }

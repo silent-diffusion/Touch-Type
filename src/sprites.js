@@ -1,4 +1,4 @@
-// Pixel-art sprites (10x10) for Forest Hop: animals, forest props and hazards.
+// Pixel-art sprites (10x10, a few wider) for Forest Hop: animals, forest props and hazards.
 // Each sprite is drawn once to a small offscreen canvas and then scaled up with smoothing off.
 (() => {
   const K = "#3F3C33", W = "#F2EEE2";
@@ -53,9 +53,10 @@
     wolf: { pal: { k: K, g: "#7E7A72", l: "#B5B0A4", e: K }, rows: [
       ".kk.......", "kgk.......", "kggkkkkkk.", "kegggggggk", ".kgggggggk",
       "..kllgggk.", "..kgk.kgk.", "..kgk.kgk.", "..kk..kk..", ".........."] },
+    // 14 wide: the long tail ends in two flukes
     orca: { pal: { k: "#1E1D1A", w: W }, rows: [
-      "....k.....", "...kk.....", "..kkk.....", ".kkkkkkk..", "kkwkkkkkk.",
-      "kkkkkkkkkk", "kwwwwwwkkk", ".kwwwwkkk.", "..kkkkk...", ".........."] },
+      "....k.........", "...kk.........", "..kkk.......kk", ".kkkkkkk...kk.", "kkwkkkkkkkkkk.",
+      "kkkkkkkkkkkk..", "kwwwwwwkkkkkk.", ".kwwwwkkk...kk", "..kkkkk.......", ".............."] },
 
     // treats
     fly: { pal: { k: K, w: "#DDE6E8" }, rows: [
@@ -91,7 +92,8 @@
     if (cache.has(key)) return cache.get(key);
     const sp = S[kind];
     const c = document.createElement("canvas");
-    c.width = c.height = 10;
+    c.width = sp.rows[0].length;
+    c.height = sp.rows.length;
     const ctx = c.getContext("2d");
     sp.rows.forEach((row, y) => {
       [...(flip ? [...row].reverse().join("") : row)].forEach((ch, x) => {
@@ -104,12 +106,16 @@
     return c;
   }
 
+  // how much wider than tall a sprite is (1 for most)
+  const aspect = (kind) => S[kind].rows[0].length / S[kind].rows.length;
+
   TT.sprites = {
     kinds: Object.keys(S),
-    // Draws a sprite with its top-left at (x, y), size px wide and tall.
+    aspect,
+    // Draws a sprite with its top-left at (x, y), size px tall (and wide, times its aspect).
     draw(ctx, kind, x, y, size, flip = false) {
       ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(sheet(kind, flip), Math.round(x), Math.round(y), Math.round(size), Math.round(size));
+      ctx.drawImage(sheet(kind, flip), Math.round(x), Math.round(y), Math.round(size * aspect(kind)), Math.round(size));
     },
     // A small standalone canvas showing one sprite (for menus and cards).
     canvas(kind, size, { faded = false, label } = {}) {
@@ -131,7 +137,7 @@
       sp.rows.forEach((row, y) => [...row].forEach((ch, x) => {
         if (ch !== ".") rects += `<rect x="${x}" y="${y}" width="1.02" height="1.02" fill="${sp.pal[ch] || K}"/>`;
       }));
-      return `<svg viewBox="0 0 10 10" width="${size}" height="${size}" shape-rendering="crispEdges" role="img" aria-label="${kind}">${rects}</svg>`;
+      return `<svg viewBox="0 0 ${sp.rows[0].length} ${sp.rows.length}" width="${Math.round(size * aspect(kind))}" height="${size}" shape-rendering="crispEdges" role="img" aria-label="${kind}">${rects}</svg>`;
     },
   };
 })();

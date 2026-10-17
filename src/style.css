@@ -543,12 +543,15 @@ body:not(.typing) .caret.caret-block { animation-name: blink-block; }
 .fh-over p { font-size: 18px; margin: 14px 0; }
 .fh-over .hints { justify-content: center; }
 
-/* what you have typed so far, at the top of the field */
+/* what you have typed so far, under the animal (forest.js places it as the field moves) */
 .fh-typed {
   position: absolute;
   left: 50%;
   top: 12px;
   transform: translateX(-50%);
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 2px 8px -2px rgba(0, 0, 0, 0.35);
 }
 .fh-typed[hidden] { display: none; }
 
