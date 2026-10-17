@@ -930,7 +930,9 @@
     if (g.over || !g.words) return;
     const { colors, viewT, shakeT } = view;
     const fs = Math.max(13, Math.round(T * 0.34));
-    const shake = viewT - shakeT < 220 ? Math.sin((viewT - shakeT) / 18) * 5 : 0;
+    // a short shake after a typo (only one that's already happened: a new round's clock starts again at 0)
+    const since = viewT - shakeT;
+    const shake = since >= 0 && since < 220 ? Math.sin(since / 18) * 5 : 0;
     ctx.save();
     ctx.font = `500 ${fs}px ${colors.font}`;
     ctx.textBaseline = "middle";
@@ -1258,6 +1260,7 @@
       viewT = 0;
       dieT = null;
       lastLeft = null;
+      shakeT = -1000;
       cam = { lane: null };
       hudSig = srSig = "";
       el.over.hidden = true;
@@ -1425,6 +1428,7 @@
       const provider = recordedWords(rec);
       replay = { rec, pos: 0, lastT: 0, provider, over: false };
       dieT = null;
+      shakeT = -1000;
       g = newCore(rec.seed, rec.animal || "frog", rec.v || 1);
       g.wpmScale = rec.wpmScale ?? W.scale();
       assignWords(g, provider);
@@ -1443,6 +1447,7 @@
         g.wpmScale = rec.wpmScale ?? W.scale();
         assignWords(g, provider);
         replay.pos = 0;
+        shakeT = -1000;
         cam = { lane: null };
       }
       while (replay.pos < rec.keys.length && rec.times[replay.pos] <= T) {
