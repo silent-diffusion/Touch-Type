@@ -487,10 +487,48 @@
   }
 
   // A still copy of the folder as it looks now, laid over the same spot, to animate out of the way.
+  // ---------- scrolling inside the folder ----------
+  // The app never scrolls as a page; pages and their columns scroll on their own (style.css). Pages are
+  // redrawn whenever something changes, so this keeps each one's scroll position across redraws, and
+  // brings a newly selected list item into view.
+  const SCROLLERS = ".view, #stats-body, .cols, .cols > *";
+  const scrollSaved = new Map();
+  const listPicked = new Map();
+  function scrollPage() {
+    const sub = els.subtabs.hidden ? "" : els.subtabs.querySelector(".ftab.on")?.dataset.act || "";
+    return `${ui.view}|${sub}`;
+  }
+  function scrollersShown() {
+    return [...$("folder").querySelectorAll(SCROLLERS)].filter((e) => !e.closest("[hidden]"));
+  }
+  document.addEventListener("scroll", (e) => {
+    const el = e.target;
+    if (!(el instanceof Element) || !el.matches(SCROLLERS) || !$("folder").contains(el)) return;
+    scrollSaved.set(`${scrollPage()}|${scrollersShown().indexOf(el)}`, el.scrollTop);
+  }, true);
+  new MutationObserver(() => {
+    const page = scrollPage();
+    scrollersShown().forEach((el, i) => {
+      const top = scrollSaved.get(`${page}|${i}`);
+      if (top && !el.scrollTop) el.scrollTop = top;
+      const on = el.matches(".col-list") && el.querySelector(".on");
+      if (!on) return;
+      const key = `${page}|${i}`;
+      if (listPicked.get(key) === on.textContent) return;
+      listPicked.set(key, on.textContent);
+      const box = el.getBoundingClientRect(), r = on.getBoundingClientRect();
+      if (r.top < box.top) el.scrollTop -= box.top - r.top + 8;
+      else if (r.bottom > box.bottom) el.scrollTop += r.bottom - box.bottom + 8;
+    });
+  }).observe($("folder"), { childList: true, subtree: true });
+
   function folderGhost(target) {
     const r = target.getBoundingClientRect();
+    // the copy starts unscrolled, so note where each scrolling part was (in the order the copy keeps)
+    const scrolled = [...target.querySelectorAll(SCROLLERS)].filter((e) => !e.closest("[hidden]")).map((e) => e.scrollTop);
     const ghost = target.cloneNode(true);
     ghost.querySelectorAll("[hidden]").forEach((e) => e.remove());
+    ghost.scrolled = scrolled;
     [ghost, ...ghost.querySelectorAll("[id]")].forEach((e) => e.removeAttribute("id"));
     ghost.querySelectorAll("[data-act]").forEach((e) => e.removeAttribute("data-act"));
     ghost.setAttribute("aria-hidden", "true");
@@ -518,6 +556,7 @@
     const target = move.kind === "main" ? els.stack : $("folder");
     const tab = (move.kind === "main" ? els.tabs : els.subtabs).querySelector(".ftab.on");
     els.app.prepend(move.ghost);
+    move.ghost.querySelectorAll(SCROLLERS).forEach((e, i) => { e.scrollTop = move.ghost.scrolled[i] || 0; });
     const rise = Math.max(120, window.innerHeight - target.getBoundingClientRect().top + 24);
     const ease = "cubic-bezier(.3,.7,.3,1)";
     const riseUp = [{ transform: `translateY(${rise}px)` }, { transform: "translateY(0)" }];

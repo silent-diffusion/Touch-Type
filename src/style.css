@@ -63,7 +63,7 @@ body {
 #app {
   position: relative;
   z-index: 1;
-  min-height: 100vh;
+  height: 100vh;
   padding: 22px 48px 24px;
   display: flex;
   flex-direction: column;
@@ -1246,3 +1246,54 @@ html.playing .topline, html.playing #tabs, html.playing #subtabs, html.playing .
 html.playing #app { padding: 0; height: 100vh; }
 html.playing #app .folder-stack { border: none; border-radius: 0; padding: 0; }
 html.playing #app .folder { border: none; border-radius: 0; box-shadow: none; padding: 20px 32px; min-height: 0; }
+
+/* ---------- fit to the window ----------
+   The app is exactly the window's size and never scrolls as a page. Anything too long scrolls inside
+   the folder instead: each column on its own (or, when narrow windows stack the columns, the stack).
+   Scroll bars are hidden; a column with more to show fades out at the edge that has more. */
+html, body { height: 100%; overflow: hidden; }
+* { scrollbar-width: none; }
+::-webkit-scrollbar { display: none; }
+.folder-stack, .folder, .view, #stats-body, .cols { min-height: 0; }
+.folder { overflow: hidden; }
+.menu-view, #stats-body { display: flex; flex-direction: column; }
+#stats-body { flex: 1; }
+/* a page without columns (or with more than columns can hold) scrolls as a whole */
+.view, #stats-body { overflow-y: auto; }
+.view > .cols, #stats-body > .cols { flex: 1 1 0; overflow-y: auto; align-content: flex-start; }
+/* columns stay side by side (narrowing to fit) unless the window is really narrow, where they stack */
+@media (min-width: 1000px) {
+  .folder .cols { flex-wrap: nowrap; }
+  .folder .cols > * { min-width: 0; }
+  /* a column scrolls by itself; the padding (taken back by the margin) keeps focus outlines unclipped */
+  .cols > * { max-height: 100%; overflow-y: auto; overflow-x: hidden; padding: 4px; margin: -4px; }
+}
+.view > .cols { overflow-x: hidden; }
+/* in a narrower column a heading's details drop under it instead of running off the side */
+.folder .title-row { flex-wrap: wrap; }
+
+@property --fade-top { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@property --fade-bottom { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@keyframes scroll-fades {
+  0% { --fade-top: 0px; --fade-bottom: 48px; }
+  8% { --fade-top: 48px; }
+  92% { --fade-bottom: 48px; }
+  100% { --fade-top: 48px; --fade-bottom: 0px; }
+}
+/* the fades follow the scroll position, and only run on something that can actually scroll */
+.cols, .cols > *, #stats-body, .view:not(#view-typing, #view-game, #view-forest, #view-tiles) {
+  mask-image: linear-gradient(to bottom, transparent, #000 var(--fade-top), #000 calc(100% - var(--fade-bottom)), transparent);
+  animation: scroll-fades linear both;
+  animation-timeline: scroll(self);
+}
+
+/* the games take whatever height the window leaves them (their drawing scales to fit), down to a
+   playable minimum */
+.folder .tl, .folder .fh { min-height: 0; }
+.tl { grid-template-rows: minmax(0, 1fr); }
+.tl-center { min-height: 0; }
+.tl-hw { min-height: 180px; }
+.fh-stage { min-height: 200px; }
+@media (max-width: 1000px) {
+  .tl { grid-template-rows: auto minmax(0, 1fr) auto; }
+}
