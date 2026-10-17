@@ -32,6 +32,8 @@ window.TT = window.TT || {};
     tilesMetronome: false,
     tilesScope: true,
     tilesLyrics: true,
+    fhMusic: true, // Forest Hop's music and sound effects, each on or off
+    fhSfx: true,
     autoUpdate: false, // desktop app only; off means the app never goes online by itself
   };
 

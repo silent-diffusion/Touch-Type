@@ -128,6 +128,8 @@
     s.tilesScope = s.tilesScope !== false;
     s.tilesLyrics = s.tilesLyrics !== false;
     s.tilesQueue = !!s.tilesQueue;
+    s.fhMusic = s.fhMusic !== false;
+    s.fhSfx = s.fhSfx !== false;
   }
 
   const isDark = () => S().theme === "night";
@@ -315,7 +317,7 @@
     games: [["ESC", "CLOSE MENU", "close"]],
     game: [["TAB", "RESTART", "play"], ["ESC", "PAUSE", "pause"]],
     forest: [["SPACE / ENTER", "JUMP", "noop"], ["TAB", "RESTART", "fh:play"], ["ESC", "PAUSE", "pause"]],
-    "forest-select": [["← →", "CHOOSE", "fh:next"], ["ENTER", "PLAY", "fh:play"], ["H", "HOW TO PLAY", "fh:guide"], ["ESC", "MENU", "menu"]],
+    "forest-select": [["← →", "CHOOSE", "fh:next"], ["ENTER", "PLAY", "fh:play"], ["H", "HOW TO PLAY", "fh:guide"], ["M", "MUSIC", "fh:music"], ["E", "EFFECTS", "fh:sfx"], ["ESC", "MENU", "menu"]],
     "forest-guide": [["ENTER", "PLAY", "fh:play"], ["ESC", "BACK", "fh:select"]],
     tiles: [["ENTER / SPACE", "HIT", "noop"], ["TAB", "RESTART", "tl:play"], ["ESC", "PAUSE", "pause"]],
     "tiles-select": [["↑ ↓", "SONG", "tl:next"], ["← →", "DIFFICULTY", "tl:harder"], ["ENTER", "PLAY", "tl:play"], ["A", "ADD A SONG", "tl:import"], ["Q", "MODE", "tl:mode:toggle"], ["M", "MUSIC", "tl:music"], ["T", "METRONOME", "tl:metronome"], ["ESC", "MENU", "menu"]],
@@ -727,6 +729,8 @@
     renderForestSelect();
   }
 
+  const toggleBtn = (label, on, act) => `<button class="opt ${on ? "on" : ""}" aria-pressed="${on}" data-act="${act}">${label} ${on ? "ON" : "OFF"}</button>`;
+
   function renderForestSelect() {
     const d = fhData();
     const pick = FH_ANIMALS.find((a) => a.kind === ui.fhPick) || FH_ANIMALS[0];
@@ -764,6 +768,8 @@
             ["Runs:", open ? d.runsBy[pick.kind] || 0 : "—", true],
           ])}</dl>
           ${action}
+          <div class="rule-head">SOUND</div>
+          <div class="tl-toggles">${toggleBtn("MUSIC", S().fhMusic, "fh:music")}${toggleBtn("EFFECTS", S().fhSfx, "fh:sfx")}</div>
         </aside>
       </div>`;
   }
@@ -837,6 +843,14 @@
     else if (x === "play") startForest();
     else if (x === "guide") { show("forest-guide"); renderBar(); renderForestGuide(); }
     else if (x === "pick") { ui.fhPick = y; renderForestSelect(); }
+    else if (x === "music" || x === "sfx") {
+      // music and sound effects, muted separately
+      const key = x === "music" ? "fhMusic" : "fhSfx";
+      S()[key] = !S()[key];
+      TT.save();
+      TT.forestSound.setLevels();
+      if (ui.view === "forest-select") renderForestSelect();
+    }
     else if (x === "next" || x === "prev") {
       const i = FH_ANIMALS.findIndex((a) => a.kind === ui.fhPick);
       ui.fhPick = FH_ANIMALS[(i + (x === "next" ? 1 : -1) + FH_ANIMALS.length) % FH_ANIMALS.length].kind;
@@ -2123,7 +2137,7 @@
         else if (forest.isOver()) { if (plainKey(e, "r")) act("replay:last"); }
         else forest.handleKey(e);
       } else if (v === "forest-select") {
-        const keys = { ArrowRight: "fh:next", ArrowLeft: "fh:prev", Enter: "fh:play", h: "fh:guide", Escape: "menu" };
+        const keys = { ArrowRight: "fh:next", ArrowLeft: "fh:prev", Enter: "fh:play", h: "fh:guide", m: "fh:music", e: "fh:sfx", Escape: "menu" };
         if (keys[e.key] && !e.ctrlKey && !e.altKey && !e.metaKey) { e.preventDefault(); act(keys[e.key]); }
       } else {
         const keys = { Enter: "fh:play", Escape: "fh:select" };

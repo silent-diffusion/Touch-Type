@@ -1048,6 +1048,23 @@
     }
   }
 
+  // Which death sound (forest-sound.js) goes with how the run ended.
+  function deathSound(g) {
+    const th = theme(g.animal), c = g.cause;
+    if ((c === "drowned" || c === "swept") && th.water) return "orca";
+    if (c === "drowned") return "creek";
+    if (c === "swept" || c === "trampled") return c;
+    if (c === "crushed") return "boulder";
+    const mode = g.v < 2 ? "circle" : th.mode;
+    return mode === "circle" ? "swoop" : mode === "stalk" ? "pounce" : "hunter";
+  }
+  // music and effects, for live play only (replays are silent)
+  const snd = {
+    music: () => TT.forestSound && TT.forestSound.startMusic(),
+    stop: (fade) => TT.forestSound && TT.forestSound.stopMusic(fade),
+    play: (name) => TT.forestSound && TT.forestSound.play(name),
+  };
+
   // ---------- engine: live play and replay ----------
 
   const TEMPLATE = `
@@ -1082,6 +1099,7 @@
     let dieT = null;   // while the death animation plays: ms into it
     let typedAt = null; // where the typed word goes (from drawWorld)
     let shakeT = -1000;
+    let lastLeft = null; // the predator countdown last shown, for its warning and ticks
     let raf = 0;
     let cam = { lane: null };
     let hudSig = "";
@@ -1191,6 +1209,10 @@
       const best = Math.max(record().best, score(g));
       const treats = replay ? g.treats : record().treats + g.treats;
       const left = g.v >= 2 && g.threatStart != null && !g.over ? Math.max(0, Math.ceil((g.threatGrace - (viewT - g.threatStart)) / 1000)) : null;
+      if (live && live.state === "running" && left !== lastLeft) {
+        if (left != null) snd.play(lastLeft == null ? "warn" : "tick");
+        lastLeft = left;
+      }
       const sig = [score(g), best, treats, g.animal, left, g.buf, g.bad].join("|");
       if (sig === hudSig) return;
       hudSig = sig;
@@ -1235,10 +1257,12 @@
       assignWords(g, makeWords);
       viewT = 0;
       dieT = null;
+      lastLeft = null;
       cam = { lane: null };
       hudSig = srSig = "";
       el.over.hidden = true;
       render();
+      snd.music();
       raf = requestAnimationFrame(frame);
     }
 
@@ -1266,6 +1290,7 @@
       live.state = "paused";
       live.pausedAt = performance.now();
       cancelAnimationFrame(raf);
+      snd.stop(0.2);
       el.over.innerHTML = TT.pausedHtml("fh:play", "fh:select", "ANIMALS");
       el.over.hidden = false;
     }
@@ -1275,6 +1300,7 @@
       live.startedAt += performance.now() - live.pausedAt;
       live.state = "running";
       el.over.hidden = true;
+      snd.music();
       raf = requestAnimationFrame(frame);
     }
 
@@ -1298,8 +1324,12 @@
       live.keys += k;
       live.times.push(t);
       const d = applyKey(g, k, t, makeWords);
+      if (d && d.type === "hop") snd.play(d.treat ? "treat" : "hop");
       if (g.over) return end();
-      if (d && (d.type === "miss" || (d.type === "space" && !d.empty))) shakeT = viewT;
+      if (d && (d.type === "miss" || (d.type === "space" && !d.empty))) {
+        shakeT = viewT;
+        snd.play("wrong");
+      }
       render();
     }
 
@@ -1308,6 +1338,8 @@
       live.state = "dying";
       cancelAnimationFrame(raf);
       viewT = g.endT;
+      snd.stop(0.4);
+      snd.play(deathSound(g));
 
       // A half-typed word counts only if it matches just one direction.
       const good = W.good(g);
@@ -1380,6 +1412,7 @@
 
     function stop() {
       cancelAnimationFrame(raf);
+      if (live) snd.stop(0.3);
       if (live && live.state !== "over") live.state = "stopped";
     }
 
