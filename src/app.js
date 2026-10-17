@@ -560,7 +560,13 @@
     jumpMain = false;
   });
 
+  // While a game is being played it takes the whole window: no header, tabs or footer (style.css,
+  // html.playing). It starts with the round and ends when the round does, or on leaving the game.
+  const PLAY_VIEWS = ["game", "forest", "tiles"];
+  const setPlaying = (on) => document.documentElement.classList.toggle("playing", !!on);
+
   function show(view) {
+    if (!PLAY_VIEWS.includes(view)) setPlaying(false);
     // Changing tab plays the folder transition (decided here, before anything on screen changes).
     const main = tabFor(view);
     const sub = main === "games" ? gameTabFor(view) : null;
@@ -662,6 +668,7 @@
       els.statusLine.textContent = "Keep moving.";
     },
     onEnd(id) {
+      setPlaying(false);
       ui.lastGameId = id;
       els.statusLine.textContent = "Run saved. Press R to replay it.";
     },
@@ -671,6 +678,7 @@
     engine.stop();
     document.body.classList.remove("typing");
     show("game");
+    setPlaying(true);
     renderBar();
     runner.newGame();
   }
@@ -703,6 +711,7 @@
       els.statusLine.textContent = "Keep moving forward.";
     },
     onEnd(id) {
+      setPlaying(false);
       ui.lastForestId = id;
       els.statusLine.textContent = "Run saved. Press R to replay it.";
     },
@@ -817,6 +826,7 @@
     runner.stop();
     document.body.classList.remove("typing");
     show("forest");
+    setPlaying(true);
     renderBar();
     forest.newGame(pick);
   }
@@ -850,6 +860,7 @@
       els.statusLine.textContent = S().tilesQueue ? "Type the next tile's word and press Enter to lock it in." : "Type a column's word, then hit Enter as its tile crosses the line.";
     },
     onEnd(id) {
+      setPlaying(false);
       ui.lastTilesId = id;
       els.statusLine.textContent = "Round saved. Press R to replay it.";
     },
@@ -1058,6 +1069,7 @@
     forest.stop();
     document.body.classList.remove("typing");
     show("tiles");
+    setPlaying(true);
     renderBar();
     tiles.newGame(s.tilesSong, s.tilesDiff, { music: s.tilesMusic, metronome: s.tilesMetronome, scope: s.tilesScope, lyrics: s.tilesLyrics, queue: s.tilesQueue });
   }

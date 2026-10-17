@@ -1236,3 +1236,10 @@ html.scope-storm .ftab.on::before { background: color-mix(in srgb, var(--fill, v
   border-bottom-left-radius: 10px;
 }
 .fs-bar button:hover, .fs-bar button:focus-visible { background: #c42b1c; color: #ffffff; outline: none; }
+
+/* While a game is being played it takes the whole window: the header, the tabs and the footer go,
+   and the folder (and the parent folder behind it) loses its outline and margins (app.js, setPlaying) */
+html.playing .topline, html.playing #tabs, html.playing #subtabs, html.playing .folder-head, html.playing .footer { display: none !important; }
+html.playing #app { padding: 0; height: 100vh; }
+html.playing #app .folder-stack { border: none; border-radius: 0; padding: 0; }
+html.playing #app .folder { border: none; border-radius: 0; box-shadow: none; padding: 20px 32px; min-height: 0; }
