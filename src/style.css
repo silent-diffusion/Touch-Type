@@ -1297,3 +1297,6 @@ html, body { height: 100%; overflow: hidden; }
 @media (max-width: 1000px) {
   .tl { grid-template-rows: auto minmax(0, 1fr) auto; }
 }
+
+/* the arrow keys' highlight on the open tab: its outline turns the accent colour */
+.ftab.on:focus-visible .tabshape .fl { stroke: var(--accent); stroke-width: 3; }

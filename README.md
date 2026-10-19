@@ -31,17 +31,19 @@ Your data stays on your computer.
 | Key | Action |
 |---|---|
 | Ctrl + a tab's number | Jump to that tab: hold Ctrl and press a main tab's number (6 opens Settings), then, still holding Ctrl, the number of a tab under it (4 opens Updates) |
+| ← ↑ → ↓ | Move around a page: across its columns, and up into its tabs. Moving through a list of games, songs or animals selects as you go |
+| Enter / Space | Press the highlighted button or tab |
 | Tab | Restart the test or game |
 | Tab / Enter | Start the next round from the results screen |
 | Esc | Leave full screen on a main screen (Test, Practice, Games, Leaderboard, Stats, Settings); elsewhere, go back |
 | P | Practice weak keys (on the results and stats screens) |
 | Enter | Play the selected game |
 | Space / Enter | Jump in Forest Hop, once a direction's word is typed |
-| ← → / H | Choose an animal, or open How to Play, in Forest Hop |
+| H | Open How to Play in Forest Hop |
 | Enter / Space | Hit a tile in Tiles, once its word is typed |
-| ↑ ↓ / ← → / A / M / T | Choose a song and difficulty, add your own song, and turn music or the metronome on or off, in Tiles |
+| [ ] / A / M / T | Change the difficulty, add your own song, and turn music or the metronome on or off, in Tiles |
 | R | Replay the round (on the results and game-over screens) |
-| Space / ← → | Play or pause, and skip, in a replay |
+| Space / ← → | Play or pause, and skip, in a replay (↑ ↓ move to its controls) |
 | F11 | Switch full screen on or off (the app opens full screen; move the mouse to the top edge for the close button) |
 
 ## Development

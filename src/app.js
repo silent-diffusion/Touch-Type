@@ -311,20 +311,20 @@
   // ---------- views ----------
 
   const HINTS = {
-    test: [["TAB", "RESTART", "restart"], ["ESC", "MENU", "menu"]],
-    practice: [["TAB", "NEW WORDS", "restart"], ["ESC", "MENU", "menu"]],
-    results: [["TAB / ENTER", "NEXT TEST", "restart"], ["R", "REPLAY", "replay:last"], ["P", "PRACTICE WEAK KEYS", "practice"], ["ESC", "MENU", "menu"]],
-    games: [["ESC", "CLOSE MENU", "close"]],
+    test: [["ARROWS", "MOVE", "noop"], ["TAB", "RESTART", "restart"], ["ESC", "MENU", "menu"]],
+    practice: [["ARROWS", "MOVE", "noop"], ["TAB", "NEW WORDS", "restart"], ["ESC", "MENU", "menu"]],
+    results: [["ARROWS", "MOVE", "noop"], ["TAB / ENTER", "NEXT TEST", "restart"], ["R", "REPLAY", "replay:last"], ["P", "PRACTICE WEAK KEYS", "practice"], ["ESC", "MENU", "menu"]],
+    games: [["ARROWS", "MOVE", "noop"], ["ESC", "CLOSE MENU", "close"]],
     game: [["TAB", "RESTART", "play"], ["ESC", "PAUSE", "pause"]],
     forest: [["SPACE / ENTER", "JUMP", "noop"], ["TAB", "RESTART", "fh:play"], ["ESC", "PAUSE", "pause"]],
-    "forest-select": [["← →", "CHOOSE", "fh:next"], ["ENTER", "PLAY", "fh:play"], ["H", "HOW TO PLAY", "fh:guide"], ["M", "MUSIC", "fh:music"], ["E", "EFFECTS", "fh:sfx"], ["ESC", "MENU", "menu"]],
-    "forest-guide": [["ENTER", "PLAY", "fh:play"], ["ESC", "BACK", "fh:select"]],
+    "forest-select": [["ARROWS", "CHOOSE", "noop"], ["ENTER", "PLAY", "fh:play"], ["H", "HOW TO PLAY", "fh:guide"], ["M", "MUSIC", "fh:music"], ["E", "EFFECTS", "fh:sfx"], ["ESC", "MENU", "menu"]],
+    "forest-guide": [["ARROWS", "MOVE", "noop"], ["ENTER", "PLAY", "fh:play"], ["ESC", "BACK", "fh:select"]],
     tiles: [["ENTER / SPACE", "HIT", "noop"], ["TAB", "RESTART", "tl:play"], ["ESC", "PAUSE", "pause"]],
-    "tiles-select": [["↑ ↓", "SONG", "tl:next"], ["← →", "DIFFICULTY", "tl:harder"], ["ENTER", "PLAY", "tl:play"], ["A", "ADD A SONG", "tl:import"], ["Q", "MODE", "tl:mode:toggle"], ["M", "MUSIC", "tl:music"], ["T", "METRONOME", "tl:metronome"], ["ESC", "MENU", "menu"]],
-    replay: [["SPACE", "PLAY / PAUSE", "rp:toggle"], ["← →", "SKIP 2S", "rp:skip:2000"], ["ESC", "BACK", "rp:back"]],
-    stats: [["P", "PRACTICE WEAK KEYS", "practice"], ["ESC", "CLOSE MENU", "close"]],
-    leaderboard: [["ESC", "CLOSE MENU", "close"]],
-    settings: [["ESC", "CLOSE MENU", "close"]],
+    "tiles-select": [["ARROWS", "MOVE", "noop"], ["[ ]", "DIFFICULTY", "tl:harder"], ["ENTER", "PLAY", "tl:play"], ["A", "ADD A SONG", "tl:import"], ["Q", "MODE", "tl:mode:toggle"], ["M", "MUSIC", "tl:music"], ["T", "METRONOME", "tl:metronome"], ["ESC", "MENU", "menu"]],
+    replay: [["SPACE", "PLAY / PAUSE", "rp:toggle"], ["← →", "SKIP 2S", "rp:skip:2000"], ["↑ ↓", "MOVE", "noop"], ["ESC", "BACK", "rp:back"]],
+    stats: [["ARROWS", "MOVE", "noop"], ["P", "PRACTICE WEAK KEYS", "practice"], ["ESC", "CLOSE MENU", "close"]],
+    leaderboard: [["ARROWS", "MOVE", "noop"], ["ESC", "CLOSE MENU", "close"]],
+    settings: [["ARROWS", "MOVE", "noop"], ["ESC", "CLOSE MENU", "close"]],
   };
   const STATUS = {
     test: "Type to begin.",
@@ -2134,12 +2134,149 @@
     if (e.target.closest("button")) e.preventDefault();
   });
 
+  // ---------- arrow keys move around a page ----------
+  // On every page that isn't being played, the arrow keys move a highlight to the nearest control in that
+  // direction: across the page's columns, and up into the section's tabs and the main tabs. Enter (or
+  // Space) presses it. In a list of choices (games, songs, animals) moving also selects, and Enter keeps
+  // doing what it says at the bottom (usually PLAY). The page's own shortcuts all still work.
+  const NAV_VIEWS = ["test", "practice", "results", "games", "forest-select", "forest-guide", "tiles-select", "replay", "leaderboard", "stats", "settings"];
+  const FOCUSABLE = "button:not([disabled]), input:not([type=hidden]):not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href]";
+  const PICKS = ".list button[aria-pressed], .fh-animal";
+  const NAV_AREAS = ".topline, #tabs, #subtabs, #folder";
+  let navOn = false;
+  let navLast = null;
+
+  function navCandidates() {
+    const typing = document.body.classList.contains("typing");
+    return [...document.querySelectorAll(`.topline :is(${FOCUSABLE}), #tabs :is(${FOCUSABLE}), #subtabs :is(${FOCUSABLE}), #folder :is(${FOCUSABLE})`)].filter((el) => {
+      if (el.closest("[hidden], [aria-hidden=true]") || (typing && el.closest("#test-config"))) return false;
+      const r = el.getBoundingClientRect();
+      return r.width > 0 && r.height > 0;
+    });
+  }
+  // where the highlight starts: what's chosen on the page, or else its first control
+  function navStart(list) {
+    const page = list.filter((el) => $("folder").contains(el));
+    return page.find((el) => el.matches(PICKS) && el.classList.contains("on")) ||
+      page.find((el) => el.getAttribute("aria-pressed") === "true") || page[0] ||
+      navArea(list, "#subtabs") || navArea(list, "#tabs") || list[0];
+  }
+  // stepping into a row of tabs lands on the open tab; into the page, on where it starts
+  function navArea(list, area) {
+    if (area === "#folder") return navStart(list);
+    const inArea = list.filter((el) => el.closest(area));
+    return inArea.find((el) => el.classList.contains("on")) || inArea[0];
+  }
+  // a control in a scrolling column is brought into view within its column only
+  function navReveal(el) {
+    for (let box = el.parentElement; box && box !== document.body; box = box.parentElement) {
+      if (!box.matches(SCROLLERS) || box.scrollHeight <= box.clientHeight) continue;
+      const b = box.getBoundingClientRect(), r = el.getBoundingClientRect();
+      if (r.top < b.top + 8) box.scrollTop -= b.top - r.top + 24;
+      else if (r.bottom > b.bottom - 8) box.scrollTop += r.bottom - b.bottom + 24;
+    }
+  }
+  function navFocus(el) {
+    navOn = true;
+    el.focus({ preventScroll: true });
+    navReveal(el);
+    navLast = { act: el.dataset.act || null, view: ui.view, area: el.closest(NAV_AREAS) && el.closest(NAV_AREAS).id };
+    if (el.matches(PICKS) && !el.classList.contains("on")) el.click();
+  }
+  function navMove(key) {
+    const list = navCandidates();
+    const cur = document.activeElement;
+    if (!list.includes(cur)) { const start = navStart(list); if (start) navFocus(start); return; }
+    const c = cur.getBoundingClientRect();
+    const cx = c.left + c.width / 2, cy = c.top + c.height / 2;
+    const down = key === "ArrowDown", up = key === "ArrowUp", right = key === "ArrowRight";
+    const vertical = up || down;
+    let best = null, bestScore = Infinity;
+    // the page and the rows above it (profile, main tabs, section tabs) are moved around one at a time
+    const area = cur.closest(NAV_AREAS);
+    for (const el of list) {
+      if (el === cur || el.closest(NAV_AREAS) !== area) continue;
+      const r = el.getBoundingClientRect();
+      const x = r.left + r.width / 2, y = r.top + r.height / 2;
+      // wholly past this one in that direction (tabs overlap their neighbours a little, so allow that)
+      const ahead = vertical
+        ? (down ? y > cy + 4 && r.top >= c.bottom - 20 : y < cy - 4 && r.bottom <= c.top + 20)
+        : (right ? x > cx + 4 && r.left >= c.right - 16 : x < cx - 4 && r.right <= c.left + 16);
+      if (!ahead) continue;
+      const gap = vertical ? Math.max(0, down ? r.top - c.bottom : c.top - r.bottom) : Math.max(0, right ? r.left - c.right : c.left - r.right);
+      const side = vertical ? Math.max(0, r.left - c.right, c.left - r.right) : Math.max(0, r.top - c.bottom, c.top - r.bottom);
+      const off = vertical ? Math.abs(x - cx) : Math.abs(y - cy);
+      // controls in line with this one win over nearer ones off to the side
+      const score = gap + side * 4 + (side ? 400 : 0) + off * 0.1;
+      if (score < bestScore) { bestScore = score; best = el; }
+    }
+    if (!best && vertical) {
+      // past the edge of this area: on to the next one up or down
+      const areas = NAV_AREAS.split(", ").filter((a) => list.some((el) => el.closest(a)));
+      const next = areas[areas.findIndex((a) => area.matches(a)) + (down ? 1 : -1)];
+      best = next && navArea(list, next);
+    }
+    if (!best) return;
+    // coming into a list of choices from outside it lands on the one that's chosen, not a new one
+    const group = best.matches(PICKS) && best.closest(".list, .fh-animals");
+    if (group && !group.contains(cur)) best = group.querySelector(".on") || best;
+    navFocus(best);
+  }
+  // A redraw replaces the page's controls, so the highlight goes back to the same control.
+  new MutationObserver(() => {
+    if (!navOn || !navLast || !NAV_VIEWS.includes(ui.view)) return;
+    const cur = document.activeElement;
+    if (cur && cur !== document.body && document.contains(cur)) return;
+    const list = navCandidates();
+    const acts = navLast.act ? list.filter((el) => el.dataset.act === navLast.act) : [];
+    const same = acts.find((el) => el.closest(NAV_AREAS).id === navLast.area) || acts[0];
+    if (same) { same.focus({ preventScroll: true }); navReveal(same); }
+    else navOn = false;
+  }).observe(els.app, { childList: true, subtree: true });
+  document.addEventListener("pointerdown", () => { navOn = false; });
+
+  // Returns true when the key was used for moving around the page.
+  function navKey(e) {
+    const v = ui.view;
+    if (!NAV_VIEWS.includes(v) || e.ctrlKey || e.altKey || e.metaKey) return false;
+    if (v === "tiles-select" && ui.tap) return false;
+    if ((v === "test" || v === "practice") && document.body.classList.contains("typing")) return false;
+    const arrow = /^Arrow(Up|Down|Left|Right)$/.test(e.key);
+    const cur = document.activeElement;
+    const onControl = navOn && cur && cur !== document.body && navCandidates().includes(cur);
+    if (arrow) {
+      // the replay's ← → skip, until you've moved onto one of its controls
+      if (v === "replay" && !onControl && (e.key === "ArrowLeft" || e.key === "ArrowRight")) return false;
+      e.preventDefault();
+      navMove(e.key);
+      return true;
+    }
+    if (!onControl) return false;
+    if (e.key === "Enter" || (e.key === " " && !["replay", "test", "practice"].includes(v))) {
+      // on a choice in a list, Enter does the page's Enter (PLAY); anything else is pressed
+      if (e.key === "Enter" && cur.matches(PICKS)) return false;
+      e.preventDefault();
+      cur.click();
+      return true;
+    }
+    // typing on the speed test goes to the test, not the highlighted control
+    if ((v === "test" || v === "practice") && e.key !== "Tab" && e.key !== "Escape" && e.key.length === 1) { cur.blur(); navOn = false; }
+    return false;
+  }
+
   const plainKey = (e, key) => e.key === key && !e.ctrlKey && !e.altKey && !e.metaKey;
 
   document.addEventListener("keydown", (e) => {
     if (e.getModifierState) els.capslock.hidden = !e.getModifierState("CapsLock");
     // Typing in a text field (like a profile name) shouldn't trigger shortcuts.
     if (e.target.closest && e.target.closest("input, textarea, select")) {
+      // up and down leave a slider or a one-line text box (left and right still change it)
+      if ((e.key === "ArrowUp" || e.key === "ArrowDown") && e.target.matches("input") && NAV_VIEWS.includes(ui.view)) {
+        e.preventDefault();
+        navOn = true;
+        navMove(e.key);
+        return;
+      }
       if (e.key === "Escape") {
         e.preventDefault();
         if (ui.renaming) profileAct("cancel");
@@ -2155,6 +2292,7 @@
       if (!e.repeat) jumpKey(Number(e.key));
       return;
     }
+    if (navKey(e)) return;
     if (e.key === "Escape" && ui.fullscreen && ROOT_VIEWS.includes(v)) {
       e.preventDefault();
       act("window:windowed");
@@ -2176,7 +2314,7 @@
         else if (forest.isOver()) { if (plainKey(e, "r")) act("replay:last"); }
         else forest.handleKey(e);
       } else if (v === "forest-select") {
-        const keys = { ArrowRight: "fh:next", ArrowLeft: "fh:prev", Enter: "fh:play", h: "fh:guide", m: "fh:music", e: "fh:sfx", Escape: "menu" };
+        const keys = { Enter: "fh:play", h: "fh:guide", m: "fh:music", e: "fh:sfx", Escape: "menu" };
         if (keys[e.key] && !e.ctrlKey && !e.altKey && !e.metaKey) { e.preventDefault(); act(keys[e.key]); }
       } else {
         const keys = { Enter: "fh:play", Escape: "fh:select" };
@@ -2198,7 +2336,7 @@
         else if (e.key === "Backspace") { e.preventDefault(); act("tl:tapundo"); }
         else if (e.key === "Escape") { e.preventDefault(); act("tl:tapcancel"); }
       } else {
-        const keys = { ArrowDown: "tl:next", ArrowUp: "tl:prev", ArrowRight: "tl:harder", ArrowLeft: "tl:easier", Enter: "tl:play", a: "tl:import", q: "tl:mode:toggle", m: "tl:music", t: "tl:metronome", Escape: "menu" };
+        const keys = { "]": "tl:harder", "[": "tl:easier", Enter: "tl:play", a: "tl:import", q: "tl:mode:toggle", m: "tl:music", t: "tl:metronome", Escape: "menu" };
         if (keys[e.key] && !e.ctrlKey && !e.altKey && !e.metaKey) { e.preventDefault(); act(keys[e.key]); }
       }
       return;
