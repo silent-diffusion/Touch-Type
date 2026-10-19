@@ -923,7 +923,8 @@
     easy: "Three columns and words up to 6 letters, with a tile every few bars, falling slowest.",
     medium: "Three columns and words up to 7 letters, with tiles a little closer together.",
     hard: "Four columns and words up to 8 letters, a tile every couple of seconds.",
-    expert: "Four columns and words up to 9 letters, a tile about every second, falling fastest.",
+    expert: "Four columns and words up to 9 letters, a tile about every second, falling fast.",
+    ludicrous: "Four columns and words up to 10 letters, a tile about every half second, falling fastest of all. Health comes back half as fast, and mistakes cost twice as much.",
   };
   const MODE_HINT = {
     timed: "Press Enter as each tile crosses the line. Timing counts.",
@@ -938,6 +939,20 @@
   };
   const fmtLength = (sec) => `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, "0")}`;
 
+  // Ludicrous opens once this profile has finished a song on Expert (in either mode). The next time
+  // the song screen opens it's revealed with a storm (tiles data ludicrous: "new", then "shown"), and
+  // its button flashes until it's first played (ludicrousPlayed).
+  const ludicrousOpen = () => !!tilesData().ludicrous;
+  const tilesDiffIds = () => TT.tilesCore.DIFF_IDS.filter((id) => id !== "ludicrous" || ludicrousOpen());
+  function checkLudicrous() {
+    const d = tilesData();
+    if (!d.ludicrous && Object.entries(d.bestBy).some(([k, b]) => b && b.cleared && /:expert(:queue)?$/.test(k))) {
+      d.ludicrous = "new";
+      TT.save();
+    }
+    return d.ludicrous === "new";
+  }
+
   function openTilesSelect() {
     engine.stop();
     runner.stop();
@@ -947,6 +962,7 @@
     show("tiles-select");
     renderBar();
     renderTilesSelect();
+    if (checkLudicrous()) ludicrousReveal();
   }
 
   function renderTilesSelect() {
@@ -954,6 +970,7 @@
     const C = TT.tilesCore;
     const d = tilesData();
     const song = TT.songs.get(s.tilesSong) || TT.songs.get(TT.songs.list[0].id);
+    if (s.tilesDiff === "ludicrous" && !ludicrousOpen()) s.tilesDiff = "expert"; // another profile's choice
     const best = (id, diff) => d.bestBy[bestKey(id, diff, s.tilesQueue)];
     const item = (x) => {
       const b = best(x.id, s.tilesDiff);
@@ -988,7 +1005,7 @@
       else if (!installed && sp.supported()) partsLine = `<p class="note">At ×4 the visuals follow this song's ${parts}. Get the separation pack for a cleaner split.</p>
           <div class="tl-own"><button class="outline-btn" data-act="goto:music">GET THE SEPARATION PACK</button></div>`;
     }
-    const rows = C.DIFF_IDS.map((id) => {
+    const rows = tilesDiffIds().map((id) => {
       const b = best(song.id, id);
       return [`${C.DIFFS[id].name[0]}${C.DIFFS[id].name.slice(1).toLowerCase()}:`, b ? `${b.grade} · ${b.score.toLocaleString()}` : "—"];
     });
@@ -1052,8 +1069,10 @@
             <button class="outline-btn" data-act="tl:delete">DELETE</button>
           </div>` : ""}
           <div class="side-label">Difficulty:</div>
-          <div class="seg tl-diffs" aria-label="Difficulty">${C.DIFF_IDS.map((id) =>
-            `<button class="${id === s.tilesDiff ? "on" : ""}" aria-pressed="${id === s.tilesDiff}" data-act="tl:diff:${id}">${C.DIFFS[id].name}</button>`).join("")}</div>
+          <div class="seg tl-diffs" aria-label="Difficulty">${tilesDiffIds().map((id) => {
+            const cls = [id === s.tilesDiff ? "on" : "", id === "ludicrous" ? `ludi${d.ludicrousPlayed ? "" : " fresh"}` : ""].join(" ").trim();
+            return `<button class="${cls}" aria-pressed="${id === s.tilesDiff}" data-act="tl:diff:${id}">${C.DIFFS[id].name}</button>`;
+          }).join("")}</div>
           <p class="note">${DIFF_HINT[s.tilesDiff]}${s.tilesQueue ? " In queue mode the tiles come twice as often." : ""} Long words only come when there's time to type them. The music plays at the same speed on every difficulty.</p>
           <button class="fh-play tl-play" data-act="tl:play">PLAY <kbd>ENTER</kbd></button>
         </section>`}
@@ -1121,10 +1140,147 @@
     runner.stop();
     forest.stop();
     document.body.classList.remove("typing");
+    if (s.tilesDiff === "ludicrous" && !ludicrousOpen()) s.tilesDiff = "expert";
+    if (s.tilesDiff === "ludicrous" && !tilesData().ludicrousPlayed) {
+      tilesData().ludicrousPlayed = true; // its button stops flashing
+      TT.save();
+    }
     show("tiles");
     setPlaying(true);
     renderBar();
     tiles.newGame(s.tilesSong, s.tilesDiff, { music: s.tilesMusic, metronome: s.tilesMetronome, scope: s.tilesScope, lyrics: s.tilesLyrics, queue: s.tilesQueue });
+  }
+
+  // ---------- Ludicrous: the reveal ----------
+
+  // Lightning across the screen while it flashes white and black (three flashes, the most that's
+  // safe in a second) and the app turns black and white, with thunder; then a note that Ludicrous
+  // is open. With reduced motion: one soft flash, no bolts.
+  const LUDI_BOLTS = [0, 180, 520]; // ms: each bolt, with a white flash and then a black one
+  function ludicrousReveal() {
+    const d = tilesData();
+    d.ludicrous = "shown";
+    TT.save();
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const dpr = window.devicePixelRatio || 1;
+    const storm = document.createElement("div");
+    storm.className = "ludi-storm";
+    storm.setAttribute("aria-hidden", "true");
+    const cv = document.createElement("canvas");
+    storm.append(cv);
+    document.body.append(storm);
+    document.documentElement.classList.add("ludi-bw");
+    const w = (cv.width = Math.round(innerWidth * dpr)), h = (cv.height = Math.round(innerHeight * dpr));
+    const c = cv.getContext("2d");
+    const bolts = reduce ? [] : [lightning(w, h, false), lightning(w, h, false), lightning(w, h, true)];
+    ui.ludi = { storm, pop: null };
+    TT.tilesAudio.thunder(reduce ? [0] : LUDI_BOLTS.map((t) => t / 1000));
+    const t0 = performance.now();
+    const step = () => {
+      if (!ui.ludi) return;
+      const t = performance.now() - t0;
+      let flash = "";
+      if (reduce) flash = t < 300 ? "soft" : "";
+      else for (const at of LUDI_BOLTS) {
+        if (t >= at && t < at + 90) flash = "white";
+        else if (t >= at + 110 && t < at + 190) flash = "black";
+      }
+      storm.dataset.flash = flash;
+      c.clearRect(0, 0, w, h);
+      LUDI_BOLTS.forEach((at, i) => {
+        const age = t - at;
+        if (bolts[i] && age >= 0 && age < 280) drawLightning(c, bolts[i], 1 - age / 280, dpr);
+      });
+      if (t < 1000) requestAnimationFrame(step);
+      else ludicrousNote();
+    };
+    requestAnimationFrame(step);
+    // the note comes up even if the window was hidden (and its frames held back) meanwhile
+    setTimeout(() => {
+      if (!ui.ludi || ui.ludi.pop) return;
+      storm.dataset.flash = "";
+      c.clearRect(0, 0, w, h);
+      ludicrousNote();
+    }, 1300);
+  }
+
+  // A jagged bolt from the top down (or right across the screen), with a few forks.
+  function lightning(w, h, across) {
+    const jag = (a, b, depth, rough) => {
+      let pts = [a, b];
+      let disp = Math.hypot(b[0] - a[0], b[1] - a[1]) * rough;
+      for (let k = 0; k < depth; k++) {
+        const next = [pts[0]];
+        for (let i = 1; i < pts.length; i++) {
+          const [px, py] = pts[i - 1], [qx, qy] = pts[i];
+          const L = Math.hypot(qx - px, qy - py) || 1, o = (Math.random() - 0.5) * disp;
+          next.push([(px + qx) / 2 - ((qy - py) / L) * o, (py + qy) / 2 + ((qx - px) / L) * o], pts[i]);
+        }
+        pts = next;
+        disp /= 2;
+      }
+      return pts;
+    };
+    const a = across ? [0, h * (0.1 + Math.random() * 0.2)] : [w * (0.15 + Math.random() * 0.7), 0];
+    const b = across ? [w, h * (0.55 + Math.random() * 0.35)] : [a[0] + (Math.random() - 0.5) * w * 0.4, h];
+    const main = jag(a, b, 7, 0.2);
+    const forks = [];
+    for (let i = 0; i < 4; i++) {
+      const from = main[Math.floor(main.length * (0.2 + Math.random() * 0.6))];
+      const len = Math.min(w, h) * (0.15 + Math.random() * 0.2);
+      const ang = Math.atan2(b[1] - a[1], b[0] - a[0]) + (Math.random() < 0.5 ? -1 : 1) * (0.4 + Math.random() * 0.5);
+      forks.push(jag(from, [from[0] + Math.cos(ang) * len, from[1] + Math.sin(ang) * len], 5, 0.25));
+    }
+    return { main, forks };
+  }
+  function drawLightning(c, bolt, a, dpr) {
+    const line = (pts, width, style) => {
+      c.beginPath();
+      pts.forEach(([x, y], i) => (i ? c.lineTo(x, y) : c.moveTo(x, y)));
+      c.lineWidth = width * dpr;
+      c.strokeStyle = style;
+      c.stroke();
+    };
+    c.save();
+    c.lineJoin = c.lineCap = "round";
+    c.shadowColor = "rgba(190, 210, 255, 0.9)";
+    c.shadowBlur = 28 * dpr;
+    line(bolt.main, 16, `rgba(170, 195, 255, ${a * 0.35})`);
+    for (const f of bolt.forks) line(f, 5, `rgba(200, 215, 255, ${a * 0.5})`);
+    c.shadowBlur = 10 * dpr;
+    line(bolt.main, 3.5, `rgba(255, 255, 255, ${a})`);
+    for (const f of bolt.forks) line(f, 1.5, `rgba(255, 255, 255, ${a * 0.85})`);
+    c.restore();
+  }
+
+  function ludicrousNote() {
+    if (!ui.ludi || ui.ludi.pop) return;
+    const pop = document.createElement("div");
+    pop.className = "ludi-pop";
+    pop.setAttribute("role", "dialog");
+    pop.setAttribute("aria-modal", "true");
+    pop.setAttribute("aria-labelledby", "ludi-title");
+    pop.innerHTML = `
+      <svg class="ludi-icon" viewBox="0 0 24 32" aria-hidden="true"><path d="M14 1 3 18h7l-3 13 13-19h-7l3-11z"/></svg>
+      <div class="caps-label">NEW DIFFICULTY UNLOCKED</div>
+      <h2 id="ludi-title">LUDICROUS</h2>
+      <p>Your skills are impressive. You may be considered an expert, but there's something even… <em>crazier</em>.</p>
+      <p class="note">Tiles come twice as fast as on Expert, with words up to 10 letters. Health comes back half as fast, and mistakes cost twice as much.</p>
+      <button class="fh-play" type="button">BRING IT ON <kbd>ENTER</kbd></button>`;
+    document.body.append(pop);
+    ui.ludi.pop = pop;
+    ui.ludi.storm.dataset.flash = "dim"; // the screen darkens behind the note
+    const btn = pop.querySelector("button");
+    btn.addEventListener("click", closeLudicrous);
+    btn.focus();
+  }
+  function closeLudicrous() {
+    if (!ui.ludi) return;
+    ui.ludi.storm.remove();
+    if (ui.ludi.pop) ui.ludi.pop.remove();
+    ui.ludi = null;
+    document.documentElement.classList.remove("ludi-bw");
+    if (ui.view === "tiles-select") renderTilesSelect();
   }
 
   // ---- your own music ----
@@ -1266,7 +1422,7 @@
   function tilesAct(x, y) {
     const s = S();
     const ids = [...TT.songs.list, ...TT.music.list()].map((z) => z.id);
-    const diffs = TT.tilesCore.DIFF_IDS;
+    const diffs = tilesDiffIds();
     if (x === "select") { tiles.stop(); openTilesSelect(); return; }
     if (x === "play") { if (!ui.tap) startTiles(); return; }
     if (x === "import") { if (!ui.tlBusy) fileInput.click(); return; }
@@ -1285,7 +1441,7 @@
     if (x === "song" || x === "next" || x === "prev") ui.lyricsEdit = false; // another song: close its lyrics editor
     if (x === "song") s.tilesSong = y;
     else if (x === "next" || x === "prev") s.tilesSong = ids[(ids.indexOf(s.tilesSong) + (x === "next" ? 1 : -1) + ids.length) % ids.length];
-    else if (x === "diff") s.tilesDiff = y;
+    else if (x === "diff") { if (diffs.includes(y)) s.tilesDiff = y; }
     else if (x === "harder" || x === "easier") s.tilesDiff = diffs[Math.max(0, Math.min(diffs.length - 1, diffs.indexOf(s.tilesDiff) + (x === "harder" ? 1 : -1)))];
     else if (x === "music") s.tilesMusic = !s.tilesMusic;
     else if (x === "metronome") s.tilesMetronome = !s.tilesMetronome;
@@ -1534,13 +1690,13 @@
     if (tab === "tiles") {
       const songs = [...TT.songs.list, ...TT.music.list()];
       const song = songs.find((x) => x.id === (ui.lbSong || s.tilesSong)) || songs[0];
-      const diff = TT.tilesCore.DIFFS[ui.lbDiff] ? ui.lbDiff : s.tilesDiff;
+      const diff = tilesDiffIds().includes(ui.lbDiff) ? ui.lbDiff : tilesDiffIds().includes(s.tilesDiff) ? s.tilesDiff : "medium";
       const queue = ui.lbQueue ?? s.tilesQueue;
       const key = bestKey(song.id, diff, queue);
       const btn = (label, on, act) => `<button class="${on ? "on" : ""}" aria-pressed="${on}" data-act="${act}">${esc(label)}</button>`;
       filters = `<div class="lb-filters">
           <div class="seg lb-songs" aria-label="Song">${songs.map((x) => btn(x.title, x.id === song.id, `lb:song:${x.id}`)).join("")}</div>
-          <div class="seg" aria-label="Difficulty">${TT.tilesCore.DIFF_IDS.map((d) => btn(TT.tilesCore.DIFFS[d].name, d === diff, `lb:diff:${d}`)).join("")}</div>
+          <div class="seg" aria-label="Difficulty">${tilesDiffIds().map((d) => btn(TT.tilesCore.DIFFS[d].name, d === diff, `lb:diff:${d}`)).join("")}</div>
           <div class="seg" aria-label="Mode">${btn("TIMED", !queue, "lb:mode:timed")}${btn("QUEUE", queue, "lb:mode:queue")}</div>
         </div>`;
       what = `${song.title}, ${TT.tilesCore.DIFFS[diff].name.toLowerCase()}${queue ? ", queue" : ""}`;
@@ -2267,6 +2423,12 @@
   const plainKey = (e, key) => e.key === key && !e.ctrlKey && !e.altKey && !e.metaKey;
 
   document.addEventListener("keydown", (e) => {
+    // The Ludicrous reveal takes every key: Enter, Space or Esc closes its note once it's up.
+    if (ui.ludi) {
+      e.preventDefault();
+      if (ui.ludi.pop && ["Enter", " ", "Escape"].includes(e.key)) closeLudicrous();
+      return;
+    }
     if (e.getModifierState) els.capslock.hidden = !e.getModifierState("CapsLock");
     // Typing in a text field (like a profile name) shouldn't trigger shortcuts.
     if (e.target.closest && e.target.closest("input, textarea, select")) {

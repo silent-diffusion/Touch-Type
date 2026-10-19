@@ -1300,3 +1300,42 @@ html, body { height: 100%; overflow: hidden; }
 
 /* the arrow keys' highlight on the open tab: its outline turns the accent colour */
 .ftab.on:focus-visible .tabshape .fl { stroke: var(--accent); stroke-width: 3; }
+
+/* ---------- Tiles: Ludicrous ---------- */
+/* five difficulties sit tighter, so Ludicrous stays on the row next to Expert */
+.tl-diffs:has(.ludi) button { min-width: 0; padding-left: 9px; padding-right: 9px; letter-spacing: 1px; }
+/* its button flashes until it's first played */
+.tl-diffs .ludi.fresh { animation: ludi-call 1.1s ease-in-out infinite; }
+@keyframes ludi-call {
+  0%, 100% { box-shadow: 0 0 0 0 transparent; }
+  50% { box-shadow: 0 0 0 3px var(--accent), 0 0 18px 2px var(--accent); color: var(--accent); }
+}
+.tl-diffs .ludi.fresh.on { animation-name: ludi-call-on; }
+@keyframes ludi-call-on { 50% { box-shadow: 0 0 0 3px var(--accent), 0 0 18px 2px var(--accent); } }
+
+/* the reveal: lightning over the screen, which flashes white and black while the app goes grey */
+.ludi-storm { position: fixed; inset: 0; z-index: 1000; }
+.ludi-storm canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.ludi-storm[data-flash="white"] { background: #fff; }
+.ludi-storm[data-flash="black"] { background: #000; }
+.ludi-storm[data-flash="soft"] { background: rgba(255, 255, 255, 0.6); transition: background 0.3s; }
+.ludi-storm[data-flash="dim"] { background: rgba(0, 0, 0, 0.55); transition: background 0.4s; }
+#app { transition: filter 0.5s; }
+html.ludi-bw #app { filter: grayscale(1) contrast(1.35); }
+.ludi-pop {
+  position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 1001;
+  width: min(560px, calc(100vw - 32px)); box-sizing: border-box;
+  background: var(--ground); color: var(--ink); border: var(--rule); border-radius: 16px;
+  padding: 30px 36px 32px; text-align: center; box-shadow: 0 20px 60px -10px rgba(0, 0, 0, 0.6);
+  animation: ludi-in 0.35s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+@keyframes ludi-in { from { opacity: 0; transform: translate(-50%, -46%) scale(0.92); } }
+.ludi-pop h2 { margin: 6px 0 14px; font-size: 64px; font-weight: 800; letter-spacing: 0.06em; line-height: 1; color: var(--accent); animation: ludi-flicker 2.4s steps(1) infinite; }
+@keyframes ludi-flicker { 0%, 46%, 50%, 100% { opacity: 1; } 48% { opacity: 0.35; } }
+.ludi-pop p { font-size: 19px; line-height: 1.45; margin: 0 0 12px; text-wrap: balance; }
+.ludi-pop .note { font-size: 15px; color: var(--muted); margin-bottom: 22px; }
+.ludi-icon { width: 34px; height: 46px; fill: var(--accent); }
+@media (prefers-reduced-motion: reduce) {
+  .tl-diffs .ludi.fresh, .tl-diffs .ludi.fresh.on { animation: none; box-shadow: 0 0 0 3px var(--accent); }
+  .ludi-pop, .ludi-pop h2 { animation: none; }
+}

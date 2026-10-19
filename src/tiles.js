@@ -29,11 +29,17 @@
   // cols: how many columns (from rules v4, never fewer than three); len: word lengths
   // rate: letters a second the word-length plan allows for the time a tile gives you to type
   // (QUEUE_SPEED times as many in queue mode, so it gets the same mix of lengths, twice as often)
+  // heal, typoHp: how fast health comes back (a share of HEAL) and what a wrong key costs, when
+  // not the usual (1 and TYPO_HP)
+  // Ludicrous, unlocked by finishing a song on Expert, is as big a step up from Expert as Expert is
+  // from Hard (each setting scaled by the same ratio), and health comes back half as fast while
+  // mistakes cost twice as much.
   const DIFFS = {
     easy:   { name: "EASY",   gap: 5.0,  min: 2.5,  fall: 5000, cols: 3, len: [3, 6], rate: 2.5, missHp: 8 },
     medium: { name: "MEDIUM", gap: 3.0,  min: 1.8,  fall: 4400, cols: 3, len: [3, 7], rate: 2.6, missHp: 10 },
     hard:   { name: "HARD",   gap: 2.6,  min: 1.4,  fall: 3600, cols: 4, len: [3, 8], rate: 3.5, missHp: 12 },
     expert: { name: "EXPERT", gap: 1.25, min: 0.75, fall: 2600, cols: 4, len: [4, 9], rate: 7.5, missHp: 14 },
+    ludicrous: { name: "LUDICROUS", gap: 0.6, min: 0.4, fall: 1900, cols: 4, len: [5, 10], rate: 16, missHp: 28, heal: 0.5, typoHp: 4 },
   };
   const DIFF_IDS = Object.keys(DIFFS);
   // A difficulty's settings in a mode: queue mode halves the spacing, so tiles come twice as often.
@@ -60,7 +66,7 @@
   // tile in its column is still falling, the length that counts as long (never two in a row), and
   // how much likelier each letter shorter is (1: every length up to the cap is as likely).
   const REACT_S = 0.3, QUEUE_SLACK_S = 2, SHARED_ROW_MAX = 5, LONG_AT = 7, LONGER = 1;
-  // Longer common words for Tiles, which the main lists have few of (6 to 9 letters).
+  // Longer common words for Tiles, which the main lists have few of (6 to 10 letters).
   const LONG_WORDS = [
     "always", "around", "before", "called", "change", "number", "people", "really", "should",
     "system", "things", "better", "family", "friend", "garden", "ground", "listen", "market",
@@ -88,6 +94,13 @@
     "yesterday", "afternoon", "attention", "breakfast", "celebrate", "crocodile", "delicious",
     "discovery", "emergency", "fireplace", "invisible", "lightning", "marmalade", "signature",
     "snowflake", "waterfall",
+    // for Ludicrous
+    "background", "basketball", "everything", "friendship", "generation", "government", "helicopter",
+    "incredible", "investment", "lighthouse", "motorcycle", "playground", "photograph",
+    "restaurant", "skateboard", "strawberry", "understand", "watermelon", "wilderness", "attraction",
+    "connection", "discussion", "experiment", "expression", "university", "volleyball", "adjustment",
+    "atmosphere", "blackboard", "commercial", "confidence", "creativity", "dictionary", "electrical",
+    "impossible", "instrument", "microscope", "particular", "population", "television", "throughout",
   ];
   const HISTORY_CAP = 200;
 
@@ -264,6 +277,8 @@
       words: null,      // v4: the word under each column
       wordN: 0,         // v4: how many words have been dealt
       missHp: (DIFFS[diff] || DIFFS.medium).missHp,
+      heal: (DIFFS[diff] || DIFFS.medium).heal ?? 1,      // how fast health comes back
+      typoHp: (DIFFS[diff] || DIFFS.medium).typoHp ?? TYPO_HP, // what a wrong key costs
       next: 0,          // index of the next tile to appear
       tiles: [],        // on screen, oldest first: { i, l, born } (and w, the word, before v4; q, the locked-in word, in queue mode)
       res: [],          // per tile: { grade, d, t }
@@ -409,7 +424,7 @@
     const gain = !g.dirty && grade === "P" ? 3 : 2;
     if (g.v >= 6) g.prog += gain;
     g.score += POINTS[grade] * multOf(g);
-    g.hp = Math.min(MAX_HP, g.hp + HEAL[grade]);
+    g.hp = Math.min(MAX_HP, g.hp + HEAL[grade] * g.heal);
     g.chars += word.length + 1;
     g.offsets.push(d);
     W.done(g, word);
@@ -502,7 +517,7 @@
       g.dirty = true;
       g.stepMisses.push({ pos: r.pos, typed: k });
       g.mistakes++;
-      hurt(g, TYPO_HP, t);
+      hurt(g, g.typoHp, t);
       return { type: "miss", typed: k, pos: r.pos, buf: g.buf };
     }
     g.correct++;
@@ -605,7 +620,7 @@
     if (ok) {
       g.combo++;
       g.maxCombo = Math.max(g.maxCombo, g.combo);
-      g.hp = Math.min(MAX_HP, g.hp + HEAL.P);
+      g.hp = Math.min(MAX_HP, g.hp + HEAL.P * g.heal);
     }
     if (g.v >= 6) g.prog += gain;
     g.score += POINTS[grade] * multOf(g);
@@ -639,7 +654,45 @@
     return g;
   }
 
-  TT.tilesAudio = { get: () => getAudio(), quickSplit }; // quickSplit: for tests
+  // Thunder, for when Ludicrous is unlocked: a crack at each flash (times in seconds from now),
+  // then a long, rolling rumble.
+  function thunder(cracks = [0, 0.18, 0.52]) {
+    const ctx = getAudio();
+    if (!ctx) return;
+    const t0 = ctx.currentTime + 0.02;
+    const len = ctx.sampleRate * 4;
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0, last = 0; i < len; i++) d[i] = last = last * 0.6 + (Math.random() * 2 - 1) * 0.4; // a little darker than white noise
+    const burst = (t, dur, type, f, f1, peak, attack) => {
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      const fl = ctx.createBiquadFilter();
+      fl.type = type;
+      fl.frequency.setValueAtTime(f, t);
+      fl.frequency.exponentialRampToValueAtTime(f1, t + dur);
+      const g = ctx.createGain();
+      g.gain.value = 0.0001;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(peak, t + attack);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      src.connect(fl).connect(g).connect(ctx.destination);
+      src.start(t, Math.random() * 0.5);
+      src.stop(t + dur + 0.05);
+      return g;
+    };
+    cracks.forEach((c, i) => burst(t0 + c, 0.35, "highpass", 1800, 600, i === cracks.length - 1 ? 0.9 : 0.5, 0.004));
+    // the rumble rolls: its loudness wobbles as it fades
+    const rumble = burst(t0 + 0.25, 3.4, "lowpass", 260, 60, 1.2, 0.18);
+    const lfo = ctx.createOscillator(), depth = ctx.createGain();
+    lfo.frequency.value = 5;
+    depth.gain.value = 0.25;
+    lfo.connect(depth).connect(rumble.gain);
+    lfo.start(t0);
+    lfo.stop(t0 + 3.8);
+  }
+
+  TT.tilesAudio = { get: () => getAudio(), quickSplit, thunder }; // quickSplit: for tests
 
   TT.tilesCore = {
     DIFFS, DIFF_IDS, WIN, RULES, GRADE_NAMES, QUEUE_SPEED, modeDiff, nextUp, planLengths, LONG_WORDS, MULT_AT, level, multOf, toNext,
