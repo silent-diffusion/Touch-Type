@@ -923,8 +923,8 @@
     easy: "Three columns and words up to 6 letters, with a tile every few bars, falling slowest.",
     medium: "Three columns and words up to 7 letters, with tiles a little closer together.",
     hard: "Four columns and words up to 8 letters, a tile every couple of seconds.",
-    expert: "Four columns and words up to 9 letters, a tile about every second, falling fast.",
-    ludicrous: "Four columns and words up to 10 letters, a tile about every half second, falling fastest of all. Health comes back half as fast, and mistakes cost twice as much.",
+    expert: "Five columns and no longest word: a word can be as long as the time before its tile allows. A tile about every second, falling fast.",
+    ludicrous: "Six columns and words of 7 letters or more, as long as the time before their tile allows. A tile about every half second, falling fastest of all. Health comes back half as fast, and mistakes cost twice as much.",
   };
   const MODE_HINT = {
     timed: "Press Enter as each tile crosses the line. Timing counts.",
@@ -1096,7 +1096,8 @@
             <li>Each column has a word at the bottom. Tiles fall down the columns in time with the music, higher notes further right.</li>
             <li>Type a column's word, then press <strong>Enter</strong> or <strong>Space</strong> as that column's tile crosses the line. Its word then changes.</li>
             <li>Close to the line counts, and a little early gets more room than a little late. Enter on the wrong column counts as a mistake, but your typing stays. Misses and typos cost health, and a typo has to be backspaced before you can go on.</li>
-            <li>Mistyped or didn't finish the word, but you're in the right column? Press Enter on time anyway: it's a <strong>sloppy</strong> hit, worth the fewest points, and it won't cost health.</li>`}
+            <li>Mistyped or didn't finish the word, but you're in the right column? Press Enter on time anyway: it's a <strong>sloppy</strong> hit, worth the fewest points, and it won't cost health.</li>
+            <li>Seven <strong>perfect</strong> hits in a row start a perfect streak: every hit is worth 1.5 times the points, and fills the combo 1.5 times as fast, until one isn't perfect. While it lasts the colours fade, so only the columns tell the words apart.</li>`}
           </ol>
         </aside>
       </div>`;
@@ -1265,7 +1266,7 @@
       <div class="caps-label">NEW DIFFICULTY UNLOCKED</div>
       <h2 id="ludi-title">LUDICROUS</h2>
       <p>Your skills are impressive. You may be considered an expert, but there's something even… <em>crazier</em>.</p>
-      <p class="note">Tiles come twice as fast as on Expert, with words up to 10 letters. Health comes back half as fast, and mistakes cost twice as much.</p>
+      <p class="note">Tiles come twice as fast as on Expert, across six columns, with words of 7 letters or more. Health comes back half as fast, and mistakes cost twice as much.</p>
       <button class="fh-play" type="button">BRING IT ON <kbd>ENTER</kbd></button>`;
     document.body.append(pop);
     ui.ludi.pop = pop;

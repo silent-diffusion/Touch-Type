@@ -25,6 +25,9 @@
    which means a typo or a miss). --on-col is text on a filled column colour. */
 :root, [data-theme="sand"], [data-theme="ash"] { --c0: #2f6b72; --c1: #93640f; --c2: #74466f; --c3: #4f6b2a; --on-col: #f4f1e6; }
 [data-theme="night"], html.scope[data-theme] { --c0: #6fb0b8; --c1: #d4a446; --c2: #b98fb5; --c3: #93b363; --on-col: #1e1d1a; }
+/* Expert's fifth column and Ludicrous's sixth: slate blue and raspberry */
+:root, [data-theme="sand"], [data-theme="ash"] { --c4: #3f5a8f; --c5: #9c3f5c; }
+[data-theme="night"], html.scope[data-theme] { --c4: #8ea6d8; --c5: #d98aa3; }
 :root {
   --accent: #b4472b;
   --accent-2: #2f5f6b;
@@ -930,7 +933,15 @@ body:not(.typing) .caret.caret-block { animation-name: blink-block; }
 .tl-band.beat { background: color-mix(in srgb, var(--ink) 10%, transparent); }
 .tl-band.beat.down { background: color-mix(in srgb, var(--accent) 22%, transparent); }
 /* The highway: tilted back in 3D around the line, taller than the field so its far end fills the top. */
-.tl-hw { perspective: 900px; transition: border-color 0.35s, box-shadow 0.35s; }
+.tl-hw { perspective: 900px; transition: border-color 0.35s, box-shadow 0.35s, filter 0.8s; }
+/* a perfect streak (timed mode): the field's colours fade, so only the columns tell words apart */
+.tl-hw.streak { filter: grayscale(1); }
+.tl-bubbles { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.tl-streak {
+  position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 2;
+  padding: 3px 10px; border: 2px solid var(--ink); background: var(--ground);
+  font-size: 12px; font-weight: 800; letter-spacing: 0.16em; white-space: nowrap; pointer-events: none;
+}
 /* a perfect hit: the outline flashes pure white with a slight glow, outward only */
 .tl-hw.perfect { border-color: #fff; box-shadow: 0 0 0 1px #fff, 0 0 9px 2px rgba(255, 255, 255, 0.7); transition: none; }
 .tl-track {
@@ -999,7 +1010,7 @@ body:not(.typing) .caret.caret-block { animation-name: blink-block; }
   border: var(--rule);
   background: var(--ground);
   font-family: var(--type-font);
-  font-size: 21px;
+  font-size: var(--wfs, 21px);
   white-space: nowrap;
   overflow: hidden;
 }

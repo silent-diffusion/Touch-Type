@@ -19,7 +19,7 @@
   //
   // v6: the multipliers come from progress (g.prog) rather than the combo count, and how well a word
   // was typed sets how much progress its tile gives (gain()). Points per hit are as before.
-  const RULES = 6;
+  const RULES = 7;
   const QUEUE_SPEED = 2;
   const LANES = 4;
 
@@ -38,8 +38,10 @@
     easy:   { name: "EASY",   gap: 5.0,  min: 2.5,  fall: 5000, cols: 3, len: [3, 6], rate: 2.5, missHp: 8 },
     medium: { name: "MEDIUM", gap: 3.0,  min: 1.8,  fall: 4400, cols: 3, len: [3, 7], rate: 2.6, missHp: 10 },
     hard:   { name: "HARD",   gap: 2.6,  min: 1.4,  fall: 3600, cols: 4, len: [3, 8], rate: 3.5, missHp: 12 },
-    expert: { name: "EXPERT", gap: 1.25, min: 0.75, fall: 2600, cols: 4, len: [4, 9], rate: 7.5, missHp: 14 },
-    ludicrous: { name: "LUDICROUS", gap: 0.6, min: 0.4, fall: 1900, cols: 4, len: [5, 10], rate: 16, missHp: 28, heal: 0.5, typoHp: 4 },
+    // Expert and Ludicrous (from v7): more columns, and no longest word: a word is as long as the
+    // time to type it allows (wordMin: no word shorter, lyrics included)
+    expert: { name: "EXPERT", gap: 1.25, min: 0.75, fall: 2600, cols: 5, len: [4, Infinity], rate: 7.5, missHp: 14 },
+    ludicrous: { name: "LUDICROUS", gap: 0.6, min: 0.4, fall: 1900, cols: 6, len: [7, Infinity], wordMin: 7, rate: 16, missHp: 28, heal: 0.5, typoHp: 4 },
   };
   const DIFF_IDS = Object.keys(DIFFS);
   // A difficulty's settings in a mode: queue mode halves the spacing, so tiles come twice as often.
@@ -53,6 +55,11 @@
   const POINTS = { P: 300, G: 200, O: 100, S: 50 };
   const HEAL = { P: 4, G: 3, O: 2, S: 0 };
   const TYPO_HP = 2, START_HP = 80, MAX_HP = 100;
+  // v7, timed mode: seven perfect hits in a row start a perfect streak, which lasts until anything
+  // but a perfect hit. While it's on, each hit's points and its progress toward the multipliers are
+  // worth STREAK_BONUS times as much, on top of the multiplier.
+  const STREAK_AT = 7, STREAK_BONUS = 1.5;
+  const streakOn = (g) => g.v >= 7 && !g.queue && g.run >= STREAK_AT;
   const GRADE_NAMES = { P: "PERFECT", G: "GREAT", O: "GOOD", S: "SLOPPY", M: "MISS", E: "TOO EARLY", X: "WRONG COLUMN", Q: "LOCKED IN" };
   const LEAD_MS = 1200; // quiet time before the first tile shows up
   const LYRIC_SHARE = 0.6; // for a song with untimed lyrics, about this share of words come from them
@@ -66,7 +73,7 @@
   // tile in its column is still falling, the length that counts as long (never two in a row), and
   // how much likelier each letter shorter is (1: every length up to the cap is as likely).
   const REACT_S = 0.3, QUEUE_SLACK_S = 2, SHARED_ROW_MAX = 5, LONG_AT = 7, LONGER = 1;
-  // Longer common words for Tiles, which the main lists have few of (6 to 10 letters).
+  // Longer common words for Tiles, which the main lists have few of (6 to 14 letters).
   const LONG_WORDS = [
     "always", "around", "before", "called", "change", "number", "people", "really", "should",
     "system", "things", "better", "family", "friend", "garden", "ground", "listen", "market",
@@ -101,6 +108,13 @@
     "connection", "discussion", "experiment", "expression", "university", "volleyball", "adjustment",
     "atmosphere", "blackboard", "commercial", "confidence", "creativity", "dictionary", "electrical",
     "impossible", "instrument", "microscope", "particular", "population", "television", "throughout",
+    // 11 letters and up, for Expert and Ludicrous's long gaps
+    "comfortable", "information", "independent", "temperature", "competition", "grandmother", "grandfather",
+    "imagination", "achievement", "celebration", "environment", "opportunity", "perspective", "electricity",
+    "butterflies", "fascinating", "photography", "nightingale", "thunderstorm", "neighborhood", "extraordinary",
+    "encyclopedia", "refrigerator", "championship", "intelligence", "conversation", "construction", "relationship",
+    "communication", "international", "understanding", "entertainment", "congratulate", "considerable", "kaleidoscope",
+    "accomplishment", "transportation", "responsibility", "constellation", "multiplication", "characteristic",
   ];
   const HISTORY_CAP = 200;
 
@@ -220,6 +234,8 @@
   function planLengths(hits, lanes, diff, queue = false, fall = DIFFS[diff].fall, rnd = Math.random) {
     const D = DIFFS[diff];
     const [lo, hi] = D.len;
+    // what counts as long: LONG_AT letters, or two past the shortest a difficulty allows
+    const longAt = Math.max(LONG_AT, lo + 2);
     const lastIn = new Map();
     let slack = 0, prevL = 0;
     return hits.map((h, i) => {
@@ -230,7 +246,7 @@
       const prev = lastIn.get(lanes[i]);
       if (prev != null && prev > h - fall) max = Math.min(max, Math.max(lo, SHARED_ROW_MAX));
       lastIn.set(lanes[i], h);
-      if (prevL >= LONG_AT) max = Math.min(max, Math.max(lo, LONG_AT - 1));
+      if (prevL >= longAt) max = Math.min(max, Math.max(lo, longAt - 1));
       let total = 0;
       for (let n = lo; n <= max; n++) total += LONGER ** (n - lo);
       let r = rnd() * total, L = lo;
@@ -285,6 +301,7 @@
       buf: "", bad: -1,
       score: 0, combo: 0, maxCombo: 0, hp: START_HP,
       prog: 0,          // v6: progress toward the multipliers
+      run: 0,           // v7, timed: perfect hits in a row (STREAK_AT or more is a perfect streak)
       dirty: false,     // v6: a wrong key or a backspace since the last word
       keys: 0, correct: 0, mistakes: 0, chars: 0,
       counts: { P: 0, G: 0, O: 0, S: 0, M: 0 },
@@ -405,6 +422,7 @@
     g.res[tile.i] = { grade: "M", t, w: word };
     g.counts.M++;
     g.combo = 0;
+    g.run = 0;
     g.prog = 0;
     g.last = { grade: "M", t, i: tile.i, l: tile.l };
     hurt(g, g.missHp, t);
@@ -421,9 +439,11 @@
     g.counts[grade]++;
     g.combo++;
     g.maxCombo = Math.max(g.maxCombo, g.combo);
-    const gain = !g.dirty && grade === "P" ? 3 : 2;
+    if (g.v >= 7 && !g.queue) g.run = grade === "P" ? g.run + 1 : 0;
+    const bonus = streakOn(g) ? STREAK_BONUS : 1;
+    const gain = (!g.dirty && grade === "P" ? 3 : 2) * bonus;
     if (g.v >= 6) g.prog += gain;
-    g.score += POINTS[grade] * multOf(g);
+    g.score += Math.round(POINTS[grade] * multOf(g) * bonus);
     g.hp = Math.min(MAX_HP, g.hp + HEAL[grade] * g.heal);
     g.chars += word.length + 1;
     g.offsets.push(d);
@@ -445,6 +465,7 @@
     g.missedWords.add(word);
     g.res[tile.i] = { grade: "S", d, t, w: word };
     g.counts.S++;
+    g.run = 0;
     const gain = sloppyGain(typed, word);
     if (g.v >= 6) g.prog += gain;
     g.score += POINTS.S * multOf(g);
@@ -553,6 +574,7 @@
       g.mistakes++;
       const wrong = g.tiles.some((x) => x.l !== c && t - g.hits[x.i] >= -WIN.early);
       g.last = { grade: wrong ? "X" : "E", t, i: tile ? tile.i : -1, l: c, d };
+      if (g.v >= 7) g.run = 0; // too early or the wrong column ends a perfect streak
       return { type: "early", wrong, d, word, col: c };
     }
     const out = hit(g, tile, d, t, word);
@@ -695,7 +717,7 @@
   TT.tilesAudio = { get: () => getAudio(), quickSplit, thunder }; // quickSplit: for tests
 
   TT.tilesCore = {
-    DIFFS, DIFF_IDS, WIN, RULES, GRADE_NAMES, QUEUE_SPEED, modeDiff, nextUp, planLengths, LONG_WORDS, MULT_AT, level, multOf, toNext,
+    DIFFS, DIFF_IDS, WIN, RULES, GRADE_NAMES, STREAK_AT, STREAK_BONUS, streakOn, QUEUE_SPEED, modeDiff, nextUp, planLengths, LONG_WORDS, MULT_AT, level, multOf, toNext,
     chart, columns, sungWords, titleWords, audioReady, newCore, dealWords, coreFor, applyKey, advance, gameStats, target, column, attribute, recorded, multiplier, letterGrade,
   };
 
@@ -1380,9 +1402,11 @@
           <div class="tl-track" data-t="track">
             <div data-t="divs"></div>
             <div class="tl-flash" data-t="flash"></div>
+            <canvas class="tl-bubbles" data-t="bubbles" aria-hidden="true"></canvas>
             <div class="tl-tiles" data-t="tiles"></div>
           </div>
           <div class="tl-judge" data-t="judge"></div>
+          <div class="tl-streak" data-t="streak" hidden>PERFECT STREAK · ×${STREAK_BONUS}</div>
         </div>
         <div class="tl-queue" data-t="queue" hidden aria-label="Locked-in words"></div>
         <div class="tl-typed-row"><span class="word-box tl-typed" data-t="typed"></span></div>
@@ -1458,7 +1482,7 @@
       // share a first letter with another column's word.
       const sungNow = j >= 0 ? live.sungFor[j] : null;
       const sungMax = Math.min(p.max + SUNG_EXTRA, Math.max(3, p.raw));
-      if (sungNow && sungNow.length >= 2 && sungNow.length <= sungMax && !taken.has(sungNow[0])) {
+      if (sungNow && sungNow.length >= (D.wordMin || 2) && sungNow.length <= sungMax && !taken.has(sungNow[0])) {
         live.recent = [...live.recent, sungNow].slice(-12);
         live.words.push(sungNow);
         return sungNow;
@@ -1476,7 +1500,7 @@
         if (!pool.length) pool = from.filter(ok);
       }
       if (!pool.length) pool = [...PRACTICE_WORDS, ...LONG_WORDS].filter(ok);
-      if (!pool.length) pool = WORDS.filter((w) => w.length >= 3 && !taken.has(w[0]));
+      if (!pool.length) pool = [...WORDS, ...LONG_WORDS].filter((w) => w.length >= (D.wordMin || 3) && !taken.has(w[0]));
       const w = pool[Math.floor(Math.random() * pool.length)];
       const at = live.pool.indexOf(w);
       if (at >= 0) live.pool.splice(at, 1);
@@ -1489,8 +1513,8 @@
 
     const colCount = () => (g.v >= 4 ? g.cols : 4);
     const colLeft = (l) => `${(l * 100) / colCount()}%`;
-    // each column's colour (style.css, --c0 to --c3)
-    const colVar = (l) => `var(--c${l % 4})`;
+    // each column's colour (style.css, --c0 to --c5)
+    const colVar = (l) => `var(--c${l % 6})`;
 
     // The dashed lines between the columns.
     function renderColumns() {
@@ -1551,9 +1575,14 @@
       // queue mode: the column of the next tile to type for
       const up = g.queue ? nextUp(g) : null;
       const nextCol = up ? up.l : -1;
-      const sig = [g.words.join(" "), c, typed, g.bad, nextCol].join("|");
+      const width = el.hw.clientWidth;
+      const sig = [g.words.join(" "), c, typed, g.bad, nextCol, width].join("|");
       if (el.words.sig === sig) return;
       el.words.sig = sig;
+      // the words shrink to fit their columns (more columns and longer words on Expert and Ludicrous)
+      const longest = Math.max(...g.words.map((w) => w.length));
+      const fit = Math.floor((width / colCount() - 24) / (longest * 0.62));
+      el.words.style.setProperty("--wfs", `${Math.max(11, Math.min(21, fit))}px`);
       el.words.innerHTML = g.words.map((w, i) => {
         const on = i === c;
         const n = on ? typed.length : 0;
@@ -1713,7 +1742,71 @@
       renderWords();
       renderQueue();
       renderEffects();
+      renderStreak();
       renderHud();
+    }
+
+    // v7: during a perfect streak the field's colours fade to grey (style.css, .tl-hw.streak), so
+    // only the columns tell the words apart, and a light trail of bubbles follows each falling
+    // tile round its outside. Bubbles stay where they're made while the tile falls on, and fade.
+    // None are drawn below the top of the words at the line, so they never cover a word.
+    const bubbles = [];
+    let bubbleT = null, bubbleInk = "";
+    function renderStreak() {
+      const on = streakOn(g);
+      el.hw.classList.toggle("streak", on);
+      el.streak.hidden = !on;
+      const cv = el.bubbles, c = cv.getContext("2d");
+      const dpr = window.devicePixelRatio || 1, Wt = el.track.clientWidth;
+      if (cv.width !== Math.round(Wt * dpr) || cv.height !== Math.round(H * dpr)) {
+        cv.width = Math.round(Wt * dpr);
+        cv.height = Math.round(H * dpr);
+      }
+      // a jump in time (a replay scrubbed, a new round) starts the trail over
+      if (bubbleT != null && (viewT < bubbleT || viewT - bubbleT > 500)) bubbles.length = 0;
+      const dt = bubbleT == null ? 0 : viewT - bubbleT;
+      bubbleT = viewT;
+      if (!on && !bubbles.length) {
+        if (cv.drawn) { c.clearRect(0, 0, cv.width, cv.height); cv.drawn = false; }
+        return;
+      }
+      if (on && !bubbleInk) bubbleInk = getComputedStyle(el.hw).getPropertyValue("--ink").trim() || "#3f3c33";
+      const n = colCount(), cw = Wt / n, hitY = H - HIT_BOTTOM;
+      if (on && dt > 0) {
+        for (const t of g.tiles) {
+          const x0 = t.l * cw + 6 - 4, w = cw - 12 + 8;
+          const y0 = hitY - ((g.hits[t.i] - viewT) / g.fall) * (hitY + TILE_H / 2) - TILE_H / 2 - 4, h = TILE_H + 8;
+          // about one bubble every 35 ms per tile, round its top and sides (the tile falls away from
+          // them, so they trail behind it rather than inside it), drifting outward
+          for (let k = Math.random() < (dt % 35) / 35 ? 1 : 0, m = Math.floor(dt / 35) + k; m > 0; m--) {
+            let d = Math.random() * (w + 2 * h), x, y, nx = 0, ny = 0;
+            if (d < w) { x = x0 + d; y = y0; ny = -1; }
+            else if ((d -= w) < h) { x = x0 + w; y = y0 + d; nx = 1; }
+            else { x = x0; y = y0 + d - h; nx = -1; }
+            bubbles.push({ x, y, vx: nx * 0.015, vy: ny * 0.01 - 0.006, r: 2 + Math.random() * 2.5, born: viewT, life: 450 + Math.random() * 350 });
+          }
+        }
+      }
+      const cut = hitY - TILE_H / 2 - 8;
+      c.setTransform(dpr, 0, 0, dpr, 0, 0);
+      c.clearRect(0, 0, Wt, H);
+      c.strokeStyle = c.fillStyle = bubbleInk;
+      c.lineWidth = 1.5;
+      for (let i = bubbles.length - 1; i >= 0; i--) {
+        const b = bubbles[i], age = viewT - b.born;
+        if (age >= b.life) { bubbles.splice(i, 1); continue; }
+        const x = b.x + b.vx * age, y = b.y + b.vy * age;
+        if (y + b.r > cut) continue;
+        const a = 0.55 * (1 - age / b.life);
+        c.beginPath();
+        c.arc(x, y, b.r * (1 + 0.4 * (age / b.life)), 0, Math.PI * 2);
+        c.globalAlpha = a;
+        c.stroke();
+        c.globalAlpha = a * 0.25;
+        c.fill();
+      }
+      c.globalAlpha = 1;
+      cv.drawn = true;
     }
 
     function setHead(title, sub) {
