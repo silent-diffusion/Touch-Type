@@ -38,10 +38,8 @@
       desc: "Tiles fall down the columns in time with the music, and each column has a word at the bottom. Type a column's word, then press Enter or Space as its tile crosses the line. Pick a song, or add your own music, and a difficulty from easy to expert." },
     { id: "path", name: "Path Runner", cat: "arcade", kind: "ARCADE GAME", playable: true,
       desc: "Type a path's word to step onto it. The words come from your weak keys. The clock keeps draining, so keep moving." },
-    { id: "falling", name: "Falling Words", cat: "arcade", kind: "ARCADE GAME",
-      desc: "Clear each word before it reaches the ground." },
-    { id: "ghost", name: "Ghost Race", cat: "arcade", kind: "ARCADE GAME",
-      desc: "Race a replay of your own best run." },
+    { id: "ghost", name: "Ghost Race", cat: "arcade", kind: "RACING GAME", playable: true,
+      desc: "Type a track to run it, against a ghost: your own best run played back key for key, your last run, anyone else's best on this computer, or a steady pace. Words only move you on once they're right. Beat the ghost and your new best becomes the one to chase." },
     { id: "drills", name: "Key Drills", cat: "drills", kind: "DRILL",
       desc: "Short, fast rounds on your weakest keys and letter pairs." },
   ];
@@ -55,10 +53,6 @@
             <rect x="44" y="198" width="44" height="36" fill="var(--accent)"/>`,
     path: `<path d="M150 228 V150 L66 66 M150 150 V48 M150 150 L234 66 M44 104 V44 H104 M112 74 L150 36 L188 74 M196 44 H256 V104" fill="none" stroke="currentColor" stroke-width="22"/>
            <rect x="124" y="236" width="52" height="52" fill="var(--accent)"/>`,
-    falling: `<path d="M30 270 H270" stroke="currentColor" stroke-width="22"/>
-              <rect x="40" y="40" width="80" height="24" fill="currentColor"/>
-              <rect x="150" y="100" width="100" height="24" fill="currentColor"/>
-              <rect x="70" y="170" width="70" height="24" fill="var(--accent)"/>`,
     ghost: `<path d="M30 110 H230 M186 66 L230 110 L186 154" fill="none" stroke="currentColor" stroke-width="22"/>
             <path d="M30 200 H190 M146 156 L190 200 L146 244" fill="none" stroke="var(--accent)" stroke-width="22" stroke-dasharray="26 14"/>`,
     drills: `<rect x="50" y="50" width="200" height="200" fill="none" stroke="currentColor" stroke-width="22"/>
@@ -68,8 +62,9 @@
   const MENU_VIEWS = ["games", "leaderboard", "stats", "settings"];
   const FOREST_VIEWS = ["forest", "forest-select", "forest-guide"];
   const TILES_VIEWS = ["tiles", "tiles-select"];
+  const GHOST_VIEWS = ["ghost", "ghost-select"];
   // What Enter (or the play button) does for each game in the library.
-  const playAct = (id) => ({ forest: "fh:select", tiles: "tl:select" })[id] || "play";
+  const playAct = (id) => ({ forest: "fh:select", tiles: "tl:select", ghost: "gr:select" })[id] || "play";
 
   const ui = {
     view: "test",
@@ -130,6 +125,9 @@
     s.tilesQueue = !!s.tilesQueue;
     s.fhMusic = s.fhMusic !== false;
     s.fhSfx = s.fhSfx !== false;
+    s.grMusic = s.grMusic !== false;
+    s.grSfx = s.grSfx !== false;
+    if (!TT.ghostCore.TRACKS.some((t) => t.id === s.grTrack)) s.grTrack = "sprint";
   }
 
   const isDark = () => S().theme === "night";
@@ -263,6 +261,7 @@
 
   const testName = (kind, mode, amount, game, title, queue) =>
     kind === "game" && game === "tiles" ? `tiles, ${(title || "song").toLowerCase()} (${mode}${queue ? ", queue" : ""})`
+      : kind === "game" && game === "ghost" ? `ghost race, ${(title || mode).toLowerCase()}`
       : kind === "game" ? `${game === "forest" ? "forest hop" : "path runner"}, ${amount} steps` : `${kind === "practice" ? "practice" : mode} ${amount}`;
 
   function statusRows(rows) {
@@ -321,6 +320,8 @@
     "forest-guide": [["ARROWS", "MOVE", "noop"], ["ENTER", "PLAY", "fh:play"], ["ESC", "BACK", "fh:select"]],
     tiles: [["ENTER / SPACE", "HIT", "noop"], ["TAB", "RESTART", "tl:play"], ["ESC", "PAUSE", "pause"]],
     "tiles-select": [["ARROWS", "MOVE", "noop"], ["[ ]", "DIFFICULTY", "tl:harder"], ["ENTER", "PLAY", "tl:play"], ["A", "ADD A SONG", "tl:import"], ["Q", "MODE", "tl:mode:toggle"], ["M", "MUSIC", "tl:music"], ["T", "METRONOME", "tl:metronome"], ["ESC", "MENU", "menu"]],
+    ghost: [["SPACE", "NEXT WORD", "noop"], ["TAB", "RESTART", "gr:play"], ["ESC", "PAUSE", "pause"]],
+    "ghost-select": [["ARROWS", "MOVE", "noop"], ["ENTER", "RACE", "gr:play"], ["M", "MUSIC", "gr:music"], ["E", "EFFECTS", "gr:sfx"], ["ESC", "MENU", "menu"]],
     replay: [["SPACE", "PLAY / PAUSE", "rp:toggle"], ["← →", "SKIP 2S", "rp:skip:2000"], ["↑ ↓", "MOVE", "noop"], ["ESC", "BACK", "rp:back"]],
     stats: [["ARROWS", "MOVE", "noop"], ["P", "PRACTICE WEAK KEYS", "practice"], ["ESC", "CLOSE MENU", "close"]],
     leaderboard: [["ARROWS", "MOVE", "noop"], ["ESC", "CLOSE MENU", "close"]],
@@ -337,6 +338,8 @@
     "forest-guide": "Lanes get more dangerous the further you go.",
     tiles: "Type the word, then hit Enter as it crosses the line.",
     "tiles-select": "Pick a song and a difficulty.",
+    ghost: "Type the track. Space moves on once a word is right.",
+    "ghost-select": "Pick a track and who to race.",
     replay: "Click a moment to jump to it.",
     stats: "Select a view.",
     leaderboard: "Everyone on this computer, ranked.",
@@ -391,7 +394,7 @@
     ["leaderboard", "LEADERBOARD", "nav:leaderboard"], ["stats", "STATS", "nav:stats"], ["settings", "SETTINGS", "nav:settings"],
   ];
   // While you're in the games, the second row of tabs is the library and each playable game.
-  const GAME_TABS = [["library", "LIBRARY", "nav:games"], ["forest", "FOREST HOP", "fh:select"], ["tiles", "TILES", "tl:select"], ["path", "PATH RUNNER", "play"]];
+  const GAME_TABS = [["library", "LIBRARY", "nav:games"], ["forest", "FOREST HOP", "fh:select"], ["tiles", "TILES", "tl:select"], ["ghost", "GHOST RACE", "gr:select"], ["path", "PATH RUNNER", "play"]];
   const FOLDER_VIEWS = ["leaderboard", "stats", "settings"]; // these draw their own second row of tabs
 
   // Which main tab a screen belongs to.
@@ -404,8 +407,9 @@
 
   // Which game tab a screen inside the games belongs to.
   function gameTabFor(view) {
-    if (view === "replay") return rp.rec && rp.rec.game === "forest" ? "forest" : rp.rec && rp.rec.game === "tiles" ? "tiles" : "path";
+    if (view === "replay") return rp.rec && ["forest", "tiles", "ghost"].includes(rp.rec.game) ? rp.rec.game : "path";
     if (FOREST_VIEWS.includes(view)) return "forest";
+    if (GHOST_VIEWS.includes(view)) return "ghost";
     if (TILES_VIEWS.includes(view)) return "tiles";
     if (view === "game") return "path";
     return "library";
@@ -603,7 +607,7 @@
 
   // While a game is being played it takes the whole window: no header, tabs or footer (style.css,
   // html.playing). It starts with the round and ends when the round does, or on leaving the game.
-  const PLAY_VIEWS = ["game", "forest", "tiles"];
+  const PLAY_VIEWS = ["game", "forest", "tiles", "ghost"];
   const setPlaying = (on) => document.documentElement.classList.toggle("playing", !!on);
 
   function show(view) {
@@ -627,6 +631,8 @@
     if (view !== "forest" && forest) forest.stop();
     for (const v of TILES_VIEWS) $(`view-${v}`).hidden = v !== view;
     if (view !== "tiles" && tiles) tiles.stop();
+    for (const v of GHOST_VIEWS) $(`view-${v}`).hidden = v !== view;
+    if (view !== "ghost" && ghostRace) ghostRace.stop();
     if (view !== "tiles-select" && ui.tap) stopTap();
     $("view-replay").hidden = view !== "replay";
     if (view !== "replay") pauseReplay();
@@ -639,6 +645,7 @@
     runner.stop();
     forest.stop();
     tiles.stop();
+    ghostRace.stop();
     document.body.classList.remove("typing");
     ui.menuView = view;
     show(view);
@@ -689,10 +696,10 @@
           ${list.map((x) => `<li><button class="${x.id === g.id ? "on" : ""}" aria-pressed="${x.id === g.id}" data-act="game:${x.id}">${x.name}<span class="tag">${gameTag(x)}</span></button></li>`).join("")}
         </ul>
         <section class="col-main">
-          <div class="title-row"><h1>${g.name.toUpperCase()}</h1><span class="title-meta">${g.playable ? `BEST ${gameBest(g.id)}` : "SOON"}</span></div>
+          <div class="title-row"><h1>${g.name.toUpperCase()}</h1><span class="title-meta">${g.playable ? `BEST ${gameBest(g.id)}${g.id === "ghost" ? " WPM" : ""}` : "SOON"}</span></div>
           <div class="kind-line">${g.kind}</div>
-          <div class="game-art">${g.id === "forest" ? TT.sprites.svg("frog", 220) : `<svg viewBox="0 0 300 300" role="img" aria-label="${g.name} icon">${GAME_ART[g.id]}</svg>`}</div>
-          <div class="detail-line">DIFFICULTY: <strong>${g.id === "tiles" ? "EASY TO EXPERT" : "ADAPTIVE"}</strong></div>
+          <div class="game-art">${g.id === "forest" ? TT.sprites.svg("frog", 220) : g.id === "ghost" ? TT.sprites.svg("ghost", 220) : `<svg viewBox="0 0 300 300" role="img" aria-label="${g.name} icon">${GAME_ART[g.id]}</svg>`}</div>
+          <div class="detail-line">DIFFICULTY: <strong>${g.id === "tiles" ? "EASY TO EXPERT" : g.id === "ghost" ? "AS FAST AS YOUR GHOST" : "ADAPTIVE"}</strong></div>
           <div class="rule-box">${g.desc}${g.playable ? "" : " <strong>Coming in a later update.</strong>"}</div>
           ${g.playable ? `<button class="outline-btn play-btn" data-act="${playAct(g.id)}">PLAY <kbd>ENTER</kbd></button>` : ""}
         </section>
@@ -903,6 +910,146 @@
         renderForestSelect();
       }
     }
+  }
+
+  // ---------- ghost race ----------
+
+  const grData = () => {
+    const d = (TT.store.games.ghost ||= { best: 0, plays: 0, bestBy: {}, lastBy: {}, history: [] });
+    d.bestBy ||= {};
+    d.lastBy ||= {};
+    d.history ||= [];
+    return d;
+  };
+
+  const ghostRace = TT.createGhostRace({
+    root: $("view-ghost"),
+    onStart() {
+      els.statusLine.textContent = "Go! Space moves on once a word is right.";
+    },
+    onEnd(id) {
+      setPlaying(false);
+      ui.lastGhostId = id;
+      els.statusLine.textContent = "Race saved. Press R to replay it.";
+    },
+  });
+
+  // Who you can race on a track: your best and last runs, anyone else's best on this computer, or
+  // a steady pace. Runs point at their recordings (TT.rounds), which play back as the ghost.
+  function ghostOptions(trackId) {
+    const d = grData(), me = TT.profiles.activeId(), clock = TT.ghostCore.clock;
+    const note = (r) => `${clock(r.time)}s · ${Math.round(r.wpm)} wpm`;
+    const best = d.bestBy[trackId], last = d.lastBy[trackId];
+    const out = [{ id: "best", label: "Your best", run: best, note: best ? note(best) : "Race once to set one" }];
+    if (last && best && last.id !== best.id) out.push({ id: "last", label: "Your last run", run: last, note: note(last) });
+    for (const p of TT.profiles.list()) {
+      if (p.id === me) continue;
+      const g = (TT.profiles.games(p.id) || {}).ghost, b = g && g.bestBy && g.bestBy[trackId];
+      if (b) out.push({ id: `p:${p.id}`, label: `${p.name}'s best`, run: b, note: note(b) });
+    }
+    out.push({ id: "pace", label: "Steady pace", note: `${S().grPace} wpm the whole way` });
+    return out;
+  }
+  // the chosen one, or the next best there is (your best, then a steady pace)
+  const ghostChoice = (trackId) => {
+    const opts = ghostOptions(trackId);
+    return opts.find((o) => o.id === S().grVs && (o.run || o.id === "pace")) || opts.find((o) => o.run) || opts[opts.length - 1];
+  };
+
+  function openGhostSelect() {
+    engine.stop();
+    runner.stop();
+    forest.stop();
+    tiles.stop();
+    document.body.classList.remove("typing");
+    show("ghost-select");
+    renderBar();
+    renderGhostSelect();
+  }
+
+  function renderGhostSelect() {
+    const s = S(), G = TT.ghostCore, d = grData();
+    const tr = G.track(s.grTrack), words = G.wordsOf(tr);
+    const opts = ghostOptions(tr.id), pick = ghostChoice(tr.id);
+    const item = (t) => {
+      const b = d.bestBy[t.id], on = t.id === tr.id;
+      return `<li><button class="${on ? "on" : ""}" aria-pressed="${on}" data-act="gr:track:${t.id}">${t.name}<span class="tag">${b ? `${G.clock(b.time)}S` : `${G.wordsOf(t).length} WORDS`}</span></button></li>`;
+    };
+    const best = d.bestBy[tr.id];
+    const races = d.history.filter((h) => h.track === tr.id);
+    const vs = opts.map((o) => {
+      const on = o.id === pick.id, off = !o.run && o.id !== "pace";
+      return `<button class="gr-vs-opt ${on ? "on" : ""}" aria-pressed="${on}" data-act="gr:vs:${o.id}"${off ? " disabled" : ""}>
+        ${TT.sprites.svg("ghost", 30)}<span><strong>${esc(o.label)}</strong><small>${esc(o.note)}</small></span></button>`;
+    }).join("");
+    $("view-ghost-select").innerHTML = `
+      <div class="cols">
+        <ul class="list col-list">${G.TRACKS.map(item).join("")}</ul>
+        <section class="col-main">
+          <div class="title-row"><h1>${tr.name.toUpperCase()}</h1><span class="title-meta">${words.length} WORDS · ${G.lengthOf(words)} LETTERS</span></div>
+          <div class="kind-line">${esc(tr.blurb.toUpperCase())}</div>
+          <div class="gr-lineup" aria-hidden="true">
+            <div class="gr-lane"><span class="gr-who">${esc(pick.label.toUpperCase())}</span>${TT.sprites.svg("ghost", 44)}<span class="gr-flag"></span></div>
+            <div class="gr-lane"><span class="gr-who">YOU</span>${TT.sprites.svg(fhData().animal, 44)}<span class="gr-flag"></span></div>
+          </div>
+          <p class="gr-passage">${esc(tr.text)}</p>
+          <dl class="status">${statusRows([
+            ["Your best:", best ? `${G.clock(best.time)}s · ${Math.round(best.wpm)} wpm · ${Math.round(best.acc)}%` : "—"],
+            ["Races:", races.length],
+            ["Ghosts beaten:", races.filter((h) => h.won).length, true],
+          ])}</dl>
+          <button class="fh-play" data-act="gr:play">RACE <kbd>ENTER</kbd></button>
+        </section>
+        <aside class="col-side">
+          <div class="rule-head">RACE AGAINST</div>
+          <div class="gr-vs">${vs}</div>
+          ${pick.id === "pace" ? `<div class="seg gr-paces" aria-label="Pace in words per minute">${G.PACES.map((w) =>
+            `<button class="${w === s.grPace ? "on" : ""}" aria-pressed="${w === s.grPace}" data-act="gr:pace:${w}">${w}</button>`).join("")}</div>
+            <p class="note">Words per minute.</p>` : ""}
+          <div class="rule-head">SOUND</div>
+          <div class="tl-toggles">${toggleBtn("MUSIC", s.grMusic, "gr:music")}${toggleBtn("EFFECTS", s.grSfx, "gr:sfx")}</div>
+          <div class="side-label">How to race:</div>
+          <ol class="fh-rules">
+            <li>After the countdown, type the track. Your animal from Forest Hop runs the bottom lane, and the ghost floats along the top. A faint mark in the words shows where the ghost has got to.</li>
+            <li><strong>Space</strong> moves you on only once a word is right, so fix a typo before going on. The last word finishes the race as soon as it's typed.</li>
+            <li>The ghost is a real run played back key for key. Beat yours and your new best becomes the ghost to chase.</li>
+          </ol>
+        </aside>
+      </div>`;
+  }
+
+  async function startGhost() {
+    const s = S(), tr = TT.ghostCore.track(s.grTrack), pick = ghostChoice(tr.id);
+    let spec = { kind: "pace", wpm: s.grPace, label: `${s.grPace} wpm pace` };
+    if (pick.run) {
+      const rec = await TT.rounds.get(pick.run.id);
+      if (rec && rec.keys) spec = { kind: "run", rec, label: pick.id === "best" ? "Your best" : pick.id === "last" ? "Your last" : pick.label };
+    }
+    engine.stop();
+    runner.stop();
+    forest.stop();
+    tiles.stop();
+    document.body.classList.remove("typing");
+    show("ghost");
+    setPlaying(true);
+    renderBar();
+    ghostRace.newRace(tr.id, spec, fhData().animal);
+  }
+
+  function ghostAct(x, y) {
+    const s = S();
+    if (x === "select") return openGhostSelect();
+    if (x === "play") return startGhost();
+    if (x === "track") s.grTrack = y;
+    else if (x === "vs") s.grVs = y;
+    else if (x === "pace") { s.grPace = Number(y); s.grVs = "pace"; }
+    else if (x === "music" || x === "sfx") {
+      const key = x === "music" ? "grMusic" : "grSfx";
+      s[key] = !s[key];
+      TT.forestSound.setLevels();
+    } else return;
+    TT.save();
+    if (ui.view === "ghost-select") renderGhostSelect();
   }
 
   // ---------- tiles ----------
@@ -1469,6 +1616,7 @@
     engine.stop();
     runner.stop();
     tiles.stop();
+    ghostRace.stop();
     document.body.classList.remove("typing");
     Object.assign(rp, { rec, a: TT.review.analyze(rec), T: 0, playing: false, returnTo });
     show("replay");
@@ -1479,7 +1627,8 @@
 
   function renderReplayScreen() {
     const { rec, a } = rp;
-    const game = rec.kind === "game";
+    // a Ghost Race run replays like a speed test: it's the same typing
+    const game = rec.kind === "game" && rec.game !== "ghost";
     const fmtDate = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
     const R = TT.review;
     const cons = R.consistency(a.gaps);
@@ -1567,7 +1716,7 @@
       const F = TT.forestCore;
       const st = F.gameStats(state, Math.max(rp.T, 1));
       rows = [["Steps:", F.score(state)], ["WPM:", speed(st.wpm)], ["Accuracy:", `${Math.round(st.acc)}%`], ["Mistakes:", state.mistakes, true]];
-    } else if (rec.kind === "game") {
+    } else if (rec.kind === "game" && rec.game !== "ghost") {
       const st = TT.pathCore.gameStats(state, Math.max(rp.T, 1));
       rows = [["Steps:", state.n], ["WPM:", speed(st.wpm)], ["Accuracy:", `${Math.round(st.acc)}%`], ["Mistakes:", state.mistakes, true]];
     } else {
@@ -1677,7 +1826,7 @@
   // ---------- leaderboard ----------
   // Everyone on this computer, ranked by their best in each game. The game pages and Stats show only
   // the active profile; this compares them all.
-  const LB_GAMES = [["forest", "Forest Hop"], ["tiles", "Tiles"], ["path", "Path Runner"]];
+  const LB_GAMES = [["forest", "Forest Hop"], ["tiles", "Tiles"], ["ghost", "Ghost Race"], ["path", "Path Runner"]];
 
   function renderLeaderboard() {
     const s = S();
@@ -1705,6 +1854,20 @@
       rows = players.map((p) => {
         const b = p.games.tiles && p.games.tiles.bestBy && p.games.tiles.bestBy[key];
         return b && { p, best: b.score, cells: [b.score.toLocaleString(), b.grade, Math.round(b.wpm), `${Math.round(b.acc)}%`, b.cleared ? "Yes" : "No"] };
+      });
+    } else if (tab === "ghost") {
+      // fastest first, per track
+      const G = TT.ghostCore;
+      const tr = G.track(ui.lbTrack || s.grTrack);
+      const btn = (label, on, act) => `<button class="${on ? "on" : ""}" aria-pressed="${on}" data-act="${act}">${esc(label)}</button>`;
+      filters = `<div class="lb-filters"><div class="seg" aria-label="Track">${G.TRACKS.map((x) => btn(x.name.toUpperCase(), x.id === tr.id, `lb:track:${x.id}`)).join("")}</div></div>`;
+      what = `Ghost Race, ${tr.name}`;
+      head = ["TIME", "WPM", "ACCURACY", "RACES", "DATE"];
+      rows = players.map((p) => {
+        const d = p.games.ghost, b = d && d.bestBy && d.bestBy[tr.id];
+        if (!b) return null;
+        const races = (d.history || []).filter((h) => h.track === tr.id).length;
+        return { p, best: -b.time, cells: [`${G.clock(b.time)}s`, Math.round(b.wpm), `${Math.round(b.acc)}%`, races, date(b.date)] };
       });
     } else {
       what = tab === "forest" ? "Forest Hop, steps in one run" : "Path Runner, steps in one run";
@@ -2042,7 +2205,7 @@
 
   // After switching profiles: forget anything that pointed at the old profile's rounds.
   function onProfileChanged() {
-    ui.lastRoundId = ui.lastGameId = ui.lastForestId = ui.lastTilesId = null;
+    ui.lastRoundId = ui.lastGameId = ui.lastForestId = ui.lastTilesId = ui.lastGhostId = null;
     ui.fhPick = null;
     refreshSpeedScale();
     ui.renaming = null;
@@ -2177,6 +2340,7 @@
   function activeGame() {
     if (ui.view === "forest") return { g: forest, quit: "fh:select" };
     if (ui.view === "tiles") return { g: tiles, quit: "tl:select" };
+    if (ui.view === "ghost") return { g: ghostRace, quit: "gr:select" };
     if (ui.view === "game") return { g: runner, quit: "menu" };
     return null;
   }
@@ -2225,13 +2389,14 @@
       case "practice": startTyping("practice"); break;
       case "play": startGame(); break;
       case "replay": {
-        const id = x === "last" ? (ui.view === "game" ? ui.lastGameId : ui.view === "forest" ? ui.lastForestId : ui.view === "tiles" ? ui.lastTilesId : ui.lastRoundId) : x;
+        const id = x === "last" ? (ui.view === "game" ? ui.lastGameId : ui.view === "forest" ? ui.lastForestId : ui.view === "tiles" ? ui.lastTilesId : ui.view === "ghost" ? ui.lastGhostId : ui.lastRoundId) : x;
         if (id) openReplay(id, ui.view === "stats" ? "stats" : ui.view);
         break;
       }
       case "rp": replayAct(x, y); break;
       case "fh": forestAct(x, y); break;
       case "tl": tilesAct(x, y); break;
+      case "gr": ghostAct(x, y); break;
       case "stab":
         ui.statsTab = x;
         if (ui.view === "stats") renderStats();
@@ -2242,6 +2407,7 @@
         else if (x === "song") ui.lbSong = y;
         else if (x === "diff") ui.lbDiff = y;
         else if (x === "mode") ui.lbQueue = y === "queue";
+        else if (x === "track") ui.lbTrack = y;
         renderLeaderboard();
         break;
       case "settab": ui.settingsTab = x; renderSettings(); break;
@@ -2296,7 +2462,7 @@
   // direction: across the page's columns, and up into the section's tabs and the main tabs. Enter (or
   // Space) presses it. In a list of choices (games, songs, animals) moving also selects, and Enter keeps
   // doing what it says at the bottom (usually PLAY). The page's own shortcuts all still work.
-  const NAV_VIEWS = ["test", "practice", "results", "games", "forest-select", "forest-guide", "tiles-select", "replay", "leaderboard", "stats", "settings"];
+  const NAV_VIEWS = ["test", "practice", "results", "games", "forest-select", "forest-guide", "tiles-select", "ghost-select", "replay", "leaderboard", "stats", "settings"];
   const FOCUSABLE = "button:not([disabled]), input:not([type=hidden]):not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href]";
   const PICKS = ".list button[aria-pressed], .fh-animal";
   const NAV_AREAS = ".topline, #tabs, #subtabs, #folder";
@@ -2504,6 +2670,19 @@
       }
       return;
     }
+    if (GHOST_VIEWS.includes(v)) {
+      if (v === "ghost") {
+        if (e.key === "Tab") { e.preventDefault(); act("gr:play"); }
+        else if (e.key === "Escape") { e.preventDefault(); act("pause"); }
+        else if (ghostRace.isPaused()) { if (plainKey(e, "q")) act("gr:select"); }
+        else if (ghostRace.isOver()) { if (plainKey(e, "r")) act("replay:last"); }
+        else ghostRace.handleKey(e);
+      } else {
+        const keys = { Enter: "gr:play", m: "gr:music", e: "gr:sfx", Escape: "menu" };
+        if (keys[e.key] && !e.ctrlKey && !e.altKey && !e.metaKey) { e.preventDefault(); act(keys[e.key]); }
+      }
+      return;
+    }
     if (v === "game" && (e.key === "Escape" || (runner.isPaused() && plainKey(e, "q")))) {
       e.preventDefault();
       act(e.key === "Escape" ? "pause" : "menu");
@@ -2553,6 +2732,7 @@
   window.addEventListener("resize", () => {
     if (ui.view === "test" || ui.view === "practice") engine.relayout();
     if (ui.view === "replay" && rp.player && rp.player.relayout) rp.player.relayout();
+    if (ui.view === "ghost") ghostRace.relayout();
   });
 
   // ---------- game speed ----------

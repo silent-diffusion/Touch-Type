@@ -304,7 +304,7 @@
   function analyze(rec) {
     if (!cache.has(rec.id)) {
       cache.set(rec.id, rec.game === "forest" ? analyzeForest(rec) : rec.game === "tiles" ? analyzeTiles(rec)
-        : rec.kind === "game" ? analyzeGame(rec) : analyzeTyping(rec));
+        : rec.kind === "game" && rec.game !== "ghost" ? analyzeGame(rec) : analyzeTyping(rec)); // a Ghost Race run is typing
     }
     return cache.get(rec.id);
   }

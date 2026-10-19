@@ -34,6 +34,11 @@ window.TT = window.TT || {};
     tilesLyrics: true,
     fhMusic: true, // Forest Hop's music and sound effects, each on or off
     fhSfx: true,
+    grTrack: "sprint", // Ghost Race: the track, who to race (best, last, pace or p:<profile id>), the pace
+    grVs: "best",
+    grPace: 45,
+    grMusic: true,
+    grSfx: true,
     autoUpdate: false, // desktop app only; off means the app never goes online by itself
   };
 

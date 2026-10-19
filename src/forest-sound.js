@@ -1,23 +1,36 @@
-// Forest Hop's music and sound effects ("Pocket Pixels"): a bouncy 8-bit tune and blips, made
+// The arcade games' music and sound effects ("Pocket Pixels"): bouncy 8-bit tunes and blips, made
 // live with Web Audio (no recordings), so they work offline. It shares Tiles' audio context.
 //
-// The tune loops four bars (C, Am, F, G at 132 bpm): a pulse-wave lead, a quiet arpeggio, a
-// triangle bass jumping octaves, and a noise kick, snare and hats. It's scheduled a little ahead
-// on the audio clock. Music and effects are each switched on or off on the animal screen
-// (settings fhMusic, fhSfx).
+// Each tune loops four bars: a pulse-wave lead, a quiet arpeggio, a triangle bass jumping octaves,
+// and a noise kick, snare and hats, scheduled a little ahead on the audio clock. Forest Hop's
+// tune is C, Am, F, G at 132 bpm; Ghost Race's is Am, F, C, G at 152 with a kick on every beat.
+// Each game switches its music and effects on or off on its own screen: the setting named with
+// each call (Forest Hop fhMusic and fhSfx, Ghost Race grMusic and grSfx).
 (() => {
-  const BPM = 132, SD = 60 / BPM / 4; // a sixteenth
-  const CHORDS = [[60, 64, 67], [57, 60, 64], [53, 57, 60], [55, 59, 62]];
-  const ROOTS = [48, 45, 41, 43];
-  const MEL = [[72, 76, 79, 76, 84, 0, 79, 0], [81, 0, 76, 0, 72, 76, 81, 0], [77, 81, 84, 81, 77, 0, 72, 0], [79, 0, 74, 79, 83, 0, 86, 0]];
+  const TUNES = {
+    forest: {
+      bpm: 132,
+      chords: [[60, 64, 67], [57, 60, 64], [53, 57, 60], [55, 59, 62]],
+      roots: [48, 45, 41, 43],
+      mel: [[72, 76, 79, 76, 84, 0, 79, 0], [81, 0, 76, 0, 72, 76, 81, 0], [77, 81, 84, 81, 77, 0, 72, 0], [79, 0, 74, 79, 83, 0, 86, 0]],
+    },
+    race: {
+      bpm: 152,
+      drive: true, // a kick on every beat
+      chords: [[57, 60, 64], [53, 57, 60], [60, 64, 67], [55, 59, 62]],
+      roots: [45, 41, 48, 43],
+      mel: [[76, 0, 76, 79, 81, 79, 76, 72], [74, 0, 72, 69, 72, 0, 77, 0], [76, 0, 79, 76, 84, 83, 81, 79], [79, 0, 74, 0, 71, 74, 79, 83]],
+    },
+  };
   const MUSIC_GAIN = 1.2, SFX_GAIN = 1.9; // these blips are quieter than the other sounds
 
   let ctx = null, out = null, musicBus = null, sfxBus = null, noiseBuf = null;
   const pulses = {};
-  let song = null; // { timer, step, next, gain }
+  let song = null; // { timer, step, next, gain, key }
 
   const hz = (m) => 440 * 2 ** ((m - 69) / 12);
   const level = (key) => (TT.store.settings[key] === false ? 0 : 0.7);
+  const ON = 0.7; // the level when switched on
 
   function audio() {
     const c = TT.tilesAudio && TT.tilesAudio.get();
@@ -40,11 +53,11 @@
     setLevels();
     return ctx;
   }
+  // (each call checks its game's own setting, so the buses stay at the "on" level)
   function setLevels() {
     if (!ctx) return;
-    const m = level("fhMusic"), s = level("fhSfx");
-    musicBus.gain.setTargetAtTime(m * m * 0.9 * MUSIC_GAIN, ctx.currentTime, 0.05);
-    sfxBus.gain.setTargetAtTime(s * s * 1.1 * SFX_GAIN, ctx.currentTime, 0.05);
+    musicBus.gain.setTargetAtTime(ON * ON * 0.9 * MUSIC_GAIN, ctx.currentTime, 0.05);
+    sfxBus.gain.setTargetAtTime(ON * ON * 1.1 * SFX_GAIN, ctx.currentTime, 0.05);
   }
 
   // ---------- the synth ----------
@@ -100,34 +113,37 @@
     tone({ type: "triangle", f: 220, f1: 140, t, dur: 0.06, gain: gain * 0.6, to });
   };
 
-  // ---------- the tune ----------
+  // ---------- the tunes ----------
 
-  function step(s, t, to) {
+  function step(T, s, t, to) {
+    const SD = 60 / T.bpm / 4; // a sixteenth
     const bar = Math.floor(s / 16) % 4, pos = s % 16, loop = Math.floor(s / 64);
-    if (pos === 0 || pos === 8) kick(t, 0.32, to);
+    if (pos === 0 || pos === 8 || (T.drive && pos % 4 === 0)) kick(t, 0.32, to);
     if (pos === 4 || pos === 12) snare(t, 0.13, to);
+    if (T.drive && pos % 2) hat(t, 0.015, to);
     if (pos % 2 === 0) {
       hat(t, pos % 4 ? 0.04 : 0.025, to);
-      tri(ROOTS[bar] + (pos % 4 ? 12 : 0), t, SD * 1.6, 0.2, to);
-      const m = MEL[bar][pos / 2];
+      tri(T.roots[bar] + (pos % 4 ? 12 : 0), t, SD * 1.6, 0.2, to);
+      const m = T.mel[bar][pos / 2];
       if (m) chip(m, t, SD * 1.7, 0.06, to);
     }
     // the arpeggio joins halfway through the first time round
-    if (loop % 2 || bar > 1) chip(CHORDS[bar][pos % 3] + 12, t, SD * 0.8, 0.018, to, 0.125);
+    if (loop % 2 || bar > 1) chip(T.chords[bar][pos % 3] + 12, t, SD * 0.8, 0.018, to, 0.125);
   }
 
-  function startMusic() {
+  function startMusic(tune = "forest", key = "fhMusic") {
     stopMusic(0.05);
-    if (!audio() || !level("fhMusic")) return;
+    if (!audio() || !level(key)) return;
+    const T = TUNES[tune] || TUNES.forest, SD = 60 / T.bpm / 4;
     const g = ctx.createGain();
     g.connect(musicBus);
-    const st = { step: 0, next: ctx.currentTime + 0.08, gain: g };
+    const st = { step: 0, next: ctx.currentTime + 0.08, gain: g, key };
     st.timer = setInterval(() => {
       if (ctx.state !== "running") return;
       // after a stall (a hidden window), pick up from now rather than catch up
       if (st.next < ctx.currentTime - 0.1) st.next = ctx.currentTime + 0.05;
       while (st.next < ctx.currentTime + 0.2) {
-        step(st.step, st.next, g);
+        step(T, st.step, st.next, g);
         st.next += SD;
         st.step++;
       }
@@ -181,6 +197,17 @@
       tone({ wave: pulse(0.5), f: 1500, f1: 200, t, dur: 0.15, gain: 0.08, to: o });
       noise({ t, dur: 0.05, gain: 0.2, type: "highpass", f: 2000, to: o });
     },
+    // Ghost Race
+    count: (t, o) => chip(81, t, 0.12, 0.08, o, 0.5),
+    go: (t, o) => { chip(93, t, 0.35, 0.09, o, 0.5); chip(81, t, 0.35, 0.05, o, 0.25); },
+    pass: (t, o) => [76, 81, 88].forEach((m, i) => chip(m, t + i * 0.05, 0.06, 0.07, o, 0.5)),
+    passed: (t, o) => { tone({ type: "triangle", f: hz(79), f1: hz(67), t, dur: 0.28, gain: 0.16, to: o }); noise({ t, dur: 0.25, gain: 0.05, f: 900, f1: 300, to: o }); },
+    win: (t, o) => {
+      [72, 76, 79, 84].forEach((m, i) => chip(m, t + i * 0.09, 0.08, 0.08, o, 0.5));
+      chip(88, t + 0.4, 0.5, 0.08, o, 0.5);
+      chip(84, t + 0.4, 0.5, 0.05, o, 0.25);
+    },
+    lose: (t, o) => sting(t, o),
   };
   // the little "aww" after a death, once its own sound has played
   const DEATHS = new Set(["trampled", "boulder", "creek", "swept", "orca", "swoop", "pounce", "hunter"]);
@@ -190,8 +217,8 @@
     chip(69, t + 0.48, 0.6, 0.08, o);
   }
 
-  function play(name) {
-    if (!SFX[name] || !level("fhSfx") || !audio()) return;
+  function play(name, key = "fhSfx") {
+    if (!SFX[name] || !level(key) || !audio()) return;
     const t = ctx.currentTime + 0.01;
     SFX[name](t, sfxBus);
     if (DEATHS.has(name)) sting(t + (STING_AT[name] ?? 0.85), sfxBus);
@@ -201,10 +228,11 @@
     startMusic,
     stopMusic,
     play,
+    // a game's music was switched off (or on)
     setLevels: () => {
       if (!ctx) return;
       setLevels();
-      if (!level("fhMusic")) stopMusic(0.2);
+      if (song && !level(song.key)) stopMusic(0.2);
     },
     playing: () => !!song,
   };

@@ -1350,3 +1350,58 @@ html.ludi-bw #app { filter: grayscale(1) contrast(1.35); }
   .tl-diffs .ludi.fresh, .tl-diffs .ludi.fresh.on { animation: none; box-shadow: 0 0 0 3px var(--accent); }
   .ludi-pop, .ludi-pop h2 { animation: none; }
 }
+
+/* ---------- ghost race ---------- */
+
+#view-ghost { padding: 16px 0 0; }
+#view-ghost-select { padding: 32px 0 0; }
+.gr { position: relative; flex: 1; display: flex; flex-direction: column; gap: 16px; min-height: 460px; }
+.gr-stage { position: relative; flex: 1; min-height: 240px; border: var(--rule); overflow: hidden; background: #afb48c; }
+.gr-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.gr-hud-l { min-width: 150px; }
+.gr-gap span.ahead { color: #4e6a36; }
+.gr-gap span.behind { color: var(--accent); }
+/* the countdown: each number pops in */
+.gr-count {
+  position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%);
+  font-size: 120px; font-weight: 800; letter-spacing: 0.02em; color: var(--ink);
+  text-shadow: 0 4px 0 color-mix(in srgb, var(--ground) 80%, transparent); pointer-events: none;
+}
+.gr-count.pop { animation: gr-pop 0.6s cubic-bezier(0.2, 1.4, 0.4, 1) both; }
+@keyframes gr-pop { from { transform: translate(-50%, -50%) scale(1.6); opacity: 0; } 30% { opacity: 1; } to { transform: translate(-50%, -50%) scale(1); } }
+/* the passage, like the speed test's, with the ghost's place in it */
+.gr-text { flex: 0 0 auto; }
+.gr-box { position: relative; }
+.gr-box.shake { animation: shake 0.25s; }
+.gr-ghost-mark {
+  position: absolute; top: 0; left: 0; width: 4px; border-radius: 2px; pointer-events: none;
+  background: color-mix(in srgb, #8fa8b4 75%, transparent); box-shadow: 0 0 8px 2px rgba(143, 168, 180, 0.6);
+  transition: transform 0.12s linear;
+}
+/* the track screen */
+.gr-passage { font-family: var(--type-font); font-size: 17px; line-height: 1.6; color: var(--muted); margin: 0 0 18px; max-width: 62ch; }
+.gr-lineup { display: flex; flex-direction: column; gap: 6px; margin: 8px 0 18px; }
+.gr-lane {
+  position: relative; display: flex; align-items: center; gap: 12px; height: 56px; padding: 0 14px;
+  background: #C4AF88; border: var(--rule); color: #3F3C33;
+}
+.gr-lane:first-child svg { opacity: 0.75; }
+.gr-who { width: 110px; font-size: 12px; font-weight: 800; letter-spacing: 0.14em; }
+.gr-flag {
+  position: absolute; right: 14px; top: 6px; bottom: 6px; width: 18px;
+  background: repeating-conic-gradient(#3F3C33 0 25%, #F2EEE2 0 50%) 0 0 / 9px 9px;
+}
+.gr-vs { display: flex; flex-direction: column; gap: 6px; padding: 12px 0 14px; }
+.gr-vs-opt {
+  display: flex; align-items: center; gap: 12px; text-align: left; padding: 8px 12px;
+  border: 2px solid color-mix(in srgb, var(--ink) 25%, transparent); background: transparent; color: var(--ink);
+}
+.gr-vs-opt span { display: flex; flex-direction: column; gap: 2px; }
+.gr-vs-opt strong { font-size: 15px; font-weight: 800; }
+.gr-vs-opt small { font-size: 13px; color: var(--muted); }
+.gr-vs-opt.on { border-color: var(--ink); background: color-mix(in srgb, var(--ink) 8%, transparent); }
+.gr-vs-opt.on strong { color: var(--accent); }
+.gr-vs-opt:disabled { opacity: 0.45; cursor: default; }
+.gr-paces { align-self: flex-start; margin-bottom: 0; }
+.gr-paces + .note { margin-top: 6px; }
+@media (prefers-reduced-motion: reduce) { .gr-count.pop { animation: none; } .gr-ghost-mark { transition: none; } }
