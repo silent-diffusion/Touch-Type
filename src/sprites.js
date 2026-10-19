@@ -54,10 +54,6 @@
       ".kk.......", "kgk.......", "kggkkkkkk.", "kegggggggk", ".kgggggggk",
       "..kllgggk.", "..kgk.kgk.", "..kgk.kgk.", "..kk..kk..", ".........."] },
     // 14 wide: the long tail ends in two flukes
-    // Ghost Race's ghost
-    ghost: { pal: { k: K, w: W, b: "#C9D6DC" }, rows: [
-      "...kkkk...", "..kwwwwk..", ".kwwwwwwk.", ".kwkwwkwk.", ".kwkwwkwk.",
-      ".kwwwwwwk.", ".kwwbbwwk.", ".kwwwwwwk.", ".kwkwwkwk.", "..k.kk.k.."] },
     orca: { pal: { k: "#1E1D1A", w: W }, rows: [
       "....k.........", "...kk.........", "..kkk.......kk", ".kkkkkkk...kk.", "kkwkkkkkkkkkk.",
       "kkkkkkkkkkkk..", "kwwwwwwkkkkkk.", ".kwwwwkkk...kk", "..kkkkk.......", ".............."] },

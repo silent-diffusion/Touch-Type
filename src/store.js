@@ -34,7 +34,7 @@ window.TT = window.TT || {};
     tilesLyrics: true,
     fhMusic: true, // Forest Hop's music and sound effects, each on or off
     fhSfx: true,
-    grTrack: "sprint", // Ghost Race: the track, who to race (best, last, pace or p:<profile id>), the pace
+    grTrack: "60m", // Ghost Race: the track, who to race (best, last, pace or p:<profile id>), the pace
     grVs: "best",
     grPace: 45,
     grMusic: true,

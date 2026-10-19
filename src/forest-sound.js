@@ -2,8 +2,9 @@
 // live with Web Audio (no recordings), so they work offline. It shares Tiles' audio context.
 //
 // Each tune loops four bars: a pulse-wave lead, a quiet arpeggio, a triangle bass jumping octaves,
-// and a noise kick, snare and hats, scheduled a little ahead on the audio clock. Forest Hop's
-// tune is C, Am, F, G at 132 bpm; Ghost Race's is Am, F, C, G at 152 with a kick on every beat.
+// and a noise kick, snare and hats, scheduled a little ahead on the audio clock: Forest Hop's
+// tune, C, Am, F, G at 132 bpm. Ghost Race has its own: a sports-broadcast march in G at 138, a
+// brassy lead in thirds over an oom-pah bass, with a snare roll into each repeat.
 // Each game switches its music and effects on or off on its own screen: the setting named with
 // each call (Forest Hop fhMusic and fhSfx, Ghost Race grMusic and grSfx).
 (() => {
@@ -14,12 +15,12 @@
       roots: [48, 45, 41, 43],
       mel: [[72, 76, 79, 76, 84, 0, 79, 0], [81, 0, 76, 0, 72, 76, 81, 0], [77, 81, 84, 81, 77, 0, 72, 0], [79, 0, 74, 79, 83, 0, 86, 0]],
     },
-    race: {
-      bpm: 152,
-      drive: true, // a kick on every beat
-      chords: [[57, 60, 64], [53, 57, 60], [60, 64, 67], [55, 59, 62]],
-      roots: [45, 41, 48, 43],
-      mel: [[76, 0, 76, 79, 81, 79, 76, 72], [74, 0, 72, 69, 72, 0, 77, 0], [76, 0, 79, 76, 84, 83, 81, 79], [79, 0, 74, 0, 71, 74, 79, 83]],
+    stadium: {
+      bpm: 138,
+      brass: true, // a lead in thirds, an oom-pah bass, a march snare
+      chords: [[55, 59, 62], [60, 64, 67], [62, 66, 69], [55, 59, 62]],
+      roots: [43, 48, 50, 43],
+      mel: [[79, 0, 79, 83, 86, 0, 83, 0], [84, 0, 84, 88, 91, 0, 88, 0], [86, 85, 86, 83, 81, 0, 78, 0], [79, 83, 86, 91, 0, 0, 0, 0]],
     },
   };
   const MUSIC_GAIN = 1.2, SFX_GAIN = 1.9; // these blips are quieter than the other sounds
@@ -115,7 +116,35 @@
 
   // ---------- the tunes ----------
 
+  // the highest note of a chord (in any octave) below m: the harmony a third or so under the lead
+  const below = (m, chord) => {
+    let best = m - 12;
+    for (const c of chord) for (let n = c - 24; n < m; n += 12) if (n > best && n < m - 1) best = n;
+    return best;
+  };
+
+  // Ghost Race's march: brass in thirds, oom-pah, snare on 2 and 4 and a roll into the repeat
+  function brassStep(T, s, t, to) {
+    const SD = 60 / T.bpm / 4;
+    const bar = Math.floor(s / 16) % 4, pos = s % 16;
+    if (pos === 0 || pos === 8) kick(t, 0.3, to);
+    if (pos === 4 || pos === 12) snare(t, 0.12, to);
+    if (bar === 3 && pos >= 12) snare(t, 0.05 + (pos - 12) * 0.02, to);
+    if (pos % 4 === 2) hat(t, 0.02, to);
+    if (pos % 8 === 0) tri(T.roots[bar], t, SD * 3, 0.24, to);
+    if (pos % 8 === 4) tri(T.roots[bar] + 7, t, SD * 3, 0.18, to);
+    if (pos % 2 === 0) {
+      const m = T.mel[bar][pos / 2];
+      const long = bar === 3 && pos === 6 ? SD * 10 : SD * 1.8; // the last note of the phrase rings
+      if (m) {
+        chip(m, t, long, 0.05, to, 0.5);
+        chip(below(m, T.chords[bar]), t, long, 0.035, to, 0.25);
+      }
+    }
+  }
+
   function step(T, s, t, to) {
+    if (T.brass) return brassStep(T, s, t, to);
     const SD = 60 / T.bpm / 4; // a sixteenth
     const bar = Math.floor(s / 16) % 4, pos = s % 16, loop = Math.floor(s / 64);
     if (pos === 0 || pos === 8 || (T.drive && pos % 4 === 0)) kick(t, 0.32, to);
@@ -197,15 +226,40 @@
       tone({ wave: pulse(0.5), f: 1500, f1: 200, t, dur: 0.15, gain: 0.08, to: o });
       noise({ t, dur: 0.05, gain: 0.2, type: "highpass", f: 2000, to: o });
     },
-    // Ghost Race
-    count: (t, o) => chip(81, t, 0.12, 0.08, o, 0.5),
-    go: (t, o) => { chip(93, t, 0.35, 0.09, o, 0.5); chip(81, t, 0.35, 0.05, o, 0.25); },
-    pass: (t, o) => [76, 81, 88].forEach((m, i) => chip(m, t + i * 0.05, 0.06, 0.07, o, 0.5)),
-    passed: (t, o) => { tone({ type: "triangle", f: hz(79), f1: hz(67), t, dur: 0.28, gain: 0.16, to: o }); noise({ t, dur: 0.25, gain: 0.05, f: 900, f1: 300, to: o }); },
+    // Ghost Race: the starter, the crowd, the camera, and brass for the big moments
+    marks: (t, o) => {
+      noise({ t, dur: 0.9, gain: 0.05, type: "lowpass", f: 700, a: 0.2, to: o }); // the crowd settles
+      tone({ f: 1850, f1: 1750, t: t + 0.05, dur: 0.22, gain: 0.04, to: o });
+    },
+    set: (t, o) => chip(72, t, 0.05, 0.06, o, 0.5),
+    gun: (t, o) => {
+      noise({ t, dur: 0.12, gain: 0.5, type: "highpass", f: 1500, a: 0.001, to: o });
+      noise({ t, dur: 0.45, gain: 0.3, type: "lowpass", f: 500, f1: 120, a: 0.002, to: o });
+      tone({ f: 130, f1: 45, t, dur: 0.25, gain: 0.25, to: o });
+    },
+    cheer: (t, o) => {
+      // a roar from the stands, with a couple of whistles
+      [0, 0.12, 0.3].forEach((d, i) => noise({ t: t + d, dur: 1.4 - i * 0.2, gain: 0.16, f: 900 + i * 700, q: 0.6, a: 0.25, to: o }));
+      tone({ f: 1900, f1: 2600, t: t + 0.3, dur: 0.18, gain: 0.04, to: o });
+      tone({ f: 2400, f1: 1800, t: t + 0.55, dur: 0.22, gain: 0.04, to: o });
+    },
+    shutter: (t, o) => {
+      noise({ t, dur: 0.015, gain: 0.3, type: "highpass", f: 4000, a: 0.001, to: o });
+      noise({ t: t + 0.06, dur: 0.02, gain: 0.25, type: "highpass", f: 3000, a: 0.001, to: o });
+    },
+    pass: (t, o) => [79, 83, 86].forEach((m, i) => { chip(m, t + i * 0.07, 0.07, 0.07, o, 0.5); chip(m - 4, t + i * 0.07, 0.07, 0.04, o, 0.25); }),
+    passed: (t, o) => {
+      chip(74, t, 0.12, 0.06, o, 0.5);
+      chip(70, t + 0.14, 0.25, 0.06, o, 0.5);
+      noise({ t, dur: 0.6, gain: 0.08, f: 500, q: 0.7, a: 0.1, to: o }); // the crowd groans
+    },
     win: (t, o) => {
-      [72, 76, 79, 84].forEach((m, i) => chip(m, t + i * 0.09, 0.08, 0.08, o, 0.5));
-      chip(88, t + 0.4, 0.5, 0.08, o, 0.5);
-      chip(84, t + 0.4, 0.5, 0.05, o, 0.25);
+      // ta-ta-ta-taaa
+      [[79, 0], [79, 0.12], [79, 0.24], [86, 0.36]].forEach(([m, d], i) => {
+        const dur = i === 3 ? 0.7 : 0.08;
+        chip(m, t + d, dur, 0.08, o, 0.5);
+        chip(m - (i === 3 ? 5 : 4), t + d, dur, 0.05, o, 0.25);
+      });
     },
     lose: (t, o) => sting(t, o),
   };

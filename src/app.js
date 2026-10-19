@@ -127,7 +127,7 @@
     s.fhSfx = s.fhSfx !== false;
     s.grMusic = s.grMusic !== false;
     s.grSfx = s.grSfx !== false;
-    if (!TT.ghostCore.TRACKS.some((t) => t.id === s.grTrack)) s.grTrack = "sprint";
+    if (!TT.ghostCore.TRACKS.some((t) => t.id === s.grTrack)) s.grTrack = "60m";
   }
 
   const isDark = () => S().theme === "night";
@@ -698,7 +698,7 @@
         <section class="col-main">
           <div class="title-row"><h1>${g.name.toUpperCase()}</h1><span class="title-meta">${g.playable ? `BEST ${gameBest(g.id)}${g.id === "ghost" ? " WPM" : ""}` : "SOON"}</span></div>
           <div class="kind-line">${g.kind}</div>
-          <div class="game-art">${g.id === "forest" ? TT.sprites.svg("frog", 220) : g.id === "ghost" ? TT.sprites.svg("ghost", 220) : `<svg viewBox="0 0 300 300" role="img" aria-label="${g.name} icon">${GAME_ART[g.id]}</svg>`}</div>
+          <div class="game-art">${g.id === "forest" ? TT.sprites.svg("frog", 220) : g.id === "ghost" ? TT.ghostCore.runnerSvg(220) : `<svg viewBox="0 0 300 300" role="img" aria-label="${g.name} icon">${GAME_ART[g.id]}</svg>`}</div>
           <div class="detail-line">DIFFICULTY: <strong>${g.id === "tiles" ? "EASY TO EXPERT" : g.id === "ghost" ? "AS FAST AS YOUR GHOST" : "ADAPTIVE"}</strong></div>
           <div class="rule-box">${g.desc}${g.playable ? "" : " <strong>Coming in a later update.</strong>"}</div>
           ${g.playable ? `<button class="outline-btn play-btn" data-act="${playAct(g.id)}">PLAY <kbd>ENTER</kbd></button>` : ""}
@@ -980,7 +980,7 @@
     const vs = opts.map((o) => {
       const on = o.id === pick.id, off = !o.run && o.id !== "pace";
       return `<button class="gr-vs-opt ${on ? "on" : ""}" aria-pressed="${on}" data-act="gr:vs:${o.id}"${off ? " disabled" : ""}>
-        ${TT.sprites.svg("ghost", 30)}<span><strong>${esc(o.label)}</strong><small>${esc(o.note)}</small></span></button>`;
+        ${TT.ghostCore.runnerSvg(34, "", true)}<span><strong>${esc(o.label)}</strong><small>${esc(o.note)}</small></span></button>`;
     }).join("");
     $("view-ghost-select").innerHTML = `
       <div class="cols">
@@ -989,8 +989,8 @@
           <div class="title-row"><h1>${tr.name.toUpperCase()}</h1><span class="title-meta">${words.length} WORDS · ${G.lengthOf(words)} LETTERS</span></div>
           <div class="kind-line">${esc(tr.blurb.toUpperCase())}</div>
           <div class="gr-lineup" aria-hidden="true">
-            <div class="gr-lane"><span class="gr-who">${esc(pick.label.toUpperCase())}</span>${TT.sprites.svg("ghost", 44)}<span class="gr-flag"></span></div>
-            <div class="gr-lane"><span class="gr-who">YOU</span>${TT.sprites.svg(fhData().animal, 44)}<span class="gr-flag"></span></div>
+            <div class="gr-lane"><span class="gr-num">2</span><span class="gr-who">${esc(pick.label.toUpperCase())}</span>${TT.ghostCore.runnerSvg(46, "", true)}<span class="gr-flag"></span></div>
+            <div class="gr-lane"><span class="gr-num">3</span><span class="gr-who">YOU</span>${TT.ghostCore.runnerSvg(46)}<span class="gr-flag"></span></div>
           </div>
           <p class="gr-passage">${esc(tr.text)}</p>
           <dl class="status">${statusRows([
@@ -1010,7 +1010,7 @@
           <div class="tl-toggles">${toggleBtn("MUSIC", s.grMusic, "gr:music")}${toggleBtn("EFFECTS", s.grSfx, "gr:sfx")}</div>
           <div class="side-label">How to race:</div>
           <ol class="fh-rules">
-            <li>After the countdown, type the track. Your animal from Forest Hop runs the bottom lane, and the ghost floats along the top. A faint mark in the words shows where the ghost has got to.</li>
+            <li>On your marks, set, and at the gun, type the track. You run lane 3 in your accent colour; the ghost, a pale afterimage, runs lane 2. A faint mark in the words shows where it has got to.</li>
             <li><strong>Space</strong> moves you on only once a word is right, so fix a typo before going on. The last word finishes the race as soon as it's typed.</li>
             <li>The ghost is a real run played back key for key. Beat yours and your new best becomes the ghost to chase.</li>
           </ol>
@@ -1033,7 +1033,7 @@
     show("ghost");
     setPlaying(true);
     renderBar();
-    ghostRace.newRace(tr.id, spec, fhData().animal);
+    ghostRace.newRace(tr.id, spec);
   }
 
   function ghostAct(x, y) {

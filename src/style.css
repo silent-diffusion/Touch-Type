@@ -1356,7 +1356,7 @@ html.ludi-bw #app { filter: grayscale(1) contrast(1.35); }
 #view-ghost { padding: 16px 0 0; }
 #view-ghost-select { padding: 32px 0 0; }
 .gr { position: relative; flex: 1; display: flex; flex-direction: column; gap: 16px; min-height: 460px; }
-.gr-stage { position: relative; flex: 1; min-height: 240px; border: var(--rule); overflow: hidden; background: #afb48c; }
+.gr-stage { position: relative; flex: 1; min-height: 240px; border: var(--rule); overflow: hidden; background: #B5523B; }
 .gr-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 .gr-hud-l { min-width: 150px; }
 .gr-gap span.ahead { color: #4e6a36; }
@@ -1367,6 +1367,7 @@ html.ludi-bw #app { filter: grayscale(1) contrast(1.35); }
   font-size: 120px; font-weight: 800; letter-spacing: 0.02em; color: var(--ink);
   text-shadow: 0 4px 0 color-mix(in srgb, var(--ground) 80%, transparent); pointer-events: none;
 }
+.gr-count.long { font-size: 56px; letter-spacing: 0.08em; white-space: nowrap; }
 .gr-count.pop { animation: gr-pop 0.6s cubic-bezier(0.2, 1.4, 0.4, 1) both; }
 @keyframes gr-pop { from { transform: translate(-50%, -50%) scale(1.6); opacity: 0; } 30% { opacity: 1; } to { transform: translate(-50%, -50%) scale(1); } }
 /* the passage, like the speed test's, with the ghost's place in it */
@@ -1381,11 +1382,15 @@ html.ludi-bw #app { filter: grayscale(1) contrast(1.35); }
 /* the track screen */
 .gr-passage { font-family: var(--type-font); font-size: 17px; line-height: 1.6; color: var(--muted); margin: 0 0 18px; max-width: 62ch; }
 .gr-lineup { display: flex; flex-direction: column; gap: 6px; margin: 8px 0 18px; }
+/* the lineup: two lanes of the red track, numbered */
 .gr-lane {
-  position: relative; display: flex; align-items: center; gap: 12px; height: 56px; padding: 0 14px;
-  background: #C4AF88; border: var(--rule); color: #3F3C33;
+  position: relative; display: flex; align-items: center; gap: 12px; height: 58px; padding: 0 14px;
+  background: #B5523B; border-top: 2px solid #F2EEE2; border-bottom: 2px solid #F2EEE2; color: #F2EEE2;
 }
-.gr-lane:first-child svg { opacity: 0.75; }
+.gr-lineup { gap: 0; border: var(--rule); }
+.gr-lane + .gr-lane { border-top: 0; }
+.gr-lane:first-child svg { opacity: 0.7; }
+.gr-num { font-size: 22px; font-weight: 800; width: 18px; }
 .gr-who { width: 110px; font-size: 12px; font-weight: 800; letter-spacing: 0.14em; }
 .gr-flag {
   position: absolute; right: 14px; top: 6px; bottom: 6px; width: 18px;

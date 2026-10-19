@@ -1,8 +1,9 @@
-// Ghost Race: type a track (a fixed passage of words) to run it, against a ghost. The ghost is a
-// recording of a past run on the same track (your best, your last, or the best of anyone else on
-// this computer) played back key for key, or a steady pace. Your animal from Forest Hop runs the
-// bottom lane; the ghost floats along the top one, and its place in the passage shows as a faint
-// marker in the words.
+// Ghost Race: a sprint in a stadium. Type a track (a fixed passage of words) to run it, against a
+// ghost: a recording of a past run on the same track (your best, your last, or the best of anyone
+// else on this computer) played back key for key, or a steady pace. Your sprinter (in your accent
+// colour) runs lane 3; the ghost, a pale afterimage of a sprinter, runs lane 2, and its place in
+// the passage shows as a faint mark in the words. Its art is its own: the sprinter's frames, the
+// crowd, the track and the photo-finish camera are all drawn here.
 //
 // Typing follows the speed test's rules (TT.typingCore), with one change: Space only moves on
 // once the word is right, so every finished word counts and the race can't be won by mashing.
@@ -11,22 +12,24 @@
 // typing replay and can be raced as ghosts.
 (() => {
   const C = TT.typingCore;
-  const COUNT_MS = 700;   // each step of the countdown: 3, 2, 1, then GO
+  const COUNT_MS = 900;   // each step of the start: on your marks, set, then the gun
+  const START = [["ON YOUR MARKS", "marks"], ["SET", "set"], ["GO!", "gun"]];
   const FINISH_MS = 1300; // the finish plays this long before the results
   const PHOTO_MS = 50;    // closer than this is a photo finish
   const PACES = [30, 45, 60, 75, 90, 120]; // the steady-pace ghosts, in wpm
 
+  // The events: a passage each, and how many metres it stands for (for the marks on the track).
   const TRACKS = [
-    { id: "sprint", name: "Sprint", blurb: "A quick dash down to the river.",
-      text: "the quick fox ran up the hill and down to the river to drink" },
-    { id: "meadow", name: "Meadow Dash", blurb: "Short words, warm sun, no excuses.",
-      text: "a little frog sat on a lily pad in the warm sun and watched the dragonflies dance over the water until the wind carried them away into the tall grass" },
-    { id: "creek", name: "Creekside", blurb: "Along the water, past the old mill.",
-      text: "the creek runs cold and clear past the old mill where the moss grows thick on every stone and the trout wait in the shadows for something to fall from the branches while a heron stands perfectly still" },
-    { id: "summit", name: "Summit Climb", blurb: "Fewer words, longer ones, all uphill.",
-      text: "climbing toward the summit the travelers followed a narrow path between enormous boulders and twisted pines until the morning clouds finally opened and revealed the whole valley shining beneath them like an emerald blanket" },
-    { id: "long", name: "The Long Way Round", blurb: "The whole forest, edge to edge. Pace yourself.",
-      text: "the long way round begins at the edge of the meadow where the deer graze in the early light and the path is soft with clover then it bends into the pines and climbs over roots and stones toward the ridge where the wind is cold and the view goes on forever before dropping down through the ferns to the creek where you can hear the water long before you see it and finally it follows the bank all the way home as the evening settles over the trees" },
+    { id: "60m", name: "60 Metres", metres: 60, blurb: "Indoor sprint. Out of the blocks and done.",
+      text: "on your marks the crowd goes quiet and then the gun sends everyone flying down the lane" },
+    { id: "100m", name: "100 Metres", metres: 100, blurb: "The blue riband. Short words, top speed.",
+      text: "the hundred is over in a blink so drive hard from the blocks keep your head down for the first few strides and then lift into full speed as the line comes up to meet you" },
+    { id: "200m", name: "200 Metres", metres: 200, blurb: "Round the bend and hold your form down the straight.",
+      text: "the two hundred starts on the bend where you lean into the curve and stay relaxed through the shoulders then you come off the turn into the straight with the whole stadium on its feet and the clock running just above the finish" },
+    { id: "hurdles", name: "400m Hurdles", metres: 400, blurb: "Longer words to clear, one after another.",
+      text: "the hurdles reward patience and rhythm because every barrier arrives exactly when your stride pattern expects it and the athletes who remain composed through the final hundred metres usually discover something extraordinary waiting beyond the last obstacle" },
+    { id: "mile", name: "The Mile", metres: 1609, blurb: "Four laps. Pace it, then kick.",
+      text: "the mile is four laps of patience and nerve so settle in behind the leaders on the first lap and let the pace come to you then hold your place through the second lap when the legs start to complain and the crowd goes quiet waiting for the move and on the third lap stay close and watch for gaps because the bell is coming and when it rings for the last lap the whole field wakes up and you have to find one more gear for the long sprint home" },
   ];
   const track = (id) => TRACKS.find((t) => t.id === id) || TRACKS[0];
   const wordsOf = (t) => t.text.split(" ");
@@ -86,9 +89,9 @@
     return s >= 60 ? `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, "0")}` : s.toFixed(1);
   };
 
-  TT.ghostCore = { TRACKS, PACES, track, wordsOf, lengthOf, along, ghostFrom, clock, fmt };
+  TT.ghostCore = { TRACKS, PACES, track, wordsOf, lengthOf, along, ghostFrom, clock, fmt, runnerSvg: (...a) => runnerSvg(...a) };
 
-  // ---------- the scene ----------
+  // ---------- the scene: a stadium ----------
 
   const ease = (p) => 1 - (1 - p) * (1 - p);
   const hash = (a, b) => {
@@ -97,135 +100,239 @@
     return ((h >>> 0) % 1000) / 1000;
   };
 
-  // view: { w, h, t (race ms), me: { pos, moved, animal }, ghost: { pos, label }, total, msg, finish, won, night }
+  // The sprinter, 12×14 pixels, facing right: standing, then a four-step running cycle (stride,
+  // passing, the other stride, passing). h hair, s skin, k eye, a vest (your accent colour), w its
+  // race number, b shorts, o shoes.
+  const RUNNER = {
+    stand: [
+      "......hhh...", ".....hhhhh..", ".....hsssk..", ".....hssss..", "......ss....", "....aaaaa...", "...saawwas..",
+      "...saawwas..", "....aaaaa...", "....bbbbb...", "....bb.bb...", "....ss.ss...", "....ss.ss...", "....oo.oo...",
+    ],
+    stride: [
+      "......hhh...", ".....hhhhh..", ".....hsssk..", ".....hssss..", "......ss....", "....aaaaa...", "..saawwaaas.",
+      ".s..awwaa..s", "....aaaaa...", "....bbbbb...", "...bb...bb..", "..ss.....ss.", ".ss.......s.", ".o........oo",
+    ],
+    pass: [
+      "......hhh...", ".....hhhhh..", ".....hsssk..", ".....hssss..", "......ss....", "....aaaaa...", "....awwaas..",
+      "....awwas...", "....aaaaa...", "....bbbbb...", ".....bbsss..", ".....ss..s..", ".....ss.....", ".....oo.....",
+    ],
+    stride2: [
+      "......hhh...", ".....hhhhh..", ".....hsssk..", ".....hssss..", "......ss....", "....aaaaa...", "...saawwaas.",
+      "..s.awwaa.s.", "....aaaaa...", "....bbbbb...", "...bb...bb..", "..ss.....ss.", ".ss.......s.", ".o........oo",
+    ],
+  };
+  const CYCLE = ["stride", "pass", "stride2", "pass"];
+  // the running frame at a time (85 ms a step; times before the start wrap round too)
+  const cycleAt = (t) => CYCLE[((Math.floor(t / 85) % 4) + 4) % 4];
+  const runnerPal = (accent) => ({ h: "#4E3A28", s: "#E0B48A", k: "#3F3C33", a: accent, w: "#F2EEE2", b: "#2F3A4A", o: "#F2EEE2" });
+  // the ghost: the same sprinter, pale all over
+  const GHOST_PAL = { h: "#DCE6EA", s: "#EEF3F5", k: "#9FB3BD", a: "#E4ECEF", w: "#C9D6DC", b: "#D3DEE3", o: "#F7FAFB" };
+  // Each frame is drawn once, a pixel to a pixel, with a one-pixel outline round it (dark for you,
+  // so your vest stands out on the red track whatever your accent; soft for the ghost).
+  const sheets = new Map();
+  function sheet(frame, pal, line) {
+    const key = frame + JSON.stringify(pal) + line;
+    if (sheets.has(key)) return sheets.get(key);
+    const rows = RUNNER[frame];
+    const c = document.createElement("canvas");
+    c.width = rows[0].length + 2;
+    c.height = rows.length + 2;
+    const x = c.getContext("2d");
+    const paint = (dx, dy, color) => rows.forEach((row, j) => [...row].forEach((ch, i) => {
+      if (ch === ".") return;
+      x.fillStyle = color || pal[ch];
+      x.fillRect(i + 1 + dx, j + 1 + dy, 1, 1);
+    }));
+    for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) paint(dx, dy, line);
+    paint(0, 0);
+    sheets.set(key, c);
+    return c;
+  }
+  // draws the sprinter with its feet at (cx, feet), h px tall
+  function drawRunner(ctx, frame, pal, cx, feet, h, alpha = 1) {
+    const sh = sheet(frame, pal, pal === GHOST_PAL ? "rgba(255,255,255,0.35)" : "#2a2823"), w = (h * sh.width) / sh.height;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(sh, Math.round(cx - w / 2), Math.round(feet - h), Math.round(w), Math.round(h));
+    ctx.restore();
+  }
+  // the sprinter as markup, for the track screen and the library
+  function runnerSvg(size, accent = "var(--accent)", ghost = false) {
+    const pal = ghost ? GHOST_PAL : runnerPal(accent);
+    const line = ghost ? "rgba(255,255,255,0.35)" : "#2a2823";
+    let outline = "", rects = "";
+    RUNNER.stride.forEach((row, y) => [...row].forEach((ch, x) => {
+      if (ch === ".") return;
+      for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) outline += `<rect x="${x + 1 + dx}" y="${y + 1 + dy}" width="1.02" height="1.02" fill="${line}"/>`;
+      rects += `<rect x="${x + 1}" y="${y + 1}" width="1.02" height="1.02" fill="${pal[ch]}"/>`;
+    }));
+    return `<svg viewBox="0 0 14 16" width="${Math.round((size * 14) / 16)}" height="${size}" shape-rendering="crispEdges" role="img" aria-label="${ghost ? "ghost sprinter" : "sprinter"}">${outline}${rects}</svg>`;
+  }
+
+  const CROWD = ["#B4472B", "#2f6b72", "#D9B44A", "#74466f", "#4f6b2a", "#F2EEE2", "#3f5a8f", "#93640f"];
+  const SKIN = ["#E0B48A", "#C99A6B", "#8E6544", "#F0CFA8"];
+
+  // view: { w, h, t (race ms), total, metres, accent, night, me: { pos, moved, frameT }, ghost: { pos, label, moving },
+  //         msg, finish (your time), won, flash (when the first runner crossed), cheer (when the crowd last roared), state }
   function drawRace(ctx, v) {
     const { w, h } = v;
     ctx.clearRect(0, 0, w, h);
-    const skyH = Math.round(h * 0.3);
-    // sky and the far tree line
-    ctx.fillStyle = "#cfd2b5";
-    ctx.fillRect(0, 0, w, skyH);
-    const P = Math.max(18, Math.round(skyH * 0.5));
-    for (let i = 0, x = -P / 2; x < w; i++) {
-      TT.sprites.draw(ctx, "pine", x, skyH - P * 0.92, P);
-      x += P * (0.55 + hash(i, 3) * 0.6);
+    // the stands: a wall, then rows of the crowd, who bob and cheer
+    const standH = Math.round(h * 0.3);
+    ctx.fillStyle = "#8f8b7c";
+    ctx.fillRect(0, 0, w, standH);
+    const rowsN = 4, rowH = (standH - 12) / rowsN, px = Math.max(2, Math.round(rowH / 7));
+    const cheer = Math.max(0, 1 - (v.t - v.cheer) / 1800);
+    for (let r = 0; r < rowsN; r++) {
+      const y0 = 4 + r * rowH;
+      ctx.fillStyle = r % 2 ? "#9c9886" : "#a7a391";
+      ctx.fillRect(0, y0 + rowH * 0.62, w, rowH * 0.38);
+      for (let i = 0, x = (r % 2) * px * 2; x < w; i++, x += px * 4 + Math.round(hash(i, r) * px * 2)) {
+        if (hash(i, r + 40) < 0.12) continue; // an empty seat
+        const jump = (Math.sin(v.t / 140 + i * 1.7 + r) * 0.5 + 0.5) * (0.25 + cheer * 1.6) * px;
+        const yy = y0 + rowH * 0.62 - px * 5 - jump;
+        ctx.fillStyle = CROWD[Math.floor(hash(i, r + 7) * CROWD.length)];
+        ctx.fillRect(x, yy + px * 2, px * 3, px * 3);
+        ctx.fillStyle = SKIN[Math.floor(hash(i, r + 9) * SKIN.length)];
+        ctx.fillRect(x + px * 0.5, yy, px * 2, px * 2);
+        // arms up when they cheer
+        if (cheer > 0.3 && hash(i, r + 11) < cheer) {
+          ctx.fillRect(x - px * 0.5, yy - px, px, px * 2);
+          ctx.fillRect(x + px * 3, yy - px, px, px * 2);
+        }
+      }
     }
-    // the meadow and two lanes: the ghost's on top, yours below
-    ctx.fillStyle = "#B7BC95";
-    ctx.fillRect(0, skyH, w, h - skyH);
-    const field = h - skyH;
-    const laneH = Math.round(field * 0.3);
-    const lanes = [skyH + Math.round(field * 0.12), skyH + Math.round(field * 0.12) + laneH + Math.round(field * 0.16)];
-    const x0 = Math.round(w * 0.07), x1 = Math.round(w * 0.93);
-    const X = (p) => x0 + ((x1 - x0) * p) / Math.max(1, v.total);
-    for (const y of lanes) {
-      ctx.fillStyle = "#C4AF88";
-      ctx.fillRect(0, y, w, laneH);
-      ctx.fillStyle = "rgba(63,60,51,0.18)";
-      for (let x = 0; x < w; x += 26) ctx.fillRect(x, y + laneH / 2 - 2, 10, 4);
-      ctx.fillStyle = "rgba(63,60,51,0.35)";
-      ctx.fillRect(0, y, w, 3);
-      ctx.fillRect(0, y + laneH - 3, w, 3);
-    }
-    // grass tufts
-    ctx.fillStyle = "rgba(78,106,54,0.45)";
-    for (let i = 0; i < 40; i++) {
-      const x = hash(i, 9) * w, y = skyH + hash(i, 11) * field;
-      if (lanes.some((ly) => y > ly - 6 && y < ly + laneH + 4)) continue;
-      ctx.fillRect(x, y, 3, 7);
-      ctx.fillRect(x + 4, y + 2, 3, 5);
-    }
-    // the start, the quarter marks and the finish
+    // the trackside wall, with a banner
+    ctx.fillStyle = "#3F3C33";
+    ctx.fillRect(0, standH - 8, w, 8);
+    ctx.fillStyle = v.accent;
+    ctx.fillRect(0, standH - 6, w, 3);
+
+    // the track: four red lanes with white lines, and the infield below
+    const infH = Math.round(h * 0.1);
+    const trackTop = standH, trackH = h - standH - infH;
+    const laneH = trackH / 4;
+    ctx.fillStyle = "#B5523B";
+    ctx.fillRect(0, trackTop, w, trackH);
+    ctx.fillStyle = "rgba(0,0,0,0.06)";
+    for (let i = 0; i < 160; i++) ctx.fillRect(hash(i, 2) * w, trackTop + hash(i, 3) * trackH, 2, 2); // the rubber's grain
     ctx.fillStyle = "#F2EEE2";
-    ctx.fillRect(x0 - 2, lanes[0] - 4, 5, lanes[1] + laneH - lanes[0] + 8);
-    ctx.font = `800 ${Math.max(10, Math.round(laneH * 0.22))}px Archivo, sans-serif`;
+    for (let k = 0; k <= 4; k++) ctx.fillRect(0, Math.round(trackTop + k * laneH) - 1, w, 2);
+    ctx.fillStyle = "#6F8F4E";
+    ctx.fillRect(0, h - infH, w, infH);
+    ctx.fillStyle = "#4E6A36";
+    for (let x = 0; x < w; x += 18) ctx.fillRect(x, h - infH + 4 + ((x / 18) % 2) * 6, 8, 2);
+
+    const x0 = Math.round(w * 0.08), x1 = Math.round(w * 0.92);
+    const X = (p) => x0 + ((x1 - x0) * p) / Math.max(1, v.total);
+    // lane numbers and the start line
+    ctx.font = `800 ${Math.max(10, Math.round(laneH * 0.42))}px Archivo, sans-serif`;
     ctx.textAlign = "center";
-    ctx.textBaseline = "bottom";
+    ctx.textBaseline = "middle";
+    for (let k = 0; k < 4; k++) {
+      ctx.fillStyle = "rgba(242,238,226,0.85)";
+      ctx.fillText(String(k + 1), x0 - laneH * 0.55, trackTop + (k + 0.5) * laneH);
+    }
+    ctx.fillStyle = "#F2EEE2";
+    ctx.fillRect(x0 - 2, trackTop, 4, trackH);
+    // distance marks, in metres
+    ctx.font = `800 ${Math.max(9, Math.round(laneH * 0.26))}px Archivo, sans-serif`;
     for (const q of [0.25, 0.5, 0.75]) {
       const x = Math.round(x0 + (x1 - x0) * q);
-      ctx.fillStyle = "rgba(63,60,51,0.3)";
-      ctx.fillRect(x - 1, lanes[0], 2, lanes[1] + laneH - lanes[0]);
-      ctx.fillStyle = "#3F3C33";
-      ctx.fillText(`${q * 100}%`, x, lanes[0] - 4);
+      ctx.fillStyle = "rgba(242,238,226,0.35)";
+      for (let y = trackTop; y < trackTop + trackH; y += 10) ctx.fillRect(x - 1, y, 2, 5);
+      ctx.fillStyle = "#F2EEE2";
+      ctx.fillText(`${Math.round(v.metres * q)}M`, x, h - infH / 2);
     }
-    const sq = Math.max(6, Math.round(laneH / 6));
-    for (let y = lanes[0] - 4, r = 0; y < lanes[1] + laneH + 4; y += sq, r++) {
+    // the finish: a checked line, a post with the photo-finish camera
+    const sq = Math.max(4, Math.round(laneH / 5));
+    for (let y = trackTop, r = 0; y < trackTop + trackH; y += sq, r++) {
       for (let k = 0; k < 2; k++) {
         ctx.fillStyle = (r + k) % 2 ? "#3F3C33" : "#F2EEE2";
-        ctx.fillRect(x1 + k * sq - sq, y, sq, sq);
+        ctx.fillRect(x1 + k * sq - sq, y, sq, Math.min(sq, trackTop + trackH - y));
       }
     }
-    // the flag over the finish, waving back toward the track
-    const poleTop = lanes[0] - laneH * 0.9;
+    const camY = standH - laneH * 0.9;
     ctx.fillStyle = "#3F3C33";
-    ctx.fillRect(x1 - 2, poleTop, 4, lanes[0] - poleTop);
-    ctx.beginPath();
-    const wave = Math.sin(v.t / 180) * laneH * 0.06;
-    ctx.moveTo(x1 - 2, poleTop);
-    ctx.quadraticCurveTo(x1 - laneH * 0.35, poleTop + wave, x1 - laneH * 0.7, poleTop + laneH * 0.08);
-    ctx.lineTo(x1 - laneH * 0.7, poleTop + laneH * 0.36);
-    ctx.quadraticCurveTo(x1 - laneH * 0.35, poleTop + laneH * 0.3 - wave, x1 - 2, poleTop + laneH * 0.32);
-    ctx.closePath();
-    ctx.fillStyle = v.accent;
-    ctx.fill();
+    ctx.fillRect(x1 + sq + 4, camY, 4, trackTop + trackH * 0.15 - camY);
+    ctx.fillRect(x1 + sq - 6, camY - laneH * 0.25, laneH * 0.55, laneH * 0.32);
+    ctx.fillStyle = v.flash != null && v.t - v.flash < 200 ? "#fff" : "#9FB3BD";
+    ctx.fillRect(x1 + sq - 10, camY - laneH * 0.15, 6, laneH * 0.12);
 
-    // who's in which lane
-    ctx.textAlign = "left";
-    ctx.textBaseline = "middle";
-    ctx.font = `800 ${Math.max(10, Math.round(laneH * 0.2))}px Archivo, sans-serif`;
-    ctx.fillStyle = "rgba(63,60,51,0.75)";
-    ctx.fillText(v.ghost.label.toUpperCase(), 8, lanes[0] + laneH / 2);
-    ctx.fillText("YOU", 8, lanes[1] + laneH / 2);
-
-    // the ghost: floating, with a fading trail while it moves
-    const S = Math.round(laneH * 0.92);
-    const gx = X(v.ghost.pos), gy = lanes[0] + laneH / 2 - S / 2 + Math.sin(v.t / 260) * S * 0.07;
-    if (v.ghost.moving) {
-      for (let k = 3; k >= 1; k--) {
-        ctx.globalAlpha = 0.12 * (4 - k) / 3;
-        TT.sprites.draw(ctx, "ghost", gx - S / 2 - k * S * 0.28, gy + Math.sin((v.t - k * 90) / 260) * S * 0.07, S);
+    // the runners: the ghost in lane 2, you in lane 3
+    const lanes = [trackTop + laneH, trackTop + laneH * 2];
+    const S = laneH * 1.25; // a runner's height
+    const feet = (k) => lanes[k] + laneH * 0.88;
+    // the finish tape across each runner's lane, broken once they're through
+    const tape = (k, through, at) => {
+      const top = lanes[k] + laneH * 0.15, bot = lanes[k] + laneH * 0.85;
+      ctx.fillStyle = "#F2EEE2";
+      if (!through) {
+        ctx.fillRect(x1 - 1, top, 3, bot - top);
+        ctx.fillStyle = v.accent;
+        for (let y = top; y < bot; y += 8) ctx.fillRect(x1 - 1, y, 3, 4);
+        return;
       }
-    }
-    ctx.globalAlpha = 0.72;
-    TT.sprites.draw(ctx, "ghost", gx - S / 2, gy, S);
-    ctx.globalAlpha = 1;
+      const a = Math.min(1, (v.t - at) / 300);
+      ctx.save();
+      ctx.translate(x1, top);
+      ctx.rotate(-0.9 * a);
+      ctx.fillRect(-1, 0, 3, (bot - top) * 0.45);
+      ctx.restore();
+      ctx.save();
+      ctx.translate(x1, bot);
+      ctx.rotate(0.9 * a);
+      ctx.fillRect(-1, -(bot - top) * 0.45, 3, (bot - top) * 0.45);
+      ctx.restore();
+    };
+    const gThrough = v.ghost.pos >= v.total, mThrough = v.finish != null;
+    tape(0, gThrough, v.ghost.finishAt);
+    tape(1, mThrough, v.finish);
 
-    // you: a hop with every bit of progress, and dust behind
+    // the ghost: a pale afterimage of a sprinter, with a trail while it runs
+    const gx = X(v.ghost.pos);
+    const gFrame = v.ghost.moving ? cycleAt(v.t) : "stand";
+    if (v.ghost.moving) {
+      for (let k = 3; k >= 1; k--) drawRunner(ctx, cycleAt(v.t - k * 85), GHOST_PAL, gx - k * S * 0.22, feet(0), S, 0.1 * (4 - k));
+    }
+    drawRunner(ctx, gFrame, GHOST_PAL, gx, feet(0), S, 0.6);
+
+    // you: running while you type, standing when you stop
     const mx = X(v.me.pos);
     const since = v.t - v.me.moved;
-    const hop = since >= 0 && since < 260 ? Math.sin((Math.PI * since) / 260) * S * 0.22 : 0;
-    const my = lanes[1] + laneH / 2 - S / 2;
-    ctx.fillStyle = "rgba(63,60,51,0.28)";
+    const running = v.state !== "count" && since >= 0 && since < 350 && !mThrough;
+    const mFrame = running ? cycleAt(v.t) : "stand";
+    ctx.fillStyle = "rgba(0,0,0,0.18)";
     ctx.beginPath();
-    ctx.ellipse(mx, lanes[1] + laneH / 2 + S * 0.42, S * 0.32, S * 0.08, 0, 0, Math.PI * 2);
+    ctx.ellipse(mx, feet(1), S * 0.22, S * 0.05, 0, 0, Math.PI * 2);
     ctx.fill();
-    if (since >= 0 && since < 400) {
-      for (let k = 0; k < 3; k++) {
-        const a = since / 400;
-        ctx.fillStyle = `rgba(150,124,88,${0.45 * (1 - a)})`;
-        ctx.beginPath();
-        ctx.arc(mx - S * (0.45 + k * 0.18 + a * 0.3), lanes[1] + laneH / 2 + S * 0.35 - k * 3, S * (0.08 + a * 0.08), 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-    TT.sprites.draw(ctx, v.me.animal, mx - S / 2, my - hop, S);
+    drawRunner(ctx, mFrame, runnerPal(v.accent), mx, feet(1), S);
 
-    // a passing message, fading
+    // a lead change, called like a commentator
     if (v.msg && v.t - v.msg.t < 1100) {
       const a = 1 - Math.max(0, (v.t - v.msg.t - 700) / 400);
       ctx.globalAlpha = a;
-      ctx.font = `800 ${Math.max(14, Math.round(skyH * 0.22))}px Archivo, sans-serif`;
+      const fs = Math.max(14, Math.round(standH * 0.2));
+      ctx.font = `800 ${fs}px Archivo, sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
+      const tw = ctx.measureText(v.msg.text).width;
       ctx.fillStyle = "#3F3C33";
-      ctx.fillText(v.msg.text, w / 2, skyH * 0.32);
+      ctx.fillRect(w / 2 - tw / 2 - 14, standH * 0.5 - fs * 0.8, tw + 28, fs * 1.6);
+      ctx.fillStyle = "#F2EEE2";
+      ctx.fillText(v.msg.text, w / 2, standH * 0.5 + 1);
       ctx.globalAlpha = 1;
     }
-
-    // a win: confetti
-    if (v.finish && v.won) {
+    // the photo-finish camera's flash, the moment the first runner crosses
+    if (v.flash != null && v.t - v.flash < 260) {
+      ctx.fillStyle = `rgba(255,255,255,${0.75 * (1 - (v.t - v.flash) / 260)})`;
+      ctx.fillRect(0, 0, w, h);
+    }
+    // a win: streamers from the stands
+    if (v.finish != null && v.won) {
       const age = v.t - v.finish;
-      const colors = [v.accent, "#6F8F4E", "#D9B44A", "#F2EEE2", "#2f6b72"];
+      const colors = [v.accent, "#F2EEE2", "#D9B44A", "#2f6b72", "#6F8F4E"];
       for (let i = 0; i < 60; i++) {
         const x = hash(i, 21) * w + Math.sin(age / 200 + i) * 12;
         const y = -20 + ((age * (0.25 + hash(i, 22) * 0.35) + hash(i, 23) * h * 0.4) % (h + 40));
@@ -238,7 +345,7 @@
       }
     }
     if (v.night) {
-      ctx.fillStyle = "rgba(20,19,16,0.35)";
+      ctx.fillStyle = "rgba(20,19,16,0.3)";
       ctx.fillRect(0, 0, w, h);
     }
   }
@@ -270,11 +377,11 @@
     const canvas = root.querySelector(".gr-canvas");
     const ctx = canvas.getContext("2d");
     const snd = {
-      music: () => TT.forestSound && TT.forestSound.startMusic("race", "grMusic"),
+      music: () => TT.forestSound && TT.forestSound.startMusic("stadium", "grMusic"),
       stop: (fade) => TT.forestSound && TT.forestSound.stopMusic(fade),
       play: (name) => TT.forestSound && TT.forestSound.play(name, "grSfx"),
     };
-    let live = null; // { state, track, words, c, ghost, animal, goAt, keys, times, first, finishT, ... }
+    let live = null; // { state, track, words, c, ghost, goAt, keys, times, first, finishT, ... }
     let raf = 0;
     let wordEls = [], caret = null, ghostMark = null, lineStep = 0;
     let hudSig = "";
@@ -388,13 +495,20 @@
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       const t = raceT();
       const gp = live.ghost.at(t);
+      // the photo-finish camera flashes as the first runner crosses
+      const first = Math.min(live.ghost.finish, live.finishT ?? Infinity);
+      if (live.goAt != null && t >= first && !live.flashed) {
+        live.flashed = true;
+        snd.play("shutter");
+      }
       drawRace(ctx, {
-        w, h, t, total: live.total,
+        w, h, t, total: live.total, metres: live.track.metres, state: live.state,
         accent: getComputedStyle(root).getPropertyValue("--accent").trim() || "#B4472B",
         night: document.documentElement.dataset.theme === "night",
-        me: { pos: along(live.c), moved: live.movedAt, animal: live.animal },
-        ghost: { pos: gp, label: live.ghost.label, moving: live.state === "running" && gp < live.total && t > 0 },
-        msg: live.msg, finish: live.finishT, won: live.won,
+        me: { pos: along(live.c), moved: live.movedAt },
+        ghost: { pos: gp, label: live.ghost.label, moving: (live.state === "running" || live.state === "finishing") && gp < live.total && t > 0, finishAt: live.ghost.finish },
+        msg: live.msg, finish: live.finishT, won: live.won, cheer: live.cheerAt,
+        flash: live.goAt != null && t >= first ? first : null,
       });
     }
 
@@ -412,7 +526,7 @@
       hudSig = sig;
       el.time.textContent = clock(Math.max(0, t));
       el.wpm.textContent = st ? `${Math.round(st.wpm)} WPM` : "— WPM";
-      const g = TT.sprites.svg("ghost", 24);
+      const g = runnerSvg(24, "", true);
       if (gap == null) el.gap.innerHTML = `${g}<span>EVEN</span>`;
       else el.gap.innerHTML = `${g}<span class="${gap >= 0 ? "ahead" : "behind"}">${gap >= 0 ? "+" : "−"}${fmt(Math.abs(gap))}s ${gap >= 0 ? "AHEAD" : "BEHIND"}</span>`;
       el.vs.textContent = `${live.ghost.label.toUpperCase()} · ${clock(live.ghost.finish)}s`;
@@ -422,17 +536,18 @@
       if (!live || live.state === "paused" || live.state === "stopped" || live.state === "over") return;
       const t = raceT();
       if (live.state === "count") {
-        const k = Math.floor((now() - live.countAt) / COUNT_MS);
+        const k = Math.min(2, Math.floor((now() - live.countAt) / COUNT_MS));
         if (k !== live.countStep) {
           live.countStep = k;
-          if (k < 3) {
-            el.count.textContent = String(3 - k);
-            snd.play("count");
-          } else {
-            el.count.textContent = "GO!";
-            snd.play("go");
+          const [text, sound] = START[k];
+          el.count.textContent = text;
+          el.count.classList.toggle("long", text.length > 4);
+          snd.play(sound);
+          if (k === 2) {
+            // the gun: the race is on
             live.state = "running";
             live.goAt = now();
+            live.cheerAt = 0;
             snd.music();
             onStart && onStart();
           }
@@ -441,9 +556,9 @@
           void el.count.offsetWidth; // restart the pop
           el.count.classList.add("pop");
         }
-      } else if (live.state === "running" && live.countStep === 3 && now() - live.goAt > 600) {
+      } else if (live.state === "running" && live.countStep === 2 && now() - live.goAt > 600) {
         el.count.hidden = true;
-        live.countStep = 4;
+        live.countStep = 3;
       }
       // passing, or being passed
       if (live.state === "running") {
@@ -452,7 +567,8 @@
           const gap = live.ghost.reach(me) - t;
           const side = gap > 150 ? 1 : gap < -150 ? -1 : live.side;
           if (side !== live.side && live.side !== 0 && t - (live.msg ? live.msg.t : -1e9) > 700) {
-            live.msg = { t, text: side > 0 ? "YOU TOOK THE LEAD!" : "THE GHOST PULLS AHEAD" };
+            live.msg = { t, text: side > 0 ? "YOU TAKE THE LEAD!" : "THE GHOST HITS THE FRONT" };
+            live.cheerAt = t;
             snd.play(side > 0 ? "pass" : "passed");
           }
           live.side = side;
@@ -468,15 +584,15 @@
     // ---------- playing ----------
 
     // spec: { kind: "run", rec, label } or { kind: "pace", wpm, label }
-    function newRace(trackId, spec, animal) {
+    function newRace(trackId, spec) {
       cancelAnimationFrame(raf);
       const tr = track(trackId);
       const words = wordsOf(tr);
       live = {
         state: "count", track: tr, words, total: lengthOf(words), c: C.newCore(words.slice(), "words", words.length),
-        ghost: ghostFrom(spec, words), spec, animal: animal || "frog",
+        ghost: ghostFrom(spec, words), spec,
         countAt: now(), countStep: -1, goAt: null, first: null, keys: "", times: [], spaceErrors: 0,
-        movedAt: -1e9, side: 0, msg: null, finishT: null, won: false,
+        movedAt: -1e9, side: 0, msg: null, finishT: null, won: false, cheerAt: -1e9, flashed: false,
       };
       hudSig = "";
       el.over.hidden = true;
@@ -539,8 +655,10 @@
       live.finishT = t;
       live.finishedAt = now();
       live.won = t <= live.ghost.finish;
+      live.cheerAt = t;
       snd.stop(0.3);
       snd.play(live.won ? "win" : "lose");
+      if (live.won) snd.play("cheer");
       save();
     }
 
