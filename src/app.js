@@ -40,6 +40,8 @@
       desc: "Type a path's word to step onto it. The words come from your weak keys. The clock keeps draining, so keep moving." },
     { id: "ghost", name: "Ghost Race", cat: "arcade", kind: "RACING GAME", playable: true,
       desc: "Type a track to run it, against a ghost: your own best run played back key for key, your last run, anyone else's best on this computer, or a steady pace. Words only move you on once they're right. Beat the ghost and your new best becomes the one to chase." },
+    { id: "worm", name: "Wormhole", cat: "trivia", kind: "TRIVIA GAME", playable: true,
+      desc: "You're an earthworm. Name things in a category, like a fruit or a country, by typing them: any right answer counts, and the rarer it is, the deeper you dig. Play the Daily Dig, seven prompts a day with one answer each, or Blitz: as many answers as you can in 30 seconds." },
     { id: "drills", name: "Key Drills", cat: "drills", kind: "DRILL",
       desc: "Short, fast rounds on your weakest keys and letter pairs." },
   ];
@@ -63,8 +65,9 @@
   const FOREST_VIEWS = ["forest", "forest-select", "forest-guide"];
   const TILES_VIEWS = ["tiles", "tiles-select"];
   const GHOST_VIEWS = ["ghost", "ghost-select"];
+  const WORM_VIEWS = ["worm", "worm-select"];
   // What Enter (or the play button) does for each game in the library.
-  const playAct = (id) => ({ forest: "fh:select", tiles: "tl:select", ghost: "gr:select" })[id] || "play";
+  const playAct = (id) => ({ forest: "fh:select", tiles: "tl:select", ghost: "gr:select", worm: "wm:select" })[id] || "play";
 
   const ui = {
     view: "test",
@@ -128,6 +131,9 @@
     s.grMusic = s.grMusic !== false;
     s.grSfx = s.grSfx !== false;
     if (!TT.ghostCore.TRACKS.some((t) => t.id === s.grTrack)) s.grTrack = "60m";
+    s.wmMusic = s.wmMusic !== false;
+    s.wmSfx = s.wmSfx !== false;
+    if (s.wmPack !== "mixed" && !TT.wormCore.PACKS.some((p) => p.id === s.wmPack)) s.wmPack = "mixed";
   }
 
   const isDark = () => S().theme === "night";
@@ -262,6 +268,7 @@
   const testName = (kind, mode, amount, game, title, queue) =>
     kind === "game" && game === "tiles" ? `tiles, ${(title || "song").toLowerCase()} (${mode}${queue ? ", queue" : ""})`
       : kind === "game" && game === "ghost" ? `ghost race, ${(title || mode).toLowerCase()}`
+      : kind === "game" && game === "worm" ? (mode === "daily" ? `wormhole, ${(title || "daily dig").toLowerCase()}` : `wormhole blitz, ${(title || "").toLowerCase()}`)
       : kind === "game" ? `${game === "forest" ? "forest hop" : "path runner"}, ${amount} steps` : `${kind === "practice" ? "practice" : mode} ${amount}`;
 
   function statusRows(rows) {
@@ -322,6 +329,8 @@
     "tiles-select": [["ARROWS", "MOVE", "noop"], ["[ ]", "DIFFICULTY", "tl:harder"], ["ENTER", "PLAY", "tl:play"], ["A", "ADD A SONG", "tl:import"], ["Q", "MODE", "tl:mode:toggle"], ["M", "MUSIC", "tl:music"], ["T", "METRONOME", "tl:metronome"], ["ESC", "MENU", "menu"]],
     ghost: [["SPACE", "NEXT WORD", "noop"], ["TAB", "RESTART", "gr:play"], ["ESC", "PAUSE", "pause"]],
     "ghost-select": [["ARROWS", "MOVE", "noop"], ["ENTER", "RACE", "gr:play"], ["M", "MUSIC", "gr:music"], ["E", "EFFECTS", "gr:sfx"], ["ESC", "MENU", "menu"]],
+    worm: [["ENTER", "DIG IN", "noop"], ["ESC", "PAUSE", "pause"]],
+    "worm-select": [["ARROWS", "MOVE", "noop"], ["ENTER", "DIG", "wm:play"], ["M", "MUSIC", "wm:music"], ["E", "EFFECTS", "wm:sfx"], ["ESC", "MENU", "menu"]],
     replay: [["SPACE", "PLAY / PAUSE", "rp:toggle"], ["← →", "SKIP 2S", "rp:skip:2000"], ["↑ ↓", "MOVE", "noop"], ["ESC", "BACK", "rp:back"]],
     stats: [["ARROWS", "MOVE", "noop"], ["P", "PRACTICE WEAK KEYS", "practice"], ["ESC", "CLOSE MENU", "close"]],
     leaderboard: [["ARROWS", "MOVE", "noop"], ["ESC", "CLOSE MENU", "close"]],
@@ -340,6 +349,8 @@
     "tiles-select": "Pick a song and a difficulty.",
     ghost: "Type the track. Space moves on once a word is right.",
     "ghost-select": "Pick a track and who to race.",
+    worm: "Type an answer and press Enter. Rarer answers dig deeper.",
+    "worm-select": "Play today's dig, or a Blitz round.",
     replay: "Click a moment to jump to it.",
     stats: "Select a view.",
     leaderboard: "Everyone on this computer, ranked.",
@@ -354,6 +365,8 @@
         [key, act === "restart" ? "PRACTICE AGAIN" : label, act]);
     }
     if (ui.view === "games" && selectedGame().playable) hints = [["ENTER", "PLAY", playAct(selectedGame().id)], ...hints];
+    // a Daily Dig that's already done can only be replayed
+    if (ui.view === "worm-select" && wormDigDone()) hints = hints.map((h) => (h[0] === "ENTER" ? ["R", "REPLAY", "wm:replay"] : h));
     // In full screen, Esc on a main screen leaves full screen.
     if (ui.fullscreen && ROOT_VIEWS.includes(ui.view)) {
       hints = hints.map(([key, label, act]) => (key === "ESC" ? [key, "EXIT FULL SCREEN", "window:windowed"] : [key, label, act]));
@@ -394,7 +407,7 @@
     ["leaderboard", "LEADERBOARD", "nav:leaderboard"], ["stats", "STATS", "nav:stats"], ["settings", "SETTINGS", "nav:settings"],
   ];
   // While you're in the games, the second row of tabs is the library and each playable game.
-  const GAME_TABS = [["library", "LIBRARY", "nav:games"], ["forest", "FOREST HOP", "fh:select"], ["tiles", "TILES", "tl:select"], ["ghost", "GHOST RACE", "gr:select"], ["path", "PATH RUNNER", "play"]];
+  const GAME_TABS = [["library", "LIBRARY", "nav:games"], ["forest", "FOREST HOP", "fh:select"], ["tiles", "TILES", "tl:select"], ["ghost", "GHOST RACE", "gr:select"], ["worm", "WORMHOLE", "wm:select"], ["path", "PATH RUNNER", "play"]];
   const FOLDER_VIEWS = ["leaderboard", "stats", "settings"]; // these draw their own second row of tabs
 
   // Which main tab a screen belongs to.
@@ -407,9 +420,10 @@
 
   // Which game tab a screen inside the games belongs to.
   function gameTabFor(view) {
-    if (view === "replay") return rp.rec && ["forest", "tiles", "ghost"].includes(rp.rec.game) ? rp.rec.game : "path";
+    if (view === "replay") return rp.rec && ["forest", "tiles", "ghost", "worm"].includes(rp.rec.game) ? rp.rec.game : "path";
     if (FOREST_VIEWS.includes(view)) return "forest";
     if (GHOST_VIEWS.includes(view)) return "ghost";
+    if (WORM_VIEWS.includes(view)) return "worm";
     if (TILES_VIEWS.includes(view)) return "tiles";
     if (view === "game") return "path";
     return "library";
@@ -607,7 +621,7 @@
 
   // While a game is being played it takes the whole window: no header, tabs or footer (style.css,
   // html.playing). It starts with the round and ends when the round does, or on leaving the game.
-  const PLAY_VIEWS = ["game", "forest", "tiles", "ghost"];
+  const PLAY_VIEWS = ["game", "forest", "tiles", "ghost", "worm"];
   const setPlaying = (on) => document.documentElement.classList.toggle("playing", !!on);
 
   function show(view) {
@@ -633,6 +647,8 @@
     if (view !== "tiles" && tiles) tiles.stop();
     for (const v of GHOST_VIEWS) $(`view-${v}`).hidden = v !== view;
     if (view !== "ghost" && ghostRace) ghostRace.stop();
+    for (const v of WORM_VIEWS) $(`view-${v}`).hidden = v !== view;
+    if (view !== "worm" && wormhole) wormhole.stop();
     if (view !== "tiles-select" && ui.tap) stopTap();
     $("view-replay").hidden = view !== "replay";
     if (view !== "replay") pauseReplay();
@@ -646,6 +662,7 @@
     forest.stop();
     tiles.stop();
     ghostRace.stop();
+    wormhole.stop();
     document.body.classList.remove("typing");
     ui.menuView = view;
     show(view);
@@ -687,7 +704,7 @@
     if (!list.some((g) => g.id === ui.game)) ui.game = list[0].id;
     const g = selectedGame();
 
-    const filters = [["all", "ALL"], ["arcade", "ARCADE"], ["rhythm", "RHYTHM"], ["drills", "DRILLS"]];
+    const filters = [["all", "ALL"], ["arcade", "ARCADE"], ["rhythm", "RHYTHM"], ["trivia", "TRIVIA"], ["drills", "DRILLS"]];
     $("view-games").innerHTML = `
       <div class="seg game-filter" aria-label="Show games">${filters.map(([id, label]) =>
         `<button class="${id === ui.gamesTab ? "on" : ""}" aria-pressed="${id === ui.gamesTab}" data-act="gtab:${id}">${label}</button>`).join("")}</div>` + `
@@ -696,10 +713,10 @@
           ${list.map((x) => `<li><button class="${x.id === g.id ? "on" : ""}" aria-pressed="${x.id === g.id}" data-act="game:${x.id}">${x.name}<span class="tag">${gameTag(x)}</span></button></li>`).join("")}
         </ul>
         <section class="col-main">
-          <div class="title-row"><h1>${g.name.toUpperCase()}</h1><span class="title-meta">${g.playable ? `BEST ${gameBest(g.id)}${g.id === "ghost" ? " WPM" : ""}` : "SOON"}</span></div>
+          <div class="title-row"><h1>${g.name.toUpperCase()}</h1><span class="title-meta">${g.playable ? `BEST ${gameBest(g.id)}${g.id === "ghost" ? " WPM" : g.id === "worm" ? " POINTS" : ""}` : "SOON"}</span></div>
           <div class="kind-line">${g.kind}</div>
-          <div class="game-art">${g.id === "forest" ? TT.sprites.svg("frog", 220) : g.id === "ghost" ? TT.ghostCore.runnerSvg(220) : `<svg viewBox="0 0 300 300" role="img" aria-label="${g.name} icon">${GAME_ART[g.id]}</svg>`}</div>
-          <div class="detail-line">DIFFICULTY: <strong>${g.id === "tiles" ? "EASY TO EXPERT" : g.id === "ghost" ? "AS FAST AS YOUR GHOST" : "ADAPTIVE"}</strong></div>
+          <div class="game-art">${g.id === "forest" ? TT.sprites.svg("frog", 220) : g.id === "ghost" ? TT.ghostCore.runnerSvg(220) : g.id === "worm" ? TT.wormCore.wormIcon(240) : `<svg viewBox="0 0 300 300" role="img" aria-label="${g.name} icon">${GAME_ART[g.id]}</svg>`}</div>
+          <div class="detail-line">DIFFICULTY: <strong>${g.id === "tiles" ? "EASY TO EXPERT" : g.id === "ghost" ? "AS FAST AS YOUR GHOST" : g.id === "worm" ? "AS DEEP AS YOU KNOW" : "ADAPTIVE"}</strong></div>
           <div class="rule-box">${g.desc}${g.playable ? "" : " <strong>Coming in a later update.</strong>"}</div>
           ${g.playable ? `<button class="outline-btn play-btn" data-act="${playAct(g.id)}">PLAY <kbd>ENTER</kbd></button>` : ""}
         </section>
@@ -1050,6 +1067,196 @@
     } else return;
     TT.save();
     if (ui.view === "ghost-select") renderGhostSelect();
+  }
+
+  // ---------- wormhole ----------
+
+  const WM = TT.wormCore;
+  const wormhole = TT.createWormhole({
+    root: $("view-worm"),
+    onStart() {
+      els.statusLine.textContent = "Type an answer and press Enter. Rarer answers dig deeper.";
+    },
+    onEnd(id) {
+      setPlaying(false);
+      ui.lastWormId = id;
+      els.statusLine.textContent = "Dig saved. Press R to replay it.";
+    },
+  });
+
+  // The select screen's list: today's Daily Dig, Blitz, then the last two weeks of digs to catch up on.
+  const WM_PAST = 13;
+  function wormDays() {
+    const today = WM.dayKey();
+    const out = [];
+    for (let k = 1; k <= WM_PAST; k++) {
+      const day = WM.addDays(today, -k);
+      if (WM.dayIndex(day) >= 0) out.push(day);
+    }
+    return out;
+  }
+  // the dig chosen in the list: today's, a past day's, or Blitz
+  const wormPick = () => {
+    const p = ui.wmPick || "daily";
+    if (p === "blitz" || p === "daily") return p;
+    return wormDays().includes(p.slice(4)) ? p : "daily";
+  };
+  const wormDay = (pick) => (pick === "daily" ? WM.dayKey() : pick.slice(4));
+  const digTag = (e) => (!e ? "NEW" : e.done ? `${e.score}` : `${e.picks.filter(Boolean).length}/${WM.DAILY_N}`);
+  // the chosen dig, when it's a Daily that's done
+  const wormDone = () => {
+    const pick = wormPick();
+    const e = pick !== "blitz" && WM.data().daily[wormDay(pick)];
+    return e && e.done ? e : null;
+  };
+  function wormDigDone() {
+    return !!wormDone();
+  }
+
+  function openWormSelect() {
+    engine.stop();
+    runner.stop();
+    forest.stop();
+    tiles.stop();
+    ghostRace.stop();
+    document.body.classList.remove("typing");
+    show("worm-select");
+    renderBar();
+    renderWormSelect();
+  }
+
+  const tierChip = (tier) => `<span class="wm-tier t${tier}">${WM.TIERS[tier]}</span>`;
+
+  function renderWormSelect() {
+    const s = S(), d = WM.data(), pick = wormPick();
+    const today = WM.dayKey();
+    const item = (id, label, tag) => {
+      const on = id === pick;
+      return `<li><button class="${on ? "on" : ""}" aria-pressed="${on}" data-act="wm:pick:${id}">${label}<span class="tag">${tag}</span></button></li>`;
+    };
+    const best = (pk) => (d.blitz[pk] ? `BEST ${d.blitz[pk].score}` : "NEW");
+    const list = item("daily", "DAILY DIG", digTag(d.daily[today])) + item("blitz", "BLITZ", best(s.wmPack)) +
+      `<li class="tl-group caps-label">PAST DIGS</li>` +
+      wormDays().map((day) => item(`day:${day}`, WM.dayLabel(day).toUpperCase(), d.daily[day] ? digTag(d.daily[day]) : "PLAY")).join("");
+
+    let main;
+    if (pick === "blitz") {
+      const packs = [{ id: "mixed", name: "Mixed" }, ...WM.PACKS];
+      const b = d.blitz[s.wmPack];
+      const rounds = d.history.filter((h) => h.mode === "blitz" && (h.pack || "mixed") === s.wmPack).length;
+      main = `
+        <div class="title-row"><h1>BLITZ</h1><span class="title-meta">${esc(WM.packName(s.wmPack).toUpperCase())}</span></div>
+        <div class="kind-line">ONE PROMPT · 30 SECONDS · AS MANY ANSWERS AS YOU CAN</div>
+        <div class="wm-art">${WM.wormIcon(150)}</div>
+        <div class="side-label">Prompts from:</div>
+        <div class="seg wm-packs" aria-label="Prompts from">${packs.map((p) =>
+          `<button class="${p.id === s.wmPack ? "on" : ""}" aria-pressed="${p.id === s.wmPack}" data-act="wm:pack:${p.id}">${esc(p.name.toUpperCase())}</button>`).join("")}</div>
+        <dl class="status">${statusRows([
+          ["Your best:", b ? `${b.score} points · ${b.n} ${b.n === 1 ? "answer" : "answers"}` : "—"],
+          ["Best prompt:", b ? esc(WM.promptById(b.prompt) ? WM.promptById(b.prompt).q : "—") : "—"],
+          ["Rounds:", rounds, true],
+        ])}</dl>
+        <p class="note">Type answer after answer, pressing Enter after each. A run of rare answers multiplies them: the second in a row is worth 1.5 times its points, the third twice, and every one after that 2.5 times.</p>
+        <button class="fh-play" data-act="wm:play">DIG <kbd>ENTER</kbd></button>`;
+    } else {
+      const day = wormDay(pick), e = d.daily[day];
+      const prompts = WM.dailyPrompts(day);
+      const isToday = day === today;
+      const answered = e ? e.picks.filter(Boolean).length : 0; // prompts done, answered or not
+      let body;
+      if (e && e.done) {
+        const rows = prompts.map((pid, k) => {
+          const pk = e.picks[k], q = (WM.promptById(pid) || { q: "" }).q;
+          return `<li><span>${esc(q)}</span>${pk && pk.name ? `<strong class="t${pk.tier}">${esc(pk.name)}</strong>${tierChip(pk.tier)}<em>+${pk.pts}</em>` : `<strong class="none">no answer</strong><em>+0</em>`}</li>`;
+        }).join("");
+        const last = e.rounds && e.rounds[e.rounds.length - 1];
+        body = `
+          <ol class="wm-picks">${rows}</ol>
+          <p class="note">${isToday ? "That's today's dig done. A new one comes at midnight." : "Dug."}</p>
+          ${last ? `<button class="outline-btn" data-act="wm:replay">REPLAY <kbd>R</kbd></button>` : ""}`;
+      } else {
+        const packs = [...new Set(prompts.map((pid) => (WM.promptById(pid) || {}).pack))].map((id) => WM.packName(id));
+        body = `
+          <p class="wm-today">${answered ? `You're ${answered} of ${WM.DAILY_N} prompts in. Pick up where you left off: the next prompt is still a surprise.` : `Seven prompts, from ${esc(packs.join(", ").replace(/, ([^,]*)$/, " and $1"))}. You get 25 seconds for each, and one answer: make it a rare one.`}</p>
+          <button class="fh-play" data-act="wm:play">${answered ? "CARRY ON DIGGING" : "DIG"} <kbd>ENTER</kbd></button>`;
+      }
+      main = `
+        <div class="title-row"><h1>${isToday ? "DAILY DIG" : "PAST DIG"}</h1><span class="title-meta">${esc(WM.dayLabel(day, { weekday: "long", day: "numeric", month: "long" }).toUpperCase())}</span></div>
+        <div class="kind-line">7 PROMPTS · 25 SECONDS EACH · ONE ANSWER EACH${isToday ? "" : " · DOESN'T COUNT FOR YOUR STREAK"}</div>
+        <div class="wm-art">${WM.wormIcon(150)}</div>
+        <dl class="status">${statusRows([
+          ["Points:", e ? e.score : "—"],
+          ["Depth:", e && e.score ? `${WM.fmtDepth(WM.metres(e.score))} · ${WM.placeAt(e.score).toLowerCase().replace(/^./, (c) => c.toUpperCase())}` : "—"],
+          ["Day streak:", WM.streak(d)],
+          ["Best dig:", Object.values(d.daily).reduce((m, x) => Math.max(m, x.done ? x.score : 0), 0) || "—", true],
+        ])}</dl>
+        ${body}`;
+    }
+
+    $("view-worm-select").innerHTML = `
+      <div class="cols">
+        <ul class="list col-list wm-list">${list}</ul>
+        <section class="col-main">${main}</section>
+        <aside class="col-side">
+          <div class="rule-head">HOW IT SCORES</div>
+          <dl class="status wm-legend">${statusRows(WM.TIERS.map((_, t) => [tierChip(t), `${WM.POINTS[t]} points`, t === 3]))}</dl>
+          <p class="note">Any right answer counts, and close spellings do too. The rarer it is, the more it's worth. Every point digs the worm deeper: 700 reaches the centre of the Earth.</p>
+          <div class="rule-head">SOUND</div>
+          <div class="tl-toggles">${toggleBtn("MUSIC", s.wmMusic, "wm:music")}${toggleBtn("EFFECTS", s.wmSfx, "wm:sfx")}</div>
+          <div class="side-label">How rare is rare?</div>
+          <p class="note wm-credit">Each answer's rarity started from a survey of people naming things in categories (Banks &amp; Connell, 2023, CC BY 4.0) and from how often words appear in books (Google Books Ngram, CC BY 3.0), tuned by hand. Then everyone who plays on this computer adds to it: answers people here keep giving become commoner, so even your own favourites score less each time you use them.</p>
+        </aside>
+      </div>`;
+    renderHints();
+  }
+
+  function startWorm() {
+    const s = S(), d = WM.data(), pick = wormPick();
+    let spec;
+    if (pick === "blitz") {
+      // a prompt from the pack, not one of the last few played
+      const pool = WM.PROMPTS.filter((p) => s.wmPack === "mixed" || p.pack === s.wmPack).map((p) => p.id);
+      const recent = d.history.filter((h) => h.mode === "blitz").slice(-Math.min(12, Math.floor(pool.length / 2))).map((h) => h.prompts[0]);
+      const fresh = pool.filter((id) => !recent.includes(id));
+      const from = fresh.length ? fresh : pool;
+      spec = { mode: "blitz", pack: s.wmPack, prompts: [from[Math.floor(Math.random() * from.length)]] };
+    } else {
+      const day = wormDay(pick), e = d.daily[day];
+      if (e && e.done) return;
+      spec = { mode: "daily", date: day, prompts: WM.dailyPrompts(day), resume: e && e.picks.length ? { picks: e.picks.slice() } : null };
+    }
+    engine.stop();
+    runner.stop();
+    forest.stop();
+    tiles.stop();
+    ghostRace.stop();
+    document.body.classList.remove("typing");
+    show("worm");
+    setPlaying(true);
+    renderBar();
+    wormhole.newRound(spec);
+  }
+
+  function wormAct(x, y) {
+    const s = S();
+    if (x === "select") return openWormSelect();
+    if (x === "play") return startWorm();
+    if (x === "next") return wormhole.next();
+    if (x === "replay") {
+      // the chosen day's dig, as last played
+      const e = wormDone(), id = e && e.rounds && e.rounds[e.rounds.length - 1];
+      if (id) act(`replay:${id}`);
+      return;
+    }
+    if (x === "pick") { ui.wmPick = y; renderWormSelect(); return; }
+    if (x === "pack") { s.wmPack = y; ui.wmPick = "blitz"; }
+    else if (x === "music" || x === "sfx") {
+      const key = x === "music" ? "wmMusic" : "wmSfx";
+      s[key] = !s[key];
+      TT.forestSound.setLevels();
+    } else return;
+    TT.save();
+    if (ui.view === "worm-select") renderWormSelect();
   }
 
   // ---------- tiles ----------
@@ -1617,6 +1824,7 @@
     runner.stop();
     tiles.stop();
     ghostRace.stop();
+    wormhole.stop();
     document.body.classList.remove("typing");
     Object.assign(rp, { rec, a: TT.review.analyze(rec), T: 0, playing: false, returnTo });
     show("replay");
@@ -1667,6 +1875,7 @@
             // before games kept wrong letters typed, their Backspaces couldn't fix a typo
             [game && !a.typedErrors ? "Backspaces:" : "Backspaces (fixed typos):", game && !a.typedErrors ? a.backs.length : `${a.backs.length} (${fixed})`],
             ...(rec.game === "tiles" ? [["Timing (average):", a.final.counts.M < a.final.judged ? `${a.final.avg > 0 ? "+" : ""}${Math.round(a.final.avg)} ms` : "—"], ["Missed tiles:", a.final.counts.M]]
+              : rec.game === "worm" ? [["Answers:", a.final.answers], ["Not on the list:", a.final.wrong]]
               : game ? [["Slowest step:", a.steps.length ? fmtSec(Math.max(...a.steps.map((s) => s.ms))) : "—"]] : [["Space errors:", spaceBad]]),
             ["Pauses over 1s:", a.hesitations.length, true],
           ])}</dl>
@@ -1687,6 +1896,9 @@
     } else if (rec.game === "tiles") {
       $("rp-stage").classList.add("rp-tiles");
       rp.player = TT.createTiles({ root: $("rp-stage"), replayOnly: true });
+    } else if (rec.game === "worm") {
+      $("rp-stage").classList.add("rp-worm");
+      rp.player = TT.createWormhole({ root: $("rp-stage"), replayOnly: true });
     } else if (game) {
       rp.player = TT.createPathRunner({ root: $("rp-stage"), replayOnly: true });
     } else {
@@ -1716,6 +1928,11 @@
       const F = TT.forestCore;
       const st = F.gameStats(state, Math.max(rp.T, 1));
       rows = [["Steps:", F.score(state)], ["WPM:", speed(st.wpm)], ["Accuracy:", `${Math.round(st.acc)}%`], ["Mistakes:", state.mistakes, true]];
+    } else if (rec.game === "worm") {
+      const p = WM.ptsAt(state, rp.T);
+      rows = [["Points:", Math.round(p)], ["Depth:", WM.fmtDepth(WM.metres(p)).toLowerCase()],
+        ["Answers:", state.finds.filter((f) => f.d > 0 && f.t <= rp.T).length],
+        [state.mode === "daily" ? "Prompt:" : "Rare run:", state.mode === "daily" ? `${Math.max(1, state.i + 1)} of ${state.prompts.length}` : state.streak, true]];
     } else if (rec.kind === "game" && rec.game !== "ghost") {
       const st = TT.pathCore.gameStats(state, Math.max(rp.T, 1));
       rows = [["Steps:", state.n], ["WPM:", speed(st.wpm)], ["Accuracy:", `${Math.round(st.acc)}%`], ["Mistakes:", state.mistakes, true]];
@@ -1826,7 +2043,7 @@
   // ---------- leaderboard ----------
   // Everyone on this computer, ranked by their best in each game. The game pages and Stats show only
   // the active profile; this compares them all.
-  const LB_GAMES = [["forest", "Forest Hop"], ["tiles", "Tiles"], ["ghost", "Ghost Race"], ["path", "Path Runner"]];
+  const LB_GAMES = [["forest", "Forest Hop"], ["tiles", "Tiles"], ["ghost", "Ghost Race"], ["worm", "Wormhole"], ["path", "Path Runner"]];
 
   function renderLeaderboard() {
     const s = S();
@@ -1869,6 +2086,45 @@
         const races = (d.history || []).filter((h) => h.track === tr.id).length;
         return { p, best: -b.time, cells: [`${G.clock(b.time)}s`, Math.round(b.wpm), `${Math.round(b.acc)}%`, races, date(b.date)] };
       });
+    } else if (tab === "worm") {
+      // today's Daily Dig, everyone's best dig, or the best Blitz from a pack
+      const which = ["today", "best", "blitz"].includes(ui.lbWorm) ? ui.lbWorm : "today";
+      const pack = ui.lbPack || s.wmPack;
+      const btn = (label, on, act) => `<button class="${on ? "on" : ""}" aria-pressed="${on}" data-act="${act}">${esc(label)}</button>`;
+      filters = `<div class="lb-filters">
+          <div class="seg" aria-label="Which">${btn("TODAY'S DIG", which === "today", "lb:worm:today")}${btn("BEST DIG", which === "best", "lb:worm:best")}${btn("BLITZ", which === "blitz", "lb:worm:blitz")}</div>
+          ${which === "blitz" ? `<div class="seg" aria-label="Prompts from">${[{ id: "mixed", name: "Mixed" }, ...WM.PACKS].map((x) => btn(x.name.toUpperCase(), x.id === pack, `lb:pack:${x.id}`)).join("")}</div>` : ""}
+        </div>`;
+      const depth = (pts) => WM.fmtDepth(WM.metres(pts)).toLowerCase();
+      const rarest = (picks) => {
+        const x = (picks || []).filter((k) => k && k.name).sort((a, b) => b.tier - a.tier || b.pts - a.pts)[0];
+        return x ? x.name : "—";
+      };
+      if (which === "blitz") {
+        what = `Wormhole Blitz, ${WM.packName(pack)}`;
+        head = ["POINTS", "ANSWERS", "PROMPT", "DATE"];
+        rows = players.map((p) => {
+          const b = p.games.worm && p.games.worm.blitz && p.games.worm.blitz[pack];
+          const q = b && WM.promptById(b.prompt);
+          return b && { p, best: b.score, cells: [b.score, b.n, q ? q.q.replace(/^Name /, "") : "—", date(b.date)] };
+        });
+      } else if (which === "best") {
+        what = "Wormhole, best Daily Dig";
+        head = ["POINTS", "DEPTH", "RAREST", "DAY"];
+        rows = players.map((p) => {
+          const daily = (p.games.worm && p.games.worm.daily) || {};
+          const [day, e] = Object.entries(daily).filter(([, x]) => x.done).sort((a, b) => b[1].score - a[1].score)[0] || [];
+          return e && { p, best: e.score, cells: [e.score, depth(e.score), rarest(e.picks), WM.dayLabel(day, { day: "numeric", month: "short", year: "numeric" })] };
+        });
+      } else {
+        const today = WM.dayKey();
+        what = `Wormhole, Daily Dig for ${WM.dayLabel(today, { weekday: "long", day: "numeric", month: "long" })}`;
+        head = ["POINTS", "DEPTH", "RAREST", "ANSWERED"];
+        rows = players.map((p) => {
+          const e = p.games.worm && p.games.worm.daily && p.games.worm.daily[today];
+          return e && { p, best: e.score, cells: [e.score, depth(e.score), rarest(e.picks), `${e.picks.filter((k) => k && k.name).length} of ${WM.DAILY_N}`] };
+        });
+      }
     } else {
       what = tab === "forest" ? "Forest Hop, steps in one run" : "Path Runner, steps in one run";
       head = tab === "forest" ? ["BEST STEPS", "ANIMAL", "WPM", "ACCURACY", "PLAYS", "DATE"] : ["BEST STEPS", "WPM", "ACCURACY", "PLAYS", "DATE"];
@@ -2205,7 +2461,7 @@
 
   // After switching profiles: forget anything that pointed at the old profile's rounds.
   function onProfileChanged() {
-    ui.lastRoundId = ui.lastGameId = ui.lastForestId = ui.lastTilesId = ui.lastGhostId = null;
+    ui.lastRoundId = ui.lastGameId = ui.lastForestId = ui.lastTilesId = ui.lastGhostId = ui.lastWormId = null;
     ui.fhPick = null;
     refreshSpeedScale();
     ui.renaming = null;
@@ -2341,6 +2597,7 @@
     if (ui.view === "forest") return { g: forest, quit: "fh:select" };
     if (ui.view === "tiles") return { g: tiles, quit: "tl:select" };
     if (ui.view === "ghost") return { g: ghostRace, quit: "gr:select" };
+    if (ui.view === "worm") return { g: wormhole, quit: "wm:select" };
     if (ui.view === "game") return { g: runner, quit: "menu" };
     return null;
   }
@@ -2389,7 +2646,7 @@
       case "practice": startTyping("practice"); break;
       case "play": startGame(); break;
       case "replay": {
-        const id = x === "last" ? (ui.view === "game" ? ui.lastGameId : ui.view === "forest" ? ui.lastForestId : ui.view === "tiles" ? ui.lastTilesId : ui.view === "ghost" ? ui.lastGhostId : ui.lastRoundId) : x;
+        const id = x === "last" ? (ui.view === "game" ? ui.lastGameId : ui.view === "forest" ? ui.lastForestId : ui.view === "tiles" ? ui.lastTilesId : ui.view === "ghost" ? ui.lastGhostId : ui.view === "worm" ? ui.lastWormId : ui.lastRoundId) : x;
         if (id) openReplay(id, ui.view === "stats" ? "stats" : ui.view);
         break;
       }
@@ -2397,6 +2654,7 @@
       case "fh": forestAct(x, y); break;
       case "tl": tilesAct(x, y); break;
       case "gr": ghostAct(x, y); break;
+      case "wm": wormAct(x, y); break;
       case "stab":
         ui.statsTab = x;
         if (ui.view === "stats") renderStats();
@@ -2408,6 +2666,8 @@
         else if (x === "diff") ui.lbDiff = y;
         else if (x === "mode") ui.lbQueue = y === "queue";
         else if (x === "track") ui.lbTrack = y;
+        else if (x === "worm") ui.lbWorm = y;
+        else if (x === "pack") ui.lbPack = y;
         renderLeaderboard();
         break;
       case "settab": ui.settingsTab = x; renderSettings(); break;
@@ -2462,7 +2722,7 @@
   // direction: across the page's columns, and up into the section's tabs and the main tabs. Enter (or
   // Space) presses it. In a list of choices (games, songs, animals) moving also selects, and Enter keeps
   // doing what it says at the bottom (usually PLAY). The page's own shortcuts all still work.
-  const NAV_VIEWS = ["test", "practice", "results", "games", "forest-select", "forest-guide", "tiles-select", "ghost-select", "replay", "leaderboard", "stats", "settings"];
+  const NAV_VIEWS = ["test", "practice", "results", "games", "forest-select", "forest-guide", "tiles-select", "ghost-select", "worm-select", "replay", "leaderboard", "stats", "settings"];
   const FOCUSABLE = "button:not([disabled]), input:not([type=hidden]):not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href]";
   const PICKS = ".list button[aria-pressed], .fh-animal";
   const NAV_AREAS = ".topline, #tabs, #subtabs, #folder";
@@ -2683,6 +2943,21 @@
       }
       return;
     }
+    if (WORM_VIEWS.includes(v)) {
+      if (v === "worm") {
+        if (e.key === "Tab") { e.preventDefault(); if (wormhole.mode() === "blitz") act("wm:play"); }
+        else if (e.key === "Escape") { e.preventDefault(); act("pause"); }
+        else if (wormhole.isPaused()) { if (plainKey(e, "q")) act("wm:select"); }
+        else if (wormhole.isOver()) { if (plainKey(e, "r")) act("replay:last"); }
+        else wormhole.handleKey(e);
+      } else if (plainKey(e, "r")) {
+        act("wm:replay");
+      } else {
+        const keys = { Enter: "wm:play", m: "wm:music", e: "wm:sfx", Escape: "menu" };
+        if (keys[e.key] && !e.ctrlKey && !e.altKey && !e.metaKey) { e.preventDefault(); act(keys[e.key]); }
+      }
+      return;
+    }
     if (v === "game" && (e.key === "Escape" || (runner.isPaused() && plainKey(e, "q")))) {
       e.preventDefault();
       act(e.key === "Escape" ? "pause" : "menu");
@@ -2733,6 +3008,7 @@
     if (ui.view === "test" || ui.view === "practice") engine.relayout();
     if (ui.view === "replay" && rp.player && rp.player.relayout) rp.player.relayout();
     if (ui.view === "ghost") ghostRace.relayout();
+    if (ui.view === "worm") wormhole.relayout();
   });
 
   // ---------- game speed ----------

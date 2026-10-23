@@ -4,9 +4,10 @@
 // Each tune loops four bars: a pulse-wave lead, a quiet arpeggio, a triangle bass jumping octaves,
 // and a noise kick, snare and hats, scheduled a little ahead on the audio clock: Forest Hop's
 // tune, C, Am, F, G at 132 bpm. Ghost Race has its own: a sports-broadcast march in G at 138, a
-// brassy lead in thirds over an oom-pah bass, with a snare roll into each repeat.
+// brassy lead in thirds over an oom-pah bass, with a snare roll into each repeat. Wormhole's is a
+// plucky underground tune in D minor at 112 (Dm, B♭, F, C), all short notes over a bouncing bass.
 // Each game switches its music and effects on or off on its own screen: the setting named with
-// each call (Forest Hop fhMusic and fhSfx, Ghost Race grMusic and grSfx).
+// each call (Forest Hop fhMusic and fhSfx, Ghost Race grMusic and grSfx, Wormhole wmMusic and wmSfx).
 (() => {
   const TUNES = {
     forest: {
@@ -21,6 +22,13 @@
       chords: [[55, 59, 62], [60, 64, 67], [62, 66, 69], [55, 59, 62]],
       roots: [43, 48, 50, 43],
       mel: [[79, 0, 79, 83, 86, 0, 83, 0], [84, 0, 84, 88, 91, 0, 88, 0], [86, 85, 86, 83, 81, 0, 78, 0], [79, 83, 86, 91, 0, 0, 0, 0]],
+    },
+    burrow: {
+      bpm: 112,
+      pluck: true, // every note short
+      chords: [[62, 65, 69], [58, 62, 65], [60, 65, 69], [60, 64, 67]],
+      roots: [38, 34, 41, 36],
+      mel: [[74, 0, 77, 74, 69, 0, 72, 74], [70, 0, 74, 70, 65, 0, 69, 70], [72, 0, 77, 72, 69, 72, 76, 77], [76, 0, 72, 0, 67, 0, 72, 0]],
     },
   };
   const MUSIC_GAIN = 1.2, SFX_GAIN = 1.9; // these blips are quieter than the other sounds
@@ -152,9 +160,9 @@
     if (T.drive && pos % 2) hat(t, 0.015, to);
     if (pos % 2 === 0) {
       hat(t, pos % 4 ? 0.04 : 0.025, to);
-      tri(T.roots[bar] + (pos % 4 ? 12 : 0), t, SD * 1.6, 0.2, to);
+      tri(T.roots[bar] + (pos % 4 ? 12 : 0), t, SD * (T.pluck ? 0.9 : 1.6), 0.2, to);
       const m = T.mel[bar][pos / 2];
-      if (m) chip(m, t, SD * 1.7, 0.06, to);
+      if (m) chip(m, t, SD * (T.pluck ? 0.8 : 1.7), 0.06, to);
     }
     // the arpeggio joins halfway through the first time round
     if (loop % 2 || bar > 1) chip(T.chords[bar][pos % 3] + 12, t, SD * 0.8, 0.018, to, 0.125);
@@ -262,7 +270,41 @@
       });
     },
     lose: (t, o) => sting(t, o),
+    // Wormhole: the countdown, crunches of earth, and a chime that climbs higher for rarer answers
+    wmCount: (t, o) => chip(69, t, 0.07, 0.06, o, 0.5),
+    wmGo: (t, o) => {
+      [62, 69, 74].forEach((m, i) => chip(m, t + i * 0.05, 0.12, 0.07, o, 0.5));
+      crunch(t + 0.12, o, 3);
+    },
+    wmTier0: (t, o) => {
+      chip(72, t, 0.08, 0.06, o, 0.5);
+      crunch(t, o, 2);
+    },
+    wmTier1: (t, o) => {
+      [72, 79].forEach((m, i) => chip(m, t + i * 0.08, 0.1, 0.07, o, 0.5));
+      crunch(t, o, 3);
+    },
+    wmTier2: (t, o) => {
+      [72, 76, 79, 84].forEach((m, i) => chip(m, t + i * 0.07, 0.1, 0.07, o, 0.5));
+      crunch(t, o, 5);
+    },
+    wmTier3: (t, o) => {
+      [72, 76, 79, 84, 88, 91].forEach((m, i) => chip(m, t + i * 0.06, 0.12, 0.075, o, 0.5));
+      [96, 100, 103].forEach((m, i) => chip(m, t + 0.42 + i * 0.08, 0.22, 0.035, o, 0.125)); // a sparkle
+      crunch(t, o, 8);
+    },
+    wmDup: (t, o) => tone({ type: "triangle", f: 220, f1: 170, t, dur: 0.14, gain: 0.12, to: o }),
+    wmUp: (t, o) => [72, 67, 64, 60].forEach((m, i) => chip(m, t + i * 0.09, 0.09, 0.06, o, 0.5)),
+    wmLayer: (t, o) => {
+      noise({ t, dur: 0.7, gain: 0.2, type: "lowpass", f: 320, f1: 80, a: 0.06, to: o }); // a rumble
+      chip(81, t + 0.18, 0.3, 0.04, o, 0.25);
+      chip(86, t + 0.3, 0.4, 0.035, o, 0.25);
+    },
   };
+  // earth giving way: n soft crunches, a little uneven
+  function crunch(t, o, n) {
+    for (let i = 0; i < n; i++) noise({ t: t + i * 0.07 + Math.random() * 0.02, dur: 0.05, gain: 0.16, type: "lowpass", f: 900 + Math.random() * 700, to: o });
+  }
   // the little "aww" after a death, once its own sound has played
   const DEATHS = new Set(["trampled", "boulder", "creek", "swept", "orca", "swoop", "pounce", "hunter"]);
   const STING_AT = { orca: 1.3, swept: 0.75, swoop: 0.95 };

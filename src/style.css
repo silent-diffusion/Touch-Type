@@ -1410,3 +1410,121 @@ html.ludi-bw #app { filter: grayscale(1) contrast(1.35); }
 .gr-paces { align-self: flex-start; margin-bottom: 0; }
 .gr-paces + .note { margin-top: 6px; }
 @media (prefers-reduced-motion: reduce) { .gr-count.pop { animation: none; } .gr-ghost-mark { transition: none; } }
+
+/* ---------- wormhole ---------- */
+
+#view-worm { padding: 16px 0 0; }
+#view-worm-select { padding: 32px 0 0; }
+/* the tiers: a fill for tags and chips, and a text colour that reads on the page */
+:root, [data-theme="sand"], [data-theme="ash"] { --wm-t0: #6a665a; --wm-t1: #94541f; --wm-t2: #22709a; --wm-t3: #93700c; }
+[data-theme="night"] { --wm-t0: #c9c5b2; --wm-t1: #e2a466; --wm-t2: #84c9e8; --wm-t3: #f4c84e; }
+:root { --wm-f0: #b9b5a2; --wm-f1: #d08f4f; --wm-f2: #68b8dc; --wm-f3: #f4c84e; }
+.wm-tier { display: inline-block; padding: 2px 8px; font-size: 12px; font-weight: 800; letter-spacing: 0.12em; color: #1e1d1a; white-space: nowrap; }
+.wm-tier.t0 { background: var(--wm-f0); }
+.wm-tier.t1 { background: var(--wm-f1); }
+.wm-tier.t2 { background: var(--wm-f2); }
+.wm-tier.t3 { background: var(--wm-f3); box-shadow: 0 0 10px 1px color-mix(in srgb, var(--wm-f3) 60%, transparent); }
+.wm-tier.none { background: var(--ink); color: var(--ground); }
+strong.t0 { color: var(--wm-t0); }
+strong.t1 { color: var(--wm-t1); }
+strong.t2 { color: var(--wm-t2); }
+strong.t3 { color: var(--wm-t3); }
+strong.none { color: var(--muted); font-weight: 600; }
+
+.wm { position: relative; flex: 1; display: flex; flex-direction: column; gap: 12px; min-height: 460px; }
+.folder .wm { min-height: 0; }
+.wm-stage { position: relative; flex: 1; min-height: 220px; border: var(--rule); overflow: hidden; background: #6b4a2f; }
+.wm-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.wm-hud-l .fh-score span:first-child { font-variant-numeric: tabular-nums; }
+.wm-clock { font-variant-numeric: tabular-nums; min-width: 76px; justify-content: center; }
+.wm-clock.low { background: var(--ink); color: var(--ground); border-color: var(--ink); }
+.wm-streak { color: var(--accent); }
+
+/* under the dig: the prompt, what you're typing, and what you've found */
+.wm-panel { flex: 0 0 auto; display: flex; flex-direction: column; gap: 8px; }
+.wm-bar { height: 6px; background: color-mix(in srgb, var(--ink) 14%, transparent); overflow: hidden; }
+.wm-bar i { display: block; height: 100%; background: var(--ink); transform-origin: left; }
+.wm-bar i.low { background: var(--accent); }
+.wm-ask { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; }
+.wm-q h2 { margin: 2px 0 0; font-size: 34px; font-weight: 800; line-height: 1.1; }
+.wm-dots { display: flex; gap: 6px; padding-bottom: 6px; }
+.wm-dots span { width: 16px; height: 16px; border: 2px solid var(--ink); }
+.wm-dots span.now { background: color-mix(in srgb, var(--ink) 30%, transparent); }
+.wm-dots span.none { background: repeating-linear-gradient(45deg, var(--ink) 0 2px, transparent 2px 5px); }
+.wm-dots span.t0 { background: var(--wm-f0); }
+.wm-dots span.t1 { background: var(--wm-f1); }
+.wm-dots span.t2 { background: var(--wm-f2); }
+.wm-dots span.t3 { background: var(--wm-f3); }
+.wm-input {
+  display: flex; align-items: center; gap: 10px; min-height: 58px; padding: 0 16px; border: var(--rule);
+  font-family: var(--type-font); font-size: var(--type-size); background: color-mix(in srgb, var(--ground) 55%, transparent);
+}
+.wm-input.off { opacity: 0.4; }
+.wm-input.shake { animation: shake 0.25s; }
+.wm-chev { color: var(--muted); font-weight: 700; }
+.wm-typed { white-space: pre; overflow: hidden; }
+.wm-caret { flex: 0 0 auto; width: 3px; height: 1.1em; margin-left: -8px; background: var(--accent); animation: wm-blink 1s steps(1) infinite; }
+.wm-input.off .wm-caret { visibility: hidden; }
+@keyframes wm-blink { 50% { opacity: 0; } }
+.wm-note { min-height: 24px; font-size: 16px; color: var(--muted); }
+.wm-note.bad { color: var(--accent); }
+.wm-note strong { color: var(--ink); }
+.wm-note .wm-mult { color: var(--accent); font-weight: 800; }
+.wm-found { display: flex; flex-wrap: wrap; gap: 6px; max-height: 70px; overflow: hidden; }
+.wm-found:empty { display: none; }
+.wm-chip { display: inline-flex; align-items: baseline; gap: 6px; padding: 2px 9px; font-weight: 700; font-size: 15px; color: #1e1d1a; }
+.wm-chip b { font-size: 12px; }
+.wm-chip.t0 { background: var(--wm-f0); }
+.wm-chip.t1 { background: var(--wm-f1); }
+.wm-chip.t2 { background: var(--wm-f2); }
+.wm-chip.t3 { background: var(--wm-f3); }
+/* paused in the Daily Dig: the prompt stays hidden */
+.wm-hide .wm-q h2, .wm-hide .wm-typed { visibility: hidden; }
+
+/* Daily: the reveal after each answer */
+.wm-reveal {
+  position: absolute; right: 18px; top: 50%; transform: translateY(-50%); width: min(340px, 46%); box-sizing: border-box;
+  background: var(--ground); border: var(--rule); padding: 16px 20px 18px; box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.55);
+  animation: wm-in 0.35s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+@keyframes wm-in { from { opacity: 0; transform: translate(14px, -50%) scale(0.96); } }
+.wm-reveal .wm-tier { font-size: 14px; padding: 4px 10px; }
+.wm-gain { font-size: 54px; font-weight: 800; line-height: 1; margin: 10px 0 2px; }
+.wm-ans { font-size: 24px; font-weight: 800; overflow-wrap: anywhere; }
+.wm-reveal p { margin: 8px 0; font-size: 15px; line-height: 1.4; }
+.wm-reveal .side-label { margin-top: 12px; }
+.wm-cuts { font-family: var(--type-font); font-size: 15px; overflow-wrap: anywhere; }
+.wm-reveal .hints { margin-top: 12px; }
+
+/* the end of a round: the results take the whole game */
+.wm-done .wm-panel { display: none; }
+.wm-over { overflow-y: auto; padding: 18px; justify-content: safe center; }
+.wm-over h2 { font-size: 30px; }
+.wm-over .fh-over-score { font-size: 80px; }
+.wm-over p { margin: 10px 0; }
+.wm-picks { list-style: none; margin: 12px 0 2px; padding: 0; width: min(660px, 100%); text-align: left; }
+.wm-picks li {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto auto 46px; gap: 12px; align-items: center;
+  padding: 5px 0; border-bottom: 1px solid color-mix(in srgb, var(--ink) 22%, transparent); font-size: 15px;
+}
+.wm-picks strong { font-size: 17px; }
+.wm-picks em { font-style: normal; font-weight: 800; text-align: right; }
+
+/* the select screen */
+.wm-list .tl-group { padding: 18px 0 6px; border-top: var(--rule); margin-top: 10px; }
+.wm-art {
+  display: flex; flex-shrink: 0; justify-content: center; align-items: flex-end; height: 140px; margin: 6px 0 16px; border: var(--rule); overflow: hidden;
+  background: linear-gradient(#9cc3d5 0 70%, #6f8f4e 70% 76%, #6b4a2f 76%);
+}
+.wm-art img { width: 108px; height: auto; margin-bottom: 30px; }
+.px-art { image-rendering: pixelated; }
+.game-art .wm-icon { width: 200px; height: auto; }
+.wm-packs { flex-wrap: wrap; margin-bottom: 14px; }
+.wm-today { font-size: 17px; line-height: 1.45; max-width: 62ch; margin: 16px 0 0; }
+.wm-legend dt { display: flex; align-items: center; }
+.wm-credit { font-size: 14px; line-height: 1.45; }
+
+.rp-stage.rp-worm { height: 520px; flex-shrink: 0; display: flex; flex-direction: column; padding: 16px 0 8px; }
+.rp-worm .wm { min-height: 0; }
+.rp-worm .wm-q h2 { font-size: 26px; }
+@media (prefers-reduced-motion: reduce) { .wm-reveal { animation: none; } .wm-caret { animation: none; } }

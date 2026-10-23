@@ -300,10 +300,69 @@
     return { scale: Math.round(Math.min(1.1, Math.max(0.5, mid)) * 1000) / 1000, tests: ratios.length };
   }
 
+  // Wormhole: answers are typed freely, so a letter is timed from the key before it in the same
+  // answer (the thinking before an answer's first key isn't), and a close spelling that counted
+  // ("mangostein" for mangosteen) gives its slips as wrong keys.
+  function analyzeWorm(rec) {
+    const K = TT.wormCore;
+    const a = newAnalysis();
+    a.extra = [];
+    const final = { answers: 0, wrong: 0, score: 0 };
+    let typed = "", prevT = null, prevChar = null;
+    for (const [t, type, data] of rec.ev || []) {
+      if (type === "key") {
+        const gap = prevT == null ? null : t - prevT;
+        prevT = t;
+        if (data === "<" || data === "{") {
+          a.backs.push({ t, gap, word: `${typed}…`, deleted: data === "<" ? typed.slice(-1) : typed, fixedError: false, crossed: false, whole: data === "{" });
+          typed = data === "<" ? typed.slice(0, -1) : "";
+          prevChar = null;
+          continue;
+        }
+        if (gap != null && gap >= HESITATION_MS) a.hesitations.push({ t, gap, word: `${typed}…`, pos: typed.length });
+        typed += data;
+        const ch = data.toLowerCase();
+        if (/^[a-z]$/.test(ch)) {
+          time(a.keyTimes, ch, gap);
+          if (prevChar) time(a.bigrams, prevChar + ch, gap);
+          if (gap != null) a.gaps.push(gap);
+          prevChar = ch;
+        } else prevChar = null;
+      } else if (type === "submit") {
+        const r = data.r || {};
+        if (r.name) {
+          final.answers++;
+          final.score += r.pts;
+          if (r.how === "close") {
+            for (const [e, k] of K.slips(K.key(r.form), K.key(data.typed))) {
+              if (!e || !k) continue;
+              a.confusions[`${e}>${k}`] = (a.confusions[`${e}>${k}`] || 0) + 1;
+              a.wrong.push({ t, expected: e, typed: k, word: r.name, pos: 0 });
+            }
+          }
+          if (r.tier === 3) a.extra.push({ t, kind: "find", text: `Deep cut: ${r.name} (+${r.pts})` });
+        } else if (r.bad === "none") {
+          final.wrong++;
+          a.extra.push({ t, kind: "wrong", text: `"${data.typed}" isn't on the list` });
+        }
+        typed = data.r && data.r.bad === "amb" ? typed : "";
+        prevT = null;
+        prevChar = null;
+      } else if (type === "prompt" || type === "timeout") {
+        typed = "";
+        prevT = null;
+        prevChar = null;
+      }
+    }
+    a.duration = rec.duration;
+    a.final = final;
+    return a;
+  }
+
   const cache = new Map();
   function analyze(rec) {
     if (!cache.has(rec.id)) {
-      cache.set(rec.id, rec.game === "forest" ? analyzeForest(rec) : rec.game === "tiles" ? analyzeTiles(rec)
+      cache.set(rec.id, rec.game === "forest" ? analyzeForest(rec) : rec.game === "tiles" ? analyzeTiles(rec) : rec.game === "worm" ? analyzeWorm(rec)
         : rec.kind === "game" && rec.game !== "ghost" ? analyzeGame(rec) : analyzeTyping(rec)); // a Ghost Race run is typing
     }
     return cache.get(rec.id);

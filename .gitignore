@@ -12,3 +12,6 @@ dist-test/
 
 # a local copy of the separation pack, for testing in the browser
 src/_pack/
+
+# Wormhole's answer-bank sources and the scripts that build src/wormhole-data.js from them
+wormhole-src/

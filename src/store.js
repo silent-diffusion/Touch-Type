@@ -39,6 +39,9 @@ window.TT = window.TT || {};
     grPace: 45,
     grMusic: true,
     grSfx: true,
+    wmPack: "mixed", // Wormhole: Blitz's pack of prompts (or mixed), music and sound effects
+    wmMusic: true,
+    wmSfx: true,
     autoUpdate: false, // desktop app only; off means the app never goes online by itself
   };
 

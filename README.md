@@ -20,6 +20,8 @@ A desktop app for improving your touch typing. It has a quick speed test, practi
 - **Replays and keystroke analysis:** every round is recorded and can be replayed. See which wrong key you pressed, how long each key takes, the slowest letter pairs, and every space, backspace and pause in context.
 - **Forest Hop:** a Crossy Road–style game. Pick a pixel-art animal and hop as far into the forest as you can: a word sits beside each tile around your animal, so type one and press Space or Enter to jump that way. Dodge deer herds, ride logs across creeks and wait out rockslides. Every animal has its own treats to collect (spent on unlocking more animals) and its own predator, which turns up if you stop making progress.
 - **Tiles:** a rhythm game. Words fall down four lanes in time with the music; type a word, then press Enter or Space as its tile crosses the line. Comes with seven public-domain classics (Für Elise, Ode to Joy, Turkish March and more), each playable from easy to expert. You can also add your own music (MP3, M4A, WAV, OGG or FLAC): the app finds the beat itself, or you can tap along to set it, and your files stay on your computer. The music keeps its speed on every difficulty; harder levels put words on more of its beats.
+- **Ghost Race:** a sprint down a track of words against a ghost: your own best run played back key for key, your last run, anyone else's best on this computer, or a steady pace. A word only moves you on once it's right.
+- **Wormhole:** a trivia game where you're an earthworm. Name things in a category, like a fruit or a country, by typing them: any right answer counts, close spellings included, and the rarer it is, the deeper you dig, down through the Earth's layers to its centre. Play the Daily Dig (seven prompts a day, one answer each) or Blitz (as many answers as you can in 30 seconds). How rare each answer is starts from a survey of people naming things in categories (Banks & Connell, 2023, CC BY 4.0) and from word frequencies in books (Google Books Ngram, CC BY 3.0), and changes as people on your computer play.
 - **Path Runner:** choose a path by typing its word before the clock runs out.
 - **Profiles:** separate profiles, each with its own results, stats, replays and game progress. Create, rename, switch and delete them in Settings → Profiles.
 - **Settings:** three themes, five accent colors, interface and typing fonts, text size and caret style.
@@ -42,6 +44,7 @@ Your data stays on your computer.
 | H | Open How to Play in Forest Hop |
 | Enter / Space | Hit a tile in Tiles, once its word is typed |
 | [ ] / A / M / T | Change the difficulty, add your own song, and turn music or the metronome on or off, in Tiles |
+| Enter | Dig in an answer in Wormhole, and go on to the next prompt in the Daily Dig |
 | R | Replay the round (on the results and game-over screens) |
 | Space / ← → | Play or pause, and skip, in a replay (↑ ↓ move to its controls) |
 | F11 | Switch full screen on or off (the app opens full screen; move the mouse to the top edge for the close button) |
