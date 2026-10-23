@@ -155,6 +155,39 @@
     return { i, form, how: "close" };
   }
 
+  // For "did you mean": the answer nearest a miss that's too far off to count by itself (up to one
+  // slip in 3 letters, two from 5, three from 8, and never more than 40% of the answer). { i, form },
+  // { amb: [i, ...] } when two are as near, or null. not: names already given, left out.
+  // A word as it sounds, roughly: ph is f, c is k or s, doubled letters are one, and vowels blur.
+  const sound = (k) => k.replace(/ph/g, "f").replace(/ck/g, "k").replace(/c(?=[eiy])/g, "s").replace(/[cq]/g, "k")
+    .replace(/x/g, "ks").replace(/z/g, "s").replace(/(.)\1+/g, "$1").replace(/[aeiouy]+/g, "a");
+  function nearest(b, typed, not = new Set()) {
+    const k = key(typed);
+    if (k.length < 3) return null;
+    const forms = [k, ...singles(k)];
+    const sounds = forms.map(sound);
+    let best = 4, found = new Map();
+    for (const [kk, h] of b.exact) {
+      if (not.has(b.answers[h.i].name)) continue;
+      const allow = Math.min(kk.length >= 8 ? 3 : kk.length >= 5 ? 2 : kk.length >= 3 ? 1 : 0, Math.floor(kk.length * 0.4));
+      if (!allow) continue;
+      // spelt nearly right, or sounds nearly the same (a slip more than the sounds differ by)
+      const sk = sound(kk);
+      const heard = sk.length > 2 ? Math.min(...sounds.map((s) => osa(s, sk, allow))) + 1 : allow + 1;
+      const d = Math.min(...forms.map((f) => osa(f, kk, allow)), heard);
+      if (d > allow || d > best) continue;
+      if (d < best) {
+        best = d;
+        found = new Map();
+      }
+      if (!found.has(h.i)) found.set(h.i, h.form);
+    }
+    if (!found.size) return null;
+    if (found.size > 1) return { amb: [...found.keys()] };
+    const [[i, form]] = found;
+    return { i, form };
+  }
+
   // ---------- rarity ----------
 
   // An answer's share (%) with this computer's players counted in. The bank counts as PRIOR people
@@ -967,7 +1000,7 @@
       st.note = { t, r, typed };
       if (!r.name) {
         if (r.bad === "none") st.wrong++;
-        if (r.bad !== "amb") st.typed = "";
+        if (r.bad !== "amb" && r.bad !== "near") st.typed = ""; // a suggestion keeps what you typed
         return;
       }
       st.typed = "";
@@ -1020,7 +1053,7 @@
 
   TT.wormCore = {
     POINTS, TIERS, CUTS, PRIOR, MULTS, DAILY_N, DAILY_MS, BLITZ_MS, CORE, LAYERS, PACKS, PROMPTS, TIER_COL,
-    key, singles, osa, slips, bank, match, crowdShare, tierOf, household, deepCuts, commonest,
+    key, singles, osa, slips, bank, match, nearest, crowdShare, tierOf, household, deepCuts, commonest,
     dayKey, dayIndex, addDays, dayLabel, dailyPrompts, streak, metres, ptsOf, fmtDepth, layerAt, placeAt,
     promptById, packName, data, newState, step, ptsAt, wormIcon,
   };
@@ -1138,7 +1171,7 @@
       const left = leftAt(st, T);
       el.bar.style.transform = `scaleX(${st.phase === "ask" ? left / limitOf(st) : st.phase === "count" ? 1 : 0})`;
       el.bar.classList.toggle("low", st.phase === "ask" && left <= 5000);
-      const note = st.note && T - st.note.t < 2600 ? st.note : null;
+      const note = st.note && (T - st.note.t < 2600 || st.note.r.bad === "near" || st.note.r.bad === "amb") ? st.note : null; // a suggestion stays until you type
       const sig = [st.phase, st.i, st.typed, st.finds.length, note && note.t, live && live.state].join("|");
       if (sig === panelSig) return;
       panelSig = sig;
@@ -1163,6 +1196,7 @@
           html = `${tierTag(r.tier)} <strong>+${r.pts}</strong>${r.mult > 1 ? ` <span class="wm-mult">×${r.mult}</span>` : ""} ${esc(r.name)}${as}`;
         } else if (r.bad === "dup") html = `You've already dug up <strong>${esc(r.what)}</strong>.`;
         else if (r.bad === "amb") html = `So close to two answers: did you mean ${r.opts.map((o) => `<strong>${esc(o)}</strong>`).join(" or ")}?`;
+        else if (r.bad === "near") html = `Did you mean <strong>${esc(r.opts[0])}</strong>? Press <strong>Enter</strong> to dig it in, or keep typing.`;
         else html = `<strong>${esc(note.typed)}</strong> isn't in this ground. Try another.`;
       } else if (st.phase === "ask" && !st.typed) html = st.mode === "daily" ? "Type an answer and press Enter. Rarer answers dig deeper." : "Answer after answer: press Enter after each one.";
       el.note.innerHTML = html;
@@ -1351,9 +1385,19 @@
       const typed = st.typed.trim();
       if (!typed) return;
       const b = bank(st.prompts[st.i]), crowd = live.crowds[st.i];
-      const m = match(b, typed);
+      let m = match(b, typed);
       let r;
-      if (!m) r = { bad: "none" };
+      // too far off to count by itself: suggest the nearest answer, and a second Enter digs it in
+      const near = m ? null : nearest(b, typed, st.given);
+      if (near && near.i != null && live.near && live.near.typed === typed && live.near.i === near.i && live.near.p === st.i) {
+        m = { i: near.i, form: near.form, how: "close" };
+      }
+      live.near = null;
+      if (!m && near && near.amb) r = { bad: "amb", opts: near.amb.slice(0, 3).map((i) => b.answers[i].name) };
+      else if (!m && near) {
+        r = { bad: "near", opts: [b.answers[near.i].name] };
+        live.near = { typed, i: near.i, p: st.i };
+      } else if (!m) r = { bad: "none" };
       else if (m.amb) r = { bad: "amb", opts: m.amb.slice(0, 3).map((i) => b.answers[i].name) };
       else if (st.given.has(b.answers[m.i].name)) r = { bad: "dup", what: b.answers[m.i].name };
       else {
@@ -1370,7 +1414,8 @@
       emit([T, "submit", { typed, r }]);
       if (st.mode === "blitz") {
         el.sr.textContent = r.name ? `${TIERS[r.tier].toLowerCase()}, ${r.pts} points: ${r.name}`
-          : r.bad === "dup" ? `Already dug up ${r.what}` : r.bad === "amb" ? `Did you mean ${r.opts.join(" or ")}?` : `${typed} isn't in the bank`;
+          : r.bad === "dup" ? `Already dug up ${r.what}` : r.bad === "amb" ? `Did you mean ${r.opts.join(" or ")}?`
+          : r.bad === "near" ? `Did you mean ${r.opts[0]}? Press Enter to dig it in.` : `${typed} isn't in the bank`;
       }
       if (r.name) {
         W.done(live.g, typed);
@@ -1380,8 +1425,8 @@
       } else {
         W.drop(live.g);
         live.removed = [];
-        snd.play(r.bad === "dup" ? "wmDup" : "wrong");
-        if (r.bad !== "amb") shake();
+        snd.play(r.bad === "dup" ? "wmDup" : r.bad === "near" ? "wmCount" : "wrong");
+        if (r.bad !== "amb" && r.bad !== "near") shake();
       }
       render(T);
     }

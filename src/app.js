@@ -1200,7 +1200,7 @@
         <aside class="col-side">
           <div class="rule-head">HOW IT SCORES</div>
           <dl class="status wm-legend">${statusRows(WM.TIERS.map((_, t) => [tierChip(t), `${WM.POINTS[t]} points`, t === 3]))}</dl>
-          <p class="note">Any right answer counts, and close spellings do too. The rarer it is, the more it's worth. Every point digs the worm deeper: 700 reaches the centre of the Earth.</p>
+          <p class="note">Any right answer counts, and close spellings do too; further off, it asks if you meant the nearest answer, and Enter again digs it in. The rarer it is, the more it's worth. Every point digs the worm deeper: 700 reaches the centre of the Earth.</p>
           <div class="rule-head">SOUND</div>
           <div class="tl-toggles">${toggleBtn("MUSIC", s.wmMusic, "wm:music")}${toggleBtn("EFFECTS", s.wmSfx, "wm:sfx")}</div>
           <div class="side-label">How rare is rare?</div>
