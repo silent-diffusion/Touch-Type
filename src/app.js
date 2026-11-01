@@ -388,10 +388,13 @@
     renderHints();
   }
 
+  // The Mac app: shortcuts use Cmd instead of Ctrl, and macOS shows its own close button in full screen.
+  const MAC = !!window.touchType && window.touchType.platform === "darwin";
+
   // Full screen has no title bar, so moving the mouse to the very top shows a close button,
-  // which hides again once the mouse moves away.
+  // which hides again once the mouse moves away. (Not on the Mac, which shows its menu bar there.)
   document.addEventListener("mousemove", (e) => {
-    if (!ui.fullscreen) return;
+    if (!ui.fullscreen || MAC) return;
     const bar = $("fs-bar");
     if (e.clientY <= 4) bar.hidden = false;
     else if (!bar.hidden && e.clientY > 56) bar.hidden = true;
@@ -433,9 +436,9 @@
 
   // The open tab is drawn as one shape whose outline runs on, unbroken, into its folder's outline:
   // a curve out of the folder's edge, a slanted side, rounded top corners, the other side, a curve back.
-  // num is the tab's number as shown ("03.1"); Ctrl + that number jumps to it (see "jump" below).
+  // num is the tab's number as shown ("03.1"); Ctrl (Cmd on the Mac) + that number jumps to it (see "jump" below).
   const tabButton = (on, act, num, label) =>
-    `<button class="ftab ${on ? "on" : ""}" data-act="${act}" data-num="${num.replace(/^0/, "")}" title="Ctrl+${num.replace(/^0/, "")}"${on ? ' aria-current="page"' : ""}><span class="n">${num}</span>${label}${on
+    `<button class="ftab ${on ? "on" : ""}" data-act="${act}" data-num="${num.replace(/^0/, "")}" title="${MAC ? "⌘" : "Ctrl+"}${num.replace(/^0/, "")}"${on ? ' aria-current="page"' : ""}><span class="n">${num}</span>${label}${on
       ? '<svg class="tabshape" aria-hidden="true"><path class="ff"/><path class="fl"/></svg>' : ""}</button>`;
 
   const FLARE = 12, CORNER = 12, SLANT = 8; // px: the curve into the folder, top corners, how far the sides lean in
@@ -597,6 +600,9 @@
   // ---------- jump to a tab by its number ----------
   // Hold Ctrl and press a tab's number: the first number opens that main tab right away, and each
   // number after it (Ctrl still held) opens that tab in its second row. Letting go of Ctrl starts over.
+  // On the Mac it's Cmd instead of Ctrl.
+  const JUMP_KEY = MAC ? "Meta" : "Control";
+  const jumpHeld = (e) => (MAC ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey) && !e.altKey;
   let jumpMain = false; // a main tab has been chosen while Ctrl is held
 
   function jumpKey(n) {
@@ -613,7 +619,7 @@
   }
 
   document.addEventListener("keyup", (e) => {
-    if (e.key === "Control") jumpMain = false;
+    if (e.key === JUMP_KEY) jumpMain = false;
   });
   window.addEventListener("blur", () => {
     jumpMain = false;
@@ -2513,13 +2519,13 @@
     else if (u.status === "available") action = `<button class="opt on" data-act="update:download">DOWNLOAD ${esc(u.version)}</button>`;
     else if (u.status === "downloaded") action = `<button class="opt on" data-act="update:install">RESTART AND INSTALL</button>`;
     else if (u.status !== "checking" && u.status !== "downloading") action = `<button class="opt outline" data-act="update:check">CHECK FOR UPDATES</button>`;
-    const status = u.supported ? UPDATE_TEXT[u.status](u) : "Updates only work in the installed app.";
+    const status = u.supported ? UPDATE_TEXT[u.status](u) : u.note || "Updates only work in the installed app.";
 
     return `<div class="cols">
       <section class="col-main">
         <div class="settings-rows">
           ${srow("Version", version(ui.version ? `v${esc(ui.version)}` : "…"))}
-          ${srow("Automatic updates", optButtons("autoUpdate", { false: "Off", true: "On" }) +
+          ${MAC ? "" : srow("Automatic updates", optButtons("autoUpdate", { false: "Off", true: "On" }) +
             `<span class="hint-text">Checks when the app starts and downloads updates in the background.</span>`)}
           ${srow("Updates", `${action}<span class="hint-text" aria-live="polite">${status}</span>`)}
         </div>
@@ -2875,8 +2881,8 @@
     }
     const v = ui.view;
 
-    // Ctrl + a number jumps to a tab (see jumpKey).
-    if (e.ctrlKey && !e.altKey && !e.metaKey && /^[1-9]$/.test(e.key)) {
+    // Ctrl (Cmd on the Mac) + a number jumps to a tab (see jumpKey).
+    if (jumpHeld(e) && /^[1-9]$/.test(e.key)) {
       e.preventDefault();
       if (!e.repeat) jumpKey(Number(e.key));
       return;
