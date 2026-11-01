@@ -12,6 +12,13 @@ A desktop app for improving your touch typing. It has a quick speed test, practi
 - The installer isn't code-signed yet, so Windows SmartScreen may say "Windows protected your PC". Click **More info → Run anyway**.
 - To uninstall, use Windows **Settings → Apps → Installed apps → Touch Type**.
 
+**[Download the latest version for Mac](https://github.com/silent-diffusion/Touch-Type/releases/latest)**: open the release and download `Touch-Type-<version>-mac.dmg`. It runs on Apple silicon and Intel Macs.
+
+- Open the `.dmg` and drag **Touch Type** into **Applications**.
+- The app isn't signed with an Apple Developer ID yet, so the first time you open it macOS says it can't verify it. Click **Done**, then go to **System Settings → Privacy & Security**, scroll down and click **Open Anyway** next to Touch Type. You only need to do this once.
+- The Mac app doesn't update itself: to update, download the new `.dmg` and drag it into Applications again. Your data is kept.
+- To uninstall, drag **Touch Type** from Applications to the Bin.
+
 ## Features
 
 - **Speed test:** time (15/30/60 s) or word count (10/25/50), lowercase words only. It reports WPM, raw WPM, accuracy and personal bests.
@@ -32,7 +39,7 @@ Your data stays on your computer.
 
 | Key | Action |
 |---|---|
-| Ctrl + a tab's number | Jump to that tab: hold Ctrl and press a main tab's number (6 opens Settings), then, still holding Ctrl, the number of a tab under it (4 opens Updates) |
+| Ctrl + a tab's number (⌘ on Mac) | Jump to that tab: hold Ctrl and press a main tab's number (6 opens Settings), then, still holding Ctrl, the number of a tab under it (5 opens Updates) |
 | ← ↑ → ↓ | Move around a page: across its columns, and up into its tabs. Moving through a list of games, songs or animals selects as you go |
 | Enter / Space | Press the highlighted button or tab |
 | Tab | Restart the test or game |
@@ -47,7 +54,7 @@ Your data stays on your computer.
 | Enter | Dig in an answer in Wormhole, and go on to the next prompt in the Daily Dig |
 | R | Replay the round (on the results and game-over screens) |
 | Space / ← → | Play or pause, and skip, in a replay (↑ ↓ move to its controls) |
-| F11 | Switch full screen on or off (the app opens full screen; move the mouse to the top edge for the close button) |
+| F11 (Ctrl + ⌘ + F on Mac) | Switch full screen on or off (the app opens full screen; move the mouse to the top edge for the close button) |
 
 ## Development
 
@@ -56,7 +63,8 @@ Requires [Node.js](https://nodejs.org) 22 or newer.
 ```bash
 npm install
 npm start          # run the app
-npm run dist       # build the installer into dist/
+npm run dist       # build the Windows installer into dist/
+npm run dist:mac   # build the Mac .dmg into dist/ (on a Mac)
 ```
 
 The app itself is plain HTML, CSS and JavaScript in `src/`. You can also open `src/index.html` directly in a browser. `electron/main.js` is the desktop shell.

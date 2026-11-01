@@ -1,4 +1,5 @@
-# Builds the Windows installer and publishes it as a GitHub Release when a version tag (v1.2.3) is pushed.
+# Builds the Windows installer and the Mac .dmg and publishes them as a GitHub Release when a version
+# tag (v1.2.3) is pushed.
 name: Release
 
 on:
@@ -9,8 +10,35 @@ on:
 permissions:
   contents: write
 
+env:
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  GH_REPO: ${{ github.repository }}
+
 jobs:
+  # Create the release up front as a draft. electron-builder uploads files in parallel, and if
+  # the release doesn't exist yet each upload races to create it and only one file lands.
+  draft:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Check tag matches package.json version
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match package.json version $version"
+            exit 1
+          fi
+
+      - name: Create draft release
+        run: |
+          v=${GITHUB_REF_NAME#v}
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 ||
+            gh release create "$GITHUB_REF_NAME" --draft --title "Touch Type $v" \
+              --notes "Windows: download **Touch-Type-Setup-$v.exe** below and run it. Mac: download **Touch-Type-$v-mac.dmg**, open it and drag Touch Type into Applications."
+
   windows:
+    needs: draft
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
@@ -20,41 +48,40 @@ jobs:
           node-version: 24
           cache: npm
 
-      - name: Check tag matches package.json version
-        shell: bash
-        run: |
-          version=$(node -p "require('./package.json').version")
-          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
-            echo "Tag $GITHUB_REF_NAME does not match package.json version $version"
-            exit 1
-          fi
-
       - run: npm ci
-
-      # Create the release up front as a draft. electron-builder uploads files in parallel, and if
-      # the release doesn't exist yet each upload races to create it and only one file lands.
-      - name: Create draft release
-        shell: bash
-        run: |
-          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 ||
-            gh release create "$GITHUB_REF_NAME" --draft --title "Touch Type ${GITHUB_REF_NAME#v}" \
-              --notes "Download **Touch-Type-Setup-${GITHUB_REF_NAME#v}.exe** below and run it."
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and upload installer
         run: npx electron-builder --win --publish always
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  mac:
+    needs: draft
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      # Ad-hoc signed (no Apple Developer ID), so the build doesn't look for a certificate.
+      - name: Build and upload .dmg
+        run: npx electron-builder --mac --publish always
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+
+  publish:
+    needs: [windows, mac]
+    runs-on: ubuntu-latest
+    steps:
       - name: Check uploads and publish release
-        shell: bash
         run: |
+          v=${GITHUB_REF_NAME#v}
           assets=$(gh release view "$GITHUB_REF_NAME" --json assets --jq '.assets[].name')
           echo "$assets"
-          for f in latest.yml "Touch-Type-Setup-${GITHUB_REF_NAME#v}.exe"; do
+          for f in latest.yml "Touch-Type-Setup-$v.exe" "Touch-Type-$v-mac.dmg"; do
             echo "$assets" | grep -qx "$f" || { echo "Missing $f"; exit 1; }
           done
           gh release edit "$GITHUB_REF_NAME" --draft=false --latest
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

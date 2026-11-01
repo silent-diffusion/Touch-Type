@@ -14,6 +14,7 @@
   "scripts": {
     "start": "electron .",
     "dist": "electron-builder --win --publish never",
+    "dist:mac": "electron-builder --mac --publish never",
     "release": "electron-builder --win --publish always"
   },
   "build": {
@@ -39,6 +40,21 @@
       "createStartMenuShortcut": true,
       "runAfterFinish": true,
       "artifactName": "Touch-Type-Setup-${version}.${ext}"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": "universal"
+        }
+      ],
+      "icon": "build/icon.png",
+      "category": "public.app-category.education",
+      "identity": "-",
+      "hardenedRuntime": false
+    },
+    "dmg": {
+      "artifactName": "Touch-Type-${version}-mac.${ext}"
     },
     "publish": {
       "provider": "github",

@@ -3,6 +3,7 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("touchType", {
   getVersion: () => ipcRenderer.invoke("app-version"),
+  platform: process.platform, // "darwin" on the Mac: Cmd for shortcuts, and macOS draws the full screen controls
   window: {
     isFullScreen: () => ipcRenderer.invoke("window-is-fullscreen"),
     setFullScreen: (on) => ipcRenderer.invoke("window-set-fullscreen", !!on),

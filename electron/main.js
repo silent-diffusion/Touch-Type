@@ -7,6 +7,8 @@ const { autoUpdater } = require("electron-updater");
 const path = require("path");
 const pack = require("./pack");
 
+const isMac = process.platform === "darwin";
+
 // For testing a development copy without touching the installed app's data: run with
 // TT_USER_DATA set to a scratch folder.
 if (process.env.TT_USER_DATA) app.setPath("userData", process.env.TT_USER_DATA);
@@ -62,7 +64,8 @@ function createWindow() {
   });
   win.webContents.on("will-navigate", (e) => e.preventDefault());
 
-  // F11 toggles full screen; there is no menu bar.
+  // F11 toggles full screen. Windows has no menu bar; on the Mac, View > Enter Full Screen
+  // (Ctrl+Cmd+F) does it too.
   win.webContents.on("before-input-event", (e, input) => {
     if (input.type === "keyDown" && input.key === "F11") {
       win.setFullScreen(!win.isFullScreen());
@@ -74,7 +77,13 @@ function createWindow() {
 // ---------- updates ----------
 
 // status: idle | checking | none | available | downloading | downloaded | error
-const update = { status: "idle", version: null, percent: 0, error: null, supported: app.isPackaged };
+// The Mac app isn't signed with an Apple Developer ID, and macOS only lets signed apps update
+// themselves, so on the Mac new versions are downloaded from the releases page instead.
+const update = {
+  status: "idle", version: null, percent: 0, error: null,
+  supported: app.isPackaged && !isMac,
+  note: isMac && app.isPackaged ? "To update, download the latest version from GitHub." : null,
+};
 let auto = false;
 let autoChecked = false;
 
@@ -155,7 +164,14 @@ if (!app.requestSingleInstanceLock()) {
     win.focus();
   });
 
-  Menu.setApplicationMenu(null);
+  // No menu bar on Windows. The Mac always shows one, and without it Cmd+Q, Cmd+H and copy and
+  // paste (Cmd+C, Cmd+V) don't work, so it gets the standard menus.
+  Menu.setApplicationMenu(isMac ? Menu.buildFromTemplate([
+    { role: "appMenu" },
+    { role: "editMenu" },
+    { label: "View", submenu: [{ role: "togglefullscreen" }] },
+    { role: "windowMenu" },
+  ]) : null);
   ipcMain.handle("app-version", () => app.getVersion());
   // Window controls for the page: full screen hides the title bar, so the page offers its own close button.
   ipcMain.handle("window-is-fullscreen", () => !!win && win.isFullScreen());
@@ -169,5 +185,6 @@ if (!app.requestSingleInstanceLock()) {
     protocol.handle(pack.SCHEME, pack.serve);
     createWindow();
   });
+  // Closing the window quits, on the Mac too: the app is its one window.
   app.on("window-all-closed", () => app.quit());
 }
