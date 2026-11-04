@@ -212,8 +212,9 @@
     // The test settings show in the folder on the test, practice and results screens only.
     const special = !["test", "practice", "results"].includes(ui.view);
     els.config.hidden = special;
-    $("profile-chip").textContent = TT.profiles.active().name;
-    $("profile-chip").setAttribute("aria-label", `Profile: ${TT.profiles.active().name}. Manage profiles`);
+    const isMain = TT.profiles.activeId() === TT.profiles.mainId();
+    $("profile-chip").textContent = TT.profiles.active().name + (isMain ? " ★" : "");
+    $("profile-chip").setAttribute("aria-label", `Profile: ${TT.profiles.active().name}${isMain ? " (main profile)" : ""}. Manage profiles`);
     if (special) return;
 
     if (ui.lastTyping === "practice") {
@@ -2408,6 +2409,7 @@
     profiles() {
       const P = TT.profiles;
       const active = P.activeId();
+      const main = P.mainId();
       const list = P.list();
       const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
       const rows = list.map((p) => {
@@ -2420,10 +2422,13 @@
                <button class="opt on" type="submit">SAVE</button>
                <button class="opt" type="button" data-act="profile:cancel">CANCEL</button>
              </form>`
-          : `<span class="profile-name">${esc(p.name)}</span>${isActive ? `<span class="tag">ACTIVE</span>` : ""}`;
+          : `<span class="profile-name">${esc(p.name)}</span>${isActive ? `<span class="tag">ACTIVE</span>` : ""}${p.id === main ? `<span class="tag">MAIN ★</span>` : ""}`;
         const actions = renaming ? "" :
           (isActive ? "" : `<button class="opt outline" data-act="profile:switch:${p.id}">SWITCH</button>`) +
           `<button class="opt" data-act="profile:rename:${p.id}" aria-label="Rename ${esc(p.name)}">RENAME</button>` +
+          (p.id === main
+            ? `<button class="opt" data-act="profile:unmain:${p.id}" aria-label="${esc(p.name)} is not the main profile">NOT MAIN</button>`
+            : `<button class="opt" data-act="profile:main:${p.id}" aria-label="Make ${esc(p.name)} the main profile">MAKE MAIN</button>`) +
           (isActive || list.length < 2 ? "" : `<button class="opt danger" data-act="profile:delete:${p.id}" aria-label="Delete ${esc(p.name)}">DELETE</button>`);
         return `<div class="profile-row ${isActive ? "active" : ""}">
           <div class="profile-main">${name}<span class="hint-text">${plural(s.tests, "test")} · ${plural(s.games, "game")} · best ${Math.round(s.best)} wpm</span></div>
@@ -2438,7 +2443,7 @@
             <input id="new-profile-name" class="text-input" name="name" maxlength="${P.MAX_NAME}" placeholder="Name" required>
             <button class="opt outline" type="submit">CREATE</button>
           </form>
-          <p class="note">Each profile keeps its own results, stats, replays and Forest Hop progress. Appearance and the other settings are shared.</p>
+          <p class="note">Each profile keeps its own results, stats, replays and Forest Hop progress. Appearance and the other settings are shared. One profile can be your main profile (★): the one that's yours, for when your profiles sync between devices.</p>
         </section>
       </div>`;
     },
@@ -2456,10 +2461,26 @@
     } else if (x === "cancel") {
       ui.renaming = null;
       renderSettings();
+    } else if (x === "main") {
+      const p = P.list().find((z) => z.id === id);
+      const was = P.list().find((z) => z.id === P.mainId());
+      if (p && confirm(`Make "${p.name}" your main profile?${was ? ` "${was.name}" will no longer be the main one.` : ""}\n\nOnly one profile can be the main one. It's marked with a ★.`)) {
+        P.setMain(id);
+        renderBar();
+        renderSettings();
+      }
+    } else if (x === "unmain") {
+      const p = P.list().find((z) => z.id === id);
+      if (p && confirm(`Stop using "${p.name}" as your main profile? No profile will be the main one until you choose one again.`)) {
+        P.setMain(null);
+        renderBar();
+        renderSettings();
+      }
     } else if (x === "delete") {
       const p = P.list().find((z) => z.id === id);
-      if (p && confirm(`Delete the profile "${p.name}" and all of its results, replays and game progress? This can't be undone.`)) {
+      if (p && confirm(`Delete the profile "${p.name}" and all of its results, replays and game progress?${id === P.mainId() ? " It's your main profile, so no profile will be the main one afterwards." : ""} This can't be undone.`)) {
         P.remove(id);
+        renderBar();
         renderSettings();
       }
     }

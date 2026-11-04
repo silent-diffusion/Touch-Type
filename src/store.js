@@ -3,8 +3,13 @@
 //
 // localStorage keys:
 //   touchtype.v1        { version, settings }            shared settings
-//   touchtype.profiles  { active, list: [{ id, name }] }  the profiles
+//   touchtype.profiles  { active, list: [{ id, name }], main: { id, t } }  the profiles
 //   touchtype.p.<id>    { history, keyStats, weakWords, games }  one profile's data
+//
+// The main profile: profiles.main = { id, t }, id the main profile's id or null for none, t when it
+// was last chosen or cleared (ms since 1970). At most one profile is main. It's the same pair the
+// Apple app's iCloud sync keeps, so a future sync can take the latest choice by t. Older data
+// without it simply has no main profile.
 window.TT = window.TT || {};
 
 (() => {
@@ -81,6 +86,10 @@ window.TT = window.TT || {};
     }
   }
   if (!profiles.list.some((p) => p.id === profiles.active)) profiles.active = profiles.list[0].id;
+  const m = profiles.main;
+  profiles.main = m && typeof m === "object" && profiles.list.some((p) => p.id === m.id)
+    ? { id: m.id, t: Number(m.t) || 0 }
+    : { id: null, t: (m && Number(m.t)) || 0 };
 
   TT.store = {
     version: 3,
@@ -109,6 +118,15 @@ window.TT = window.TT || {};
     list: () => profiles.list.map((p) => ({ ...p })),
     activeId: () => profiles.active,
     active: () => ({ ...profiles.list.find((p) => p.id === profiles.active) }),
+    mainId: () => profiles.main.id,
+
+    // Makes a profile the main one (only one can be), or none with null.
+    setMain(id) {
+      if (id !== null && !profiles.list.some((p) => p.id === id)) return false;
+      profiles.main = { id, t: Date.now() };
+      saveProfiles();
+      return true;
+    },
 
     summary(id) {
       const d = id === profiles.active ? TT.store : cleanData(read(dataKey(id)));
@@ -148,6 +166,7 @@ window.TT = window.TT || {};
     remove(id) {
       if (id === profiles.active || profiles.list.length < 2) return false;
       profiles.list = profiles.list.filter((p) => p.id !== id);
+      if (profiles.main.id === id) profiles.main = { id: null, t: Date.now() };
       saveProfiles();
       try {
         localStorage.removeItem(dataKey(id));
