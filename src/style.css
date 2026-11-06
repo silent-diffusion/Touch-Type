@@ -1209,8 +1209,10 @@ html.scope .folder { background: color-mix(in srgb, var(--ground) 30%, transpare
 html.scope .ftab::before { background: color-mix(in srgb, var(--tab-back) 50%, transparent); }
 html.scope #app.has-sub .folder-stack { background: color-mix(in srgb, var(--ground) 20%, transparent); }
 /* at ×4 the storm takes the whole window: the folders all but vanish, and the play area and the
-   boxes beside it turn opaque, so the vocal line across the middle passes behind them */
-html.scope-storm .tl-hw, html.scope-storm .tl-box { background: var(--ground); transition: background 0.8s; }
+   boxes beside it turn opaque, so the vocal line across the middle passes behind them. The field
+   lets a little through: the vocal line rises faintly behind the falling words (tiles.js, VOCAL_THROUGH) */
+html.scope-storm .tl-box { background: var(--ground); transition: background 0.8s; }
+html.scope-storm .tl-hw { background: color-mix(in srgb, var(--ground) 72%, transparent); transition: background 0.8s; }
 html.scope-storm .folder { background: color-mix(in srgb, var(--ground) 8%, transparent); transition: background 0.8s; }
 html.scope-storm #app.has-sub .folder-stack, html.scope-storm .ftab::before { background: color-mix(in srgb, var(--tab-back) 20%, transparent); }
 html.scope-storm .ftab.on::before { background: color-mix(in srgb, var(--fill, var(--ground)) 10%, transparent); }
@@ -1528,3 +1530,21 @@ strong.none { color: var(--muted); font-weight: 600; }
 .rp-worm .wm { min-height: 0; }
 .rp-worm .wm-q h2 { font-size: 26px; }
 @media (prefers-reduced-motion: reduce) { .wm-reveal { animation: none; } .wm-caret { animation: none; } }
+
+/* ---------- Settings → Models ---------- */
+
+.mm-total { font-size: 18px; font-weight: 700; padding: 0 4px; }
+.mm-list { display: flex; flex-direction: column; }
+.mm-card { padding: 16px 0 18px; border-bottom: var(--rule); }
+.mm-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.mm-head h3 { margin: 0; font-size: 20px; }
+.mm-use { margin: 6px 0 10px; max-width: 760px; }
+.mm-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.mm-songs { margin: 8px 0 0; }
+.mm-bar { height: 12px; max-width: 520px; margin: 0 0 10px; border: var(--rule); }
+.mm-bar i { display: block; height: 100%; background: var(--accent); transition: width 0.3s; }
+.mm-licence { position: fixed; inset: 40px; z-index: 300; display: flex; flex-direction: column; gap: 12px; padding: 20px 24px;
+  background: var(--ground); color: var(--ink); border: var(--rule); box-shadow: 0 10px 40px var(--shade, rgba(0, 0, 0, 0.4)); }
+.mm-licence-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; letter-spacing: 0.06em; }
+.mm-licence pre { flex: 1; margin: 0; overflow: auto; white-space: pre-wrap; font: 13px/1.5 var(--typing-font, monospace); user-select: text; }
+.mm-head .tag { font-size: 12px; font-weight: 800; letter-spacing: 0.14em; background: var(--ink); color: var(--ground); padding: 3px 8px; }

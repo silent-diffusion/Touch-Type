@@ -124,7 +124,9 @@
     s.tilesMusic = s.tilesMusic !== false;
     s.tilesMetronome = !!s.tilesMetronome;
     s.tilesScope = s.tilesScope !== false;
-    s.tilesLyrics = s.tilesLyrics !== false;
+    // Tiles' words: mix, lyrics or practice (practice was "lyrics off"); tilesLyrics follows it
+    if (!["mix", "lyrics", "practice"].includes(s.tilesWords)) s.tilesWords = s.tilesLyrics === false ? "practice" : "mix";
+    s.tilesLyrics = s.tilesWords !== "practice";
     s.tilesQueue = !!s.tilesQueue;
     s.fhMusic = s.fhMusic !== false;
     s.fhSfx = s.fhSfx !== false;
@@ -212,8 +214,9 @@
     // The test settings show in the folder on the test, practice and results screens only.
     const special = !["test", "practice", "results"].includes(ui.view);
     els.config.hidden = special;
-    $("profile-chip").textContent = TT.profiles.active().name;
-    $("profile-chip").setAttribute("aria-label", `Profile: ${TT.profiles.active().name}. Manage profiles`);
+    const isMain = TT.profiles.activeId() === TT.profiles.mainId();
+    $("profile-chip").textContent = TT.profiles.active().name + (isMain ? " ★" : "");
+    $("profile-chip").setAttribute("aria-label", `Profile: ${TT.profiles.active().name}${isMain ? " (main profile)" : ""}. Manage profiles`);
     if (special) return;
 
     if (ui.lastTyping === "practice") {
@@ -1286,6 +1289,11 @@
     expert: "Five columns and no longest word: a word can be as long as the time before its tile allows. A tile about every second, falling fast.",
     ludicrous: "Six columns and words of 7 letters or more, as long as the time before their tile allows. A tile about every half second, falling fastest of all. Health comes back half as fast, and mistakes cost twice as much.",
   };
+  const WORDS_HINT = {
+    mix: "The song's words, as they're sung, most of all the ones with your weak letters; practice words for your weak keys where it pauses.",
+    lyrics: "Every sung word that fits, as it's sung; practice words in between.",
+    practice: "Only practice words for your weak keys, whatever the song.",
+  };
   const MODE_HINT = {
     timed: "Press Enter as each tile crosses the line. Timing counts.",
     queue: "Lock in the next tile's word with Enter and type on. Each tile takes its word at the line, so only typing counts, and tiles come twice as often.",
@@ -1346,10 +1354,10 @@
     const lyricCount = TT.lyrics.words(song.lyrics).length;
     const sungCount = (song.sungWords || []).length ? C.sungWords(song, s.tilesDiff, s.tilesQueue).filter(Boolean).length : 0;
     let lyricLine = "";
-    if (lyricCount && !s.tilesLyrics) lyricLine = "Lyrics are off, so the words are practice words.";
-    else if (sungCount) lyricLine = `The lyrics are timed: ${sungCount === words ? `all ${words} tiles fall` : `${sungCount} of the ${words} tiles fall`} as a word is sung, and get that word when it fits the difficulty. ${sungCount === words ? "Words that don't fit are" : "The rest are"} practice words.`;
+    if (lyricCount && !s.tilesLyrics) lyricLine = "Words are set to practice, so they're all practice words for your weak keys.";
+    else if (sungCount) lyricLine = `The lyrics are timed${song.lyricTimesBy && song.lyricTimesBy !== "you" ? " (found automatically)" : ""}: ${sungCount === words ? `all ${words} tiles fall` : `${sungCount} of the ${words} tiles fall`} as a word is sung, and get that word when it fits the difficulty${s.tilesWords === "mix" ? ", most of all words with your weak letters" : ""}. ${sungCount === words ? "Words that don't fit are" : "The rest are"} practice words.`;
     else if (lyricCount) lyricLine = `Most of the words come from the song's lyrics (${lyricCount} different words).` +
-      (song.user ? " Time them with TIME LYRICS, or paste LRC lyrics with times, and each word lands on the tile where it's sung." : "");
+      (song.user ? (TT.align && TT.align.available() ? " They'll be timed automatically, so each word lands on the tile where it's sung." : " Time them with TIME LYRICS, or paste LRC lyrics with times, and each word lands on the tile where it's sung.") : "");
     else if (s.tilesLyrics && C.titleWords(song.title).length) lyricLine = "A few of the words come from the title." + (song.user ? " Add lyrics with LYRICS and most of them will come from the song." : "");
     else if (song.user) lyricLine = "No lyrics yet. Add them with LYRICS and most of the words will come from the song.";
     if (lyricLine) lyricLine = `<p class="note">${lyricLine}</p>`;
@@ -1363,7 +1371,19 @@
       else if (st.status === "queued") partsLine = `<p class="note">Waiting to be split into ${parts} for the ×4 visuals. You can play it meanwhile.</p>`;
       else if (st.status === "failed") partsLine = `<p class="note">It couldn't be split into its parts: ${esc(st.error)}</p>`;
       else if (!installed && sp.supported()) partsLine = `<p class="note">At ×4 the visuals follow this song's ${parts}. Get the separation pack for a cleaner split.</p>
-          <div class="tl-own"><button class="outline-btn" data-act="goto:music">GET THE SEPARATION PACK</button></div>`;
+          <div class="tl-own"><button class="outline-btn" data-act="goto:models">GET SONG SEPARATION</button></div>`;
+    }
+    // An added song's lyric timing (align.js): being timed, or a way to get it.
+    let timingLine = "";
+    if (song.user && lyricCount && TT.align && TT.align.supported()) {
+      const at = TT.align.statusOf(song.id);
+      if (at.status === "working") timingLine = `<p class="note">Finding when each word is sung… ${at.percent || 0}%. You can play it meanwhile.</p>`;
+      else if (at.status === "queued") timingLine = `<p class="note">Waiting to find when each word is sung${TT.models.installed("separation") ? " (after its vocals are split)" : ""}.</p>`;
+      else if (at.status === "failed") timingLine = `<p class="note">Its lyrics couldn't be timed: ${esc(at.error)}</p>`;
+      else if (at.status === "you" && TT.align.available()) timingLine = `<p class="note">You timed these lyrics by tapping along.</p>
+          <div class="tl-own"><button class="outline-btn" data-act="tl:retime">TIME AUTOMATICALLY</button></div>`;
+      else if (at.status === "none" && !TT.align.available()) timingLine = `<p class="note">Lyric timing can find when each word is sung, so they land on the tiles where they're sung without tapping along.</p>
+          <div class="tl-own"><button class="outline-btn" data-act="goto:models">GET LYRIC TIMING</button></div>`;
     }
     const rows = tilesDiffIds().map((id) => {
       const b = best(song.id, id);
@@ -1421,6 +1441,7 @@
           ${ui.tlNote ? `<p class="tl-msg" role="status">${esc(ui.tlNote)}</p>` : ""}
           <p class="tl-blurb">${esc(song.blurb)}</p>
           ${lyricLine}
+          ${timingLine}
           ${partsLine}
           ${song.user ? `<div class="tl-own">
             <button class="outline-btn" data-act="tl:lyricsedit">LYRICS</button>
@@ -1444,7 +1465,11 @@
           }).join("")}</div>
           <p class="note">${MODE_HINT[s.tilesQueue ? "queue" : "timed"]}</p>
           <div class="rule-head">SOUND</div>
-          <div class="tl-toggles">${toggle("MUSIC", s.tilesMusic, "tl:music")}${toggle("METRONOME", s.tilesMetronome, "tl:metronome")}${toggle("SCOPE", s.tilesScope, "tl:scope")}${toggle("LYRICS", s.tilesLyrics, "tl:lyrics")}</div>
+          <div class="tl-toggles">${toggle("MUSIC", s.tilesMusic, "tl:music")}${toggle("METRONOME", s.tilesMetronome, "tl:metronome")}${toggle("SCOPE", s.tilesScope, "tl:scope")}</div>
+          <div class="rule-head">WORDS</div>
+          <div class="seg tl-wordmode" aria-label="Words">${[["mix", "MIX"], ["lyrics", "LYRICS"], ["practice", "PRACTICE"]].map(([id, label]) =>
+            `<button class="${id === s.tilesWords ? "on" : ""}" aria-pressed="${id === s.tilesWords}" data-act="tl:words:${id}">${label}</button>`).join("")}</div>
+          <p class="note">${WORDS_HINT[s.tilesWords]}</p>
           <div class="rule-head">YOUR BEST${s.tilesQueue ? " · QUEUE" : ""}</div>
           <dl class="status">${statusRows(rows)}</dl>
           <div class="side-label">How to play:</div>
@@ -1509,7 +1534,7 @@
     show("tiles");
     setPlaying(true);
     renderBar();
-    tiles.newGame(s.tilesSong, s.tilesDiff, { music: s.tilesMusic, metronome: s.tilesMetronome, scope: s.tilesScope, lyrics: s.tilesLyrics, queue: s.tilesQueue });
+    tiles.newGame(s.tilesSong, s.tilesDiff, { music: s.tilesMusic, metronome: s.tilesMetronome, scope: s.tilesScope, lyrics: s.tilesLyrics, words: s.tilesWords, queue: s.tilesQueue });
   }
 
   // ---------- Ludicrous: the reveal ----------
@@ -1795,6 +1820,10 @@
     if (x === "timelyrics") { startTap("lyrics"); return; }
     if (x === "tapundo") { if (ui.tap && ui.tap.mode === "lyrics" && ui.tap.taps.length) { ui.tap.taps.pop(); renderTilesSelect(); } return; }
     if (x === "tapsave") { saveTap(); return; }
+    if (x === "retime") {
+      if (confirm("Time this song's lyrics automatically? The times you tapped are replaced.")) TT.align.retime(S().tilesSong).then(renderTilesSelect);
+      return;
+    }
     if (x === "tapcancel") { stopTap(); ui.tlNote = ""; renderTilesSelect(); return; }
     if (x === "delete") { deleteSong(); return; }
     if (ui.tap) return; // the rest waits until tapping is done
@@ -1807,7 +1836,8 @@
     else if (x === "music") s.tilesMusic = !s.tilesMusic;
     else if (x === "metronome") s.tilesMetronome = !s.tilesMetronome;
     else if (x === "scope") s.tilesScope = !s.tilesScope;
-    else if (x === "lyrics") s.tilesLyrics = !s.tilesLyrics;
+    else if (x === "lyrics") { s.tilesWords = s.tilesLyrics ? "practice" : "mix"; s.tilesLyrics = s.tilesWords !== "practice"; }
+    else if (x === "words" && ["mix", "lyrics", "practice"].includes(y)) { s.tilesWords = y; s.tilesLyrics = y !== "practice"; }
     else if (x === "mode") s.tilesQueue = y === "toggle" ? !s.tilesQueue : y === "queue";
     else return;
     TT.save();
@@ -2408,6 +2438,7 @@
     profiles() {
       const P = TT.profiles;
       const active = P.activeId();
+      const main = P.mainId();
       const list = P.list();
       const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
       const rows = list.map((p) => {
@@ -2420,10 +2451,13 @@
                <button class="opt on" type="submit">SAVE</button>
                <button class="opt" type="button" data-act="profile:cancel">CANCEL</button>
              </form>`
-          : `<span class="profile-name">${esc(p.name)}</span>${isActive ? `<span class="tag">ACTIVE</span>` : ""}`;
+          : `<span class="profile-name">${esc(p.name)}</span>${isActive ? `<span class="tag">ACTIVE</span>` : ""}${p.id === main ? `<span class="tag">MAIN ★</span>` : ""}`;
         const actions = renaming ? "" :
           (isActive ? "" : `<button class="opt outline" data-act="profile:switch:${p.id}">SWITCH</button>`) +
           `<button class="opt" data-act="profile:rename:${p.id}" aria-label="Rename ${esc(p.name)}">RENAME</button>` +
+          (p.id === main
+            ? `<button class="opt" data-act="profile:unmain:${p.id}" aria-label="${esc(p.name)} is not the main profile">NOT MAIN</button>`
+            : `<button class="opt" data-act="profile:main:${p.id}" aria-label="Make ${esc(p.name)} the main profile">MAKE MAIN</button>`) +
           (isActive || list.length < 2 ? "" : `<button class="opt danger" data-act="profile:delete:${p.id}" aria-label="Delete ${esc(p.name)}">DELETE</button>`);
         return `<div class="profile-row ${isActive ? "active" : ""}">
           <div class="profile-main">${name}<span class="hint-text">${plural(s.tests, "test")} · ${plural(s.games, "game")} · best ${Math.round(s.best)} wpm</span></div>
@@ -2438,7 +2472,7 @@
             <input id="new-profile-name" class="text-input" name="name" maxlength="${P.MAX_NAME}" placeholder="Name" required>
             <button class="opt outline" type="submit">CREATE</button>
           </form>
-          <p class="note">Each profile keeps its own results, stats, replays and Forest Hop progress. Appearance and the other settings are shared.</p>
+          <p class="note">Each profile keeps its own results, stats, replays and Forest Hop progress. Appearance and the other settings are shared. One profile can be your main profile (★): the one that's yours, for when your profiles sync between devices.</p>
         </section>
       </div>`;
     },
@@ -2456,10 +2490,26 @@
     } else if (x === "cancel") {
       ui.renaming = null;
       renderSettings();
+    } else if (x === "main") {
+      const p = P.list().find((z) => z.id === id);
+      const was = P.list().find((z) => z.id === P.mainId());
+      if (p && confirm(`Make "${p.name}" your main profile?${was ? ` "${was.name}" will no longer be the main one.` : ""}\n\nOnly one profile can be the main one. It's marked with a ★.`)) {
+        P.setMain(id);
+        renderBar();
+        renderSettings();
+      }
+    } else if (x === "unmain") {
+      const p = P.list().find((z) => z.id === id);
+      if (p && confirm(`Stop using "${p.name}" as your main profile? No profile will be the main one until you choose one again.`)) {
+        P.setMain(null);
+        renderBar();
+        renderSettings();
+      }
     } else if (x === "delete") {
       const p = P.list().find((z) => z.id === id);
-      if (p && confirm(`Delete the profile "${p.name}" and all of its results, replays and game progress? This can't be undone.`)) {
+      if (p && confirm(`Delete the profile "${p.name}" and all of its results, replays and game progress?${id === P.mainId() ? " It's your main profile, so no profile will be the main one afterwards." : ""} This can't be undone.`)) {
         P.remove(id);
+        renderBar();
         renderSettings();
       }
     }
@@ -2534,52 +2584,109 @@
     </div>`;
   };
 
-  // Settings → Music: the separation pack, which splits the songs you add into their parts for
-  // Tiles' ×4 visuals (separate.js). One click downloads it; it can be removed again here.
+  // Settings → Models: the optional models (models.js) — song separation for Tiles' ×4 visuals
+  // (separate.js) and lyric timing (align.js) — each downloaded only when the user asks, with a
+  // progress bar, Cancel and Delete, what it's for, and its licence.
   const MB = (bytes) => `${Math.round(bytes / 1e6)} MB`;
-  SETTINGS_VIEWS.music = () => {
-    const sp = TT.separate;
-    const about = `<p class="note">With the separation pack, Touch Type splits the songs you add to Tiles into vocals, drums, bass and other instruments, on this computer, so the ×4 visuals can follow each part: the line along the bottom follows the vocals, the outline the bass and drums, and the sparks everything else. It runs in the background, on your graphics card when it can, and you can play a song while it's being split. Until then, Tiles uses a quicker, rougher split.</p>
-        <p class="note">The pack is about 100 MB. It's only downloaded when you click Download, from GitHub (github.com/silent-diffusion/Touch-Type). It uses Deezer's Spleeter model and Microsoft's ONNX Runtime; their licences come with it.</p>`;
-    if (!sp.supported()) {
+  const pct = (n) => `<div class="mm-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${n}"><i style="width:${n}%"></i></div>`;
+
+  // What a model is doing for the songs: split, timed, or what's left.
+  function modelSongsLine(id) {
+    const songs = TT.music.list();
+    if (id === "separation") {
+      const sp = TT.separate, st = sp.state(), c = sp.counts();
+      if (!c.total) return "No added songs yet.";
+      let line = `${c.done} of ${c.total} ${c.total === 1 ? "song" : "songs"} split.`;
+      const working = songs.find((x) => sp.statusOf(x.id).status === "working");
+      const failed = songs.filter((x) => sp.statusOf(x.id).status === "failed");
+      if (working) line += ` Splitting “${esc(working.title)}”… ${sp.statusOf(working.id).percent || 0}%${st.device ? ` (on the ${st.device === "gpu" ? "graphics card" : "processor"})` : ""}.`;
+      if (failed.length) line += ` ${failed.length === 1 ? "One song" : `${failed.length} songs`} couldn't be split: ${esc(sp.statusOf(failed[0].id).error)}`;
+      return line;
+    }
+    const al = TT.align, st = al.state(), c = al.counts();
+    if (!c.withLyrics) return "No added songs with lyrics yet. Add lyrics to a song in Tiles and it's timed in the background.";
+    let line = `${c.auto} of ${c.withLyrics} ${c.withLyrics === 1 ? "song" : "songs"} with lyrics timed${c.tapped ? `, ${c.tapped} by you (tapping overrides; TIME AUTOMATICALLY in Tiles undoes it)` : ""}.`;
+    const working = songs.find((x) => al.statusOf(x.id).status === "working");
+    const waiting = songs.filter((x) => al.statusOf(x.id).status === "queued").length;
+    const failed = songs.filter((x) => al.statusOf(x.id).status === "failed");
+    if (working) line += ` Timing “${esc(working.title)}”… ${al.statusOf(working.id).percent || 0}%${st.device ? ` (on the ${st.device === "gpu" ? "graphics card" : "processor"})` : ""}.`;
+    if (waiting && TT.models.installed("separation")) line += ` ${waiting} waiting, some for their vocals to be split.`;
+    else if (waiting) line += ` ${waiting} waiting.`;
+    if (failed.length) line += ` ${failed.length === 1 ? "One song" : `${failed.length} songs`} couldn't be timed: ${esc(al.statusOf(failed[0].id).error)}`;
+    return line;
+  }
+
+  SETTINGS_VIEWS.models = () => {
+    const M = TT.models;
+    if (!M.supported()) {
       return `<div class="cols"><section class="col-main">
-        <div class="settings-rows">${srow("Separation pack", `<span class="hint-text">Only available in the desktop app.</span>`)}</div>
-        ${about}
+        <p class="note">Optional models (song separation and lyric timing for Tiles) are only available in the desktop and Apple apps.</p>
       </section></div>`;
     }
-    const st = sp.state(), p = st.pack;
-    let action = "", status;
-    if (st.dev) status = "A local copy is in use (for testing).";
-    else if (p.status === "installed") {
-      action = `<button class="opt outline" data-act="pack:remove">REMOVE</button>`;
-      status = `Installed (${MB(p.size)}). Songs already split keep their parts if you remove it.`;
-    } else if (p.status === "downloading") {
-      action = `<button class="opt outline" data-act="pack:cancel">CANCEL</button>`;
-      status = `Downloading… ${p.percent}%`;
-    } else {
-      action = `<button class="opt on" data-act="pack:install">DOWNLOAD (${MB(p.size || 100e6)})</button>`;
-      status = p.status === "error" ? `The download didn't finish: ${esc(p.error)}` : "Not installed.";
-    }
-    const songs = TT.music.list();
-    const c = sp.counts();
-    const working = songs.find((x) => sp.statusOf(x.id).status === "working");
-    const failed = songs.filter((x) => sp.statusOf(x.id).status === "failed");
-    let progress = !c.total ? "No added songs yet." : `${c.done} of ${c.total} ${c.total === 1 ? "song" : "songs"} split.`;
-    if (working) progress += ` Splitting “${esc(working.title)}”… ${sp.statusOf(working.id).percent || 0}%${st.device ? ` (on the ${st.device === "gpu" ? "graphics card" : "processor"})` : ""}.`;
-    if (failed.length) progress += ` ${failed.length === 1 ? "One song" : `${failed.length} songs`} couldn't be split: ${esc(sp.statusOf(failed[0].id).error)}`;
+    const gpu = TT.align.gpu();
+    const cards = M.catalog().map((m) => {
+      const st = M.state(m.id);
+      const size = M.downloadSize(m.id);
+      const recommended = m.gpu !== null && gpu !== null && m.gpu === gpu && st.status !== "installed";
+      let action, status;
+      if (st.status === "installed") {
+        action = `<button class="opt outline" data-act="model:remove:${m.id}">DELETE</button>`;
+        status = `Installed · ${MB(st.disk || size)} on this device.`;
+      } else if (st.status === "downloading") {
+        action = `<button class="opt outline" data-act="model:cancel:${m.id}">CANCEL</button>`;
+        status = `Downloading… ${st.percent}% of ${MB(size)}`;
+      } else {
+        action = `<button class="opt on" data-act="model:install:${m.id}">DOWNLOAD (${MB(size)})</button>`;
+        status = st.status === "error" ? `The download didn't finish: ${esc(st.error)}` : `Not downloaded · ${MB(size)}${m.runtime && size > m.files.reduce((n, f) => n + f.size, 0) ? " with ONNX Runtime, which the other models share" : ""}.`;
+      }
+      return `<article class="mm-card">
+        <div class="mm-head"><h3>${esc(m.name)}</h3>${recommended ? `<span class="tag">RECOMMENDED HERE</span>` : ""}${st.status === "installed" ? `<span class="tag">INSTALLED</span>` : ""}</div>
+        <p class="mm-use">${esc(m.use)}</p>
+        ${st.status === "downloading" ? pct(st.percent) : ""}
+        <div class="mm-row">${action}<button class="opt outline" data-act="model:licence:${m.id}">LICENCE</button><span class="hint-text" aria-live="polite">${status}</span></div>
+        ${st.status === "installed" ? `<p class="hint-text mm-songs" aria-live="polite">${modelSongsLine(m.id === "separation" ? "separation" : "lyrics")}</p>` : ""}
+      </article>`;
+    }).join("");
     return `<div class="cols">
       <section class="col-main">
-        <div class="settings-rows">
-          ${srow("Separation pack", `${action}<span class="hint-text" aria-live="polite">${status}</span>`)}
-          ${srow("Your songs", `<span class="hint-text" aria-live="polite">${progress}</span>`)}
-        </div>
-        ${about}
+        <div class="settings-rows">${srow("On this device", `<span class="mm-total">${MB(M.diskUsed())}</span><span class="hint-text">used by the models you've downloaded.</span>`)}</div>
+        <div class="mm-list">${cards}</div>
+        <p class="note">Each model is downloaded only when you choose Download, from this app's releases on GitHub (github.com/silent-diffusion/Touch-Type), and checked before it's kept. They all run on this ${TT.align.gpu() ? "device, on its graphics card when they can" : "device"}; nothing is sent anywhere. Delete one any time: songs keep the parts and lyric times already made.</p>
+        <p class="note">Lyric timing listens to a song for its lyrics (from the separated vocals when song separation is installed too) and finds when each word is sung, so Tiles can deal the words you type as they're sung. Times you tap with TIME LYRICS always win. The graphics-card version is quicker; the small one suits devices without one.</p>
       </section>
     </div>`;
   };
 
+  // A licence (TT.LICENCES, licences.js) over the page; Esc or CLOSE shuts it.
+  function showLicence(key, title) {
+    const text = (TT.LICENCES || {})[key] || "The licence isn't available.";
+    const box = document.createElement("div");
+    box.className = "mm-licence";
+    box.setAttribute("role", "dialog");
+    box.setAttribute("aria-label", title);
+    box.innerHTML = `<div class="mm-licence-head"><strong>${esc(title.toUpperCase())}</strong><button type="button" class="opt outline">CLOSE <kbd>ESC</kbd></button></div><pre></pre>`;
+    box.querySelector("pre").textContent = text;
+    const close = () => { box.remove(); document.removeEventListener("keydown", onKey, true); };
+    const onKey = (e) => { if (e.key === "Escape") { e.preventDefault(); e.stopImmediatePropagation(); close(); } };
+    box.querySelector("button").addEventListener("click", close);
+    document.addEventListener("keydown", onKey, true);
+    document.body.appendChild(box);
+    box.querySelector("button").focus();
+  }
+
+  function modelAct(x, id) {
+    const m = TT.MODELS.byId(id);
+    if (!m) return;
+    if (x === "install") TT.models.install(id);
+    else if (x === "cancel") TT.models.cancel(id);
+    else if (x === "remove") {
+      const keep = id === "separation" ? "Songs already split keep their parts." : "Songs already timed keep their lyric times.";
+      if (confirm(`Delete ${m.name} (${MB(TT.models.state(id).disk || TT.models.downloadSize(id))})? ${keep}`)) TT.models.remove(id);
+    } else if (x === "licence") showLicence(m.licence, `${m.name}: licence`);
+  }
+
   function renderSettings() {
-    const tabs = [["appearance", "Appearance"], ["practice", "Practice"], ["profiles", "Profiles"], ["music", "Music"], ["updates", "Updates"], ["data", "Data"]];
+    const tabs = [["appearance", "Appearance"], ["practice", "Practice"], ["profiles", "Profiles"], ["models", "Models"], ["updates", "Updates"], ["data", "Data"]];
     $("view-settings").innerHTML = subtabs(tabs, ui.settingsTab, "settab") + SETTINGS_VIEWS[ui.settingsTab]();
   }
 
@@ -2688,14 +2795,11 @@
       case "update":
         if (window.touchType && ["check", "download", "install"].includes(x)) window.touchType.update[x]();
         break;
-      case "pack":
-        if (x === "remove" && !confirm("Remove the separation pack? Songs already split keep their parts.")) break;
-        if (["install", "cancel", "remove"].includes(x)) TT.separate[x]();
-        break;
+      case "model": modelAct(x, y); break;
       case "goto":
-        // from the Tiles song screen to Settings → Music
-        if (x === "music") {
-          ui.settingsTab = "music";
+        // from the Tiles song screen to Settings → Models
+        if (x === "models" || x === "music") {
+          ui.settingsTab = "models";
           openMenu("settings");
         }
         break;
@@ -3052,13 +3156,19 @@
   TT.music.load().then(() => {
     if (ui.view === "tiles-select") renderTilesSelect();
     TT.separate.start();
+    TT.align.start();
   });
+  TT.models.start();
   // The separation pack and the songs being split: keep the screens that show them up to date
   // (but not the song screen while lyrics are being edited or tapped, which would lose the typing).
-  TT.separate.onChange(() => {
-    if (ui.view === "settings" && ui.settingsTab === "music") renderSettings();
+  // The same for the models (Settings → Models) and lyric timing.
+  const modelsChanged = () => {
+    if (ui.view === "settings" && ui.settingsTab === "models") renderSettings();
     if (ui.view === "tiles-select" && !ui.lyricsEdit && !ui.tap) renderTilesSelect();
-  });
+  };
+  TT.separate.onChange(modelsChanged);
+  TT.models.onChange(modelsChanged);
+  TT.align.onChange(modelsChanged);
   document.fonts.ready.then(() => {
     if (ui.view === "test" || ui.view === "practice") engine.relayout();
   });

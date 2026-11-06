@@ -64,6 +64,8 @@
       notes: [],
       lyrics: meta.lyrics || "",
       sungWords: sungWords(meta),
+      // who timed the lyrics: "you" (tapped along), lyric timing's version (align.js), or null
+      lyricTimesBy: (meta.lyricTimes || []).length ? meta.lyricTimesBy || "you" : null,
       beats: TT.beatTrack.toSongBeats(an),
       duration: an.duration,
       buffer: decoded.id === meta.id ? decoded.buffer : null,
@@ -150,8 +152,10 @@
       metas.set(meta.id, meta);
       decoded = { id: meta.id, buffer };
       register(meta);
-      // with the separation pack installed, its parts are made in the background
+      // with the separation pack installed, its parts are made in the background, and with lyric
+      // timing, when its words are sung
       if (TT.separate) TT.separate.add(PREFIX + meta.id);
+      if (TT.align) TT.align.add(PREFIX + meta.id);
       return PREFIX + meta.id;
     },
 
@@ -206,15 +210,18 @@
     },
 
     // Saves the times of an added song's lyric words from tapping along ([{ t, w }]); empty clears them.
-    async setLyricTimes(songId, times) {
+    // by: "you" when tapped along, else lyric timing's version (align.js), which tapping replaces.
+    async setLyricTimes(songId, times, by = "you") {
       const id = savedId(songId);
       const meta = metas.get(id);
       if (!meta) return false;
       const rec = await tx("readonly", (s) => s.get(id));
       if (!rec) return false;
       rec.lyricTimes = times.map((x) => ({ t: Math.round(x.t * 1000) / 1000, w: x.w }));
+      rec.lyricTimesBy = rec.lyricTimes.length ? by : null;
       await tx("readwrite", (s) => s.put(rec));
       meta.lyricTimes = rec.lyricTimes;
+      meta.lyricTimesBy = rec.lyricTimesBy;
       register(meta);
       return true;
     },
@@ -227,12 +234,14 @@
       const lyrics = String(text || "").slice(0, 20000);
       const rec = await tx("readonly", (s) => s.get(id));
       if (!rec) return false;
-      if (lyrics !== (rec.lyrics || "")) rec.lyricTimes = [];
+      if (lyrics !== (rec.lyrics || "")) { rec.lyricTimes = []; rec.lyricTimesBy = null; }
       rec.lyrics = lyrics;
       await tx("readwrite", (s) => s.put(rec));
       meta.lyrics = lyrics;
       meta.lyricTimes = rec.lyricTimes || [];
+      meta.lyricTimesBy = rec.lyricTimesBy || null;
       register(meta);
+      if (TT.align) TT.align.add(songId); // new lyrics are timed again
       return true;
     },
 
@@ -244,6 +253,7 @@
       if (decoded.id === id) decoded = { id: null, buffer: null };
       TT.songs.unregister(songId);
       if (TT.separate) await TT.separate.forget(songId);
+      if (TT.align) TT.align.forget(songId);
     },
   };
 })();
