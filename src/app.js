@@ -31,43 +31,16 @@
   const SIZES = { s: ["S", "22px"], m: ["M", "28px"], l: ["L", "34px"], xl: ["XL", "40px"] };
   const CARETS = { line: "Line", block: "Block", underline: "Underline" };
 
-  const GAMES = [
-    { id: "forest", name: "Forest Hop", cat: "arcade", kind: "ARCADE GAME", playable: true,
-      desc: "Pick an animal and get as far through the forest as you can. Type a direction's word, then press Space or Enter to hop. Dodge deer, ride logs, collect treats, and keep moving before your predator catches up." },
-    { id: "tiles", name: "Tiles", cat: "rhythm", kind: "RHYTHM GAME", playable: true,
-      desc: "Tiles fall down the columns in time with the music, and each column has a word at the bottom. Type a column's word, then press Enter or Space as its tile crosses the line. Pick a song, or add your own music, and a difficulty from easy to expert." },
-    { id: "path", name: "Path Runner", cat: "arcade", kind: "ARCADE GAME", playable: true,
-      desc: "Type a path's word to step onto it. The words come from your weak keys. The clock keeps draining, so keep moving." },
-    { id: "ghost", name: "Ghost Race", cat: "arcade", kind: "RACING GAME", playable: true,
-      desc: "Type a track to run it, against a ghost: your own best run played back key for key, your last run, anyone else's best on this computer, or a steady pace. Words only move you on once they're right. Beat the ghost and your new best becomes the one to chase." },
-    { id: "worm", name: "Wormhole", cat: "trivia", kind: "TRIVIA GAME", playable: true,
-      desc: "You're an earthworm. Name things in a category, like a fruit or a country, by typing them: any right answer counts, and the rarer it is, the deeper you dig. Play the Daily Dig, seven prompts a day with one answer each, or Blitz: as many answers as you can in 30 seconds." },
-    { id: "drills", name: "Key Drills", cat: "drills", kind: "DRILL",
-      desc: "Short, fast rounds on your weakest keys and letter pairs." },
-  ];
-
-  const GAME_ART = {
-    tiles: `<path d="M36 40 V260 M264 40 V260" stroke="currentColor" stroke-width="12"/>
-            <path d="M93 40 V260 M150 40 V260 M207 40 V260" stroke="currentColor" stroke-width="4" stroke-dasharray="10 10"/>
-            <rect x="44" y="196" width="212" height="40" fill="none" stroke="currentColor" stroke-width="10"/>
-            <rect x="100" y="56" width="44" height="34" fill="currentColor"/>
-            <rect x="214" y="120" width="44" height="34" fill="currentColor"/>
-            <rect x="44" y="198" width="44" height="36" fill="var(--accent)"/>`,
-    path: `<path d="M150 228 V150 L66 66 M150 150 V48 M150 150 L234 66 M44 104 V44 H104 M112 74 L150 36 L188 74 M196 44 H256 V104" fill="none" stroke="currentColor" stroke-width="22"/>
-           <rect x="124" y="236" width="52" height="52" fill="var(--accent)"/>`,
-    ghost: `<path d="M30 110 H230 M186 66 L230 110 L186 154" fill="none" stroke="currentColor" stroke-width="22"/>
-            <path d="M30 200 H190 M146 156 L190 200 L146 244" fill="none" stroke="var(--accent)" stroke-width="22" stroke-dasharray="26 14"/>`,
-    drills: `<rect x="50" y="50" width="200" height="200" fill="none" stroke="currentColor" stroke-width="22"/>
-             <rect x="115" y="115" width="70" height="70" fill="var(--accent)"/>`,
-  };
-
-  const MENU_VIEWS = ["games", "leaderboard", "stats", "settings"];
+  const MENU_VIEWS = ["leaderboard", "stats", "settings"];
   const FOREST_VIEWS = ["forest", "forest-select", "forest-guide"];
   const TILES_VIEWS = ["tiles", "tiles-select"];
   const GHOST_VIEWS = ["ghost", "ghost-select"];
   const WORM_VIEWS = ["worm", "worm-select"];
-  // What Enter (or the play button) does for each game in the library.
-  const playAct = (id) => ({ forest: "fh:select", tiles: "tl:select", ghost: "gr:select", worm: "wm:select" })[id] || "play";
+  // The games' own screens. The GAMES tab opens the one you had open last (Forest Hop at first);
+  // there's no list of games before them: their tabs are the list. (Path Runner has no screen before
+  // its run, so the GAMES tab doesn't land on it.)
+  const GAME_SCREENS = { forest: "fh:select", tiles: "tl:select", ghost: "gr:select", worm: "wm:select" };
+  const SELECT_VIEWS = ["forest-select", "tiles-select", "ghost-select", "worm-select"];
 
   const ui = {
     view: "test",
@@ -79,8 +52,7 @@
     lbDiff: null,
     lbQueue: null,
     settingsTab: "appearance",
-    gamesTab: "all",
-    game: "forest",
+    lastGame: "forest", // the game whose screen the GAMES tab opens
     targets: [],
   };
 
@@ -323,17 +295,16 @@
     test: [["ARROWS", "MOVE", "noop"], ["TAB", "RESTART", "restart"], ["ESC", "MENU", "menu"]],
     practice: [["ARROWS", "MOVE", "noop"], ["TAB", "NEW WORDS", "restart"], ["ESC", "MENU", "menu"]],
     results: [["ARROWS", "MOVE", "noop"], ["TAB / ENTER", "NEXT TEST", "restart"], ["R", "REPLAY", "replay:last"], ["P", "PRACTICE WEAK KEYS", "practice"], ["ESC", "MENU", "menu"]],
-    games: [["ARROWS", "MOVE", "noop"], ["ESC", "CLOSE MENU", "close"]],
     game: [["TAB", "RESTART", "play"], ["ESC", "PAUSE", "pause"]],
     forest: [["SPACE / ENTER", "JUMP", "noop"], ["TAB", "RESTART", "fh:play"], ["ESC", "PAUSE", "pause"]],
-    "forest-select": [["ARROWS", "CHOOSE", "noop"], ["ENTER", "PLAY", "fh:play"], ["H", "HOW TO PLAY", "fh:guide"], ["M", "MUSIC", "fh:music"], ["E", "EFFECTS", "fh:sfx"], ["ESC", "MENU", "menu"]],
+    "forest-select": [["ARROWS", "CHOOSE", "noop"], ["ENTER", "PLAY", "fh:play"], ["H", "HOW TO PLAY", "fh:guide"], ["M", "MUSIC", "fh:music"], ["E", "EFFECTS", "fh:sfx"], ["ESC", "CLOSE MENU", "close"]],
     "forest-guide": [["ARROWS", "MOVE", "noop"], ["ENTER", "PLAY", "fh:play"], ["ESC", "BACK", "fh:select"]],
     tiles: [["ENTER / SPACE", "HIT", "noop"], ["TAB", "RESTART", "tl:play"], ["ESC", "PAUSE", "pause"]],
-    "tiles-select": [["ARROWS", "MOVE", "noop"], ["[ ]", "DIFFICULTY", "tl:harder"], ["ENTER", "PLAY", "tl:play"], ["A", "ADD A SONG", "tl:import"], ["Q", "MODE", "tl:mode:toggle"], ["M", "MUSIC", "tl:music"], ["T", "METRONOME", "tl:metronome"], ["ESC", "MENU", "menu"]],
+    "tiles-select": [["ARROWS", "MOVE", "noop"], ["[ ]", "DIFFICULTY", "tl:harder"], ["ENTER", "PLAY", "tl:play"], ["A", "ADD A SONG", "tl:import"], ["Q", "MODE", "tl:mode:toggle"], ["M", "MUSIC", "tl:music"], ["T", "METRONOME", "tl:metronome"], ["ESC", "CLOSE MENU", "close"]],
     ghost: [["SPACE", "NEXT WORD", "noop"], ["TAB", "RESTART", "gr:play"], ["ESC", "PAUSE", "pause"]],
-    "ghost-select": [["ARROWS", "MOVE", "noop"], ["ENTER", "RACE", "gr:play"], ["M", "MUSIC", "gr:music"], ["E", "EFFECTS", "gr:sfx"], ["ESC", "MENU", "menu"]],
+    "ghost-select": [["ARROWS", "MOVE", "noop"], ["ENTER", "RACE", "gr:play"], ["M", "MUSIC", "gr:music"], ["E", "EFFECTS", "gr:sfx"], ["ESC", "CLOSE MENU", "close"]],
     worm: [["ENTER", "DIG IN", "noop"], ["ESC", "PAUSE", "pause"]],
-    "worm-select": [["ARROWS", "MOVE", "noop"], ["ENTER", "DIG", "wm:play"], ["M", "MUSIC", "wm:music"], ["E", "EFFECTS", "wm:sfx"], ["ESC", "MENU", "menu"]],
+    "worm-select": [["ARROWS", "MOVE", "noop"], ["ENTER", "DIG", "wm:play"], ["M", "MUSIC", "wm:music"], ["E", "EFFECTS", "wm:sfx"], ["ESC", "CLOSE MENU", "close"]],
     replay: [["SPACE", "PLAY / PAUSE", "rp:toggle"], ["← →", "SKIP 2S", "rp:skip:2000"], ["↑ ↓", "MOVE", "noop"], ["ESC", "BACK", "rp:back"]],
     stats: [["ARROWS", "MOVE", "noop"], ["P", "PRACTICE WEAK KEYS", "practice"], ["ESC", "CLOSE MENU", "close"]],
     leaderboard: [["ARROWS", "MOVE", "noop"], ["ESC", "CLOSE MENU", "close"]],
@@ -343,7 +314,6 @@
     test: "Type to begin.",
     practice: "Practice ready.",
     results: "Result saved.",
-    games: "Select a game.",
     game: "Type a word to move.",
     forest: "Type a word, then press Space or Enter to hop.",
     "forest-select": "Collect treats on your runs to unlock more animals.",
@@ -367,7 +337,6 @@
       hints = hints.filter(([, , act]) => act !== "practice").map(([key, label, act]) =>
         [key, act === "restart" ? "PRACTICE AGAIN" : label, act]);
     }
-    if (ui.view === "games" && selectedGame().playable) hints = [["ENTER", "PLAY", playAct(selectedGame().id)], ...hints];
     // a Daily Dig that's already done can only be replayed
     if (ui.view === "worm-select" && wormDigDone()) hints = hints.map((h) => (h[0] === "ENTER" ? ["R", "REPLAY", "wm:replay"] : h));
     // In full screen, Esc on a main screen leaves full screen.
@@ -381,7 +350,7 @@
   // ---------- full screen (desktop app) ----------
 
   // The main screens, one per tab. Esc on one of these leaves full screen.
-  const ROOT_VIEWS = ["test", "practice", "games", "leaderboard", "stats", "settings"];
+  const ROOT_VIEWS = ["test", "practice", ...SELECT_VIEWS, "leaderboard", "stats", "settings"];
   ui.fullscreen = false;
 
   function setFullscreenState(on) {
@@ -412,8 +381,8 @@
     ["test", "TEST", "nav:test"], ["practice", "PRACTICE", "nav:practice"], ["games", "GAMES", "nav:games"],
     ["leaderboard", "LEADERBOARD", "nav:leaderboard"], ["stats", "STATS", "nav:stats"], ["settings", "SETTINGS", "nav:settings"],
   ];
-  // While you're in the games, the second row of tabs is the library and each playable game.
-  const GAME_TABS = [["library", "LIBRARY", "nav:games"], ["forest", "FOREST HOP", "fh:select"], ["tiles", "TILES", "tl:select"], ["ghost", "GHOST RACE", "gr:select"], ["worm", "WORMHOLE", "wm:select"], ["path", "PATH RUNNER", "play"]];
+  // While you're in the games, the second row of tabs is the games themselves.
+  const GAME_TABS = [["forest", "FOREST HOP", "fh:select"], ["tiles", "TILES", "tl:select"], ["ghost", "GHOST RACE", "gr:select"], ["worm", "WORMHOLE", "wm:select"], ["path", "PATH RUNNER", "play"]];
   const FOLDER_VIEWS = ["leaderboard", "stats", "settings"]; // these draw their own second row of tabs
 
   // Which main tab a screen belongs to.
@@ -431,8 +400,7 @@
     if (GHOST_VIEWS.includes(view)) return "ghost";
     if (WORM_VIEWS.includes(view)) return "worm";
     if (TILES_VIEWS.includes(view)) return "tiles";
-    if (view === "game") return "path";
-    return "library";
+    return "path";
   }
 
   const tabNum = (id) => MAIN_TABS.findIndex(([t]) => t === id) + 1;
@@ -645,6 +613,9 @@
     else if (!FOLDER_VIEWS.includes(view)) folderShown.sub = null;
 
     ui.view = view;
+    // Esc on the typing test (and quitting Path Runner) comes back to the games, to this game's screen
+    if (SELECT_VIEWS.includes(view)) ui.lastGame = gameTabFor(view);
+    if (SELECT_VIEWS.includes(view) || view === "game") ui.menuView = "games";
     els.config.hidden = !["test", "practice", "results"].includes(view);
     renderTabs(view);
     els.typing.hidden = view !== "test" && view !== "practice";
@@ -665,6 +636,11 @@
     renderHints();
   }
 
+  // The GAMES tab: the screen of the game you had open last.
+  function openGames() {
+    act(GAME_SCREENS[ui.lastGame] || GAME_SCREENS.forest);
+  }
+
   function openMenu(view) {
     engine.stop();
     runner.stop();
@@ -675,7 +651,7 @@
     document.body.classList.remove("typing");
     ui.menuView = view;
     show(view);
-    ({ games: renderGames, leaderboard: renderLeaderboard, stats: renderStats, settings: renderSettings })[view]();
+    ({ leaderboard: renderLeaderboard, stats: renderStats, settings: renderSettings })[view]();
   }
 
   // A section's own menu becomes the folder's second row of tabs (it returns no markup of its own).
@@ -683,17 +659,6 @@
     setSubtabs(tabs.map(([id, label]) => [id, label, `${act}:${id}`]), current, tabFor(ui.view));
     return "";
   };
-
-  function statusPanel(title = "STATUS") {
-    const sum = A.summary();
-    return `<div class="rule-head">${title}</div>
-      <dl class="status">${statusRows([
-        ["WPM (last 10):", Math.round(sum.wpm10)],
-        ["Best WPM:", Math.round(sum.best)],
-        ["Accuracy (last 10):", `${Math.round(sum.acc10)}%`],
-        ["Tests taken:", sum.tests, true],
-      ])}</dl>`;
-  }
 
   function targetPanel() {
     const targets = A.weakKeys();
@@ -703,36 +668,6 @@
   }
 
   // ---------- games ----------
-
-  const selectedGame = () => GAMES.find((x) => x.id === ui.game);
-  const gameBest = (id) => (TT.store.games[id] ? TT.store.games[id].best : 0);
-  const gameTag = (x) => (!x.playable ? "SOON" : gameBest(x.id) ? gameBest(x.id) : "NEW");
-
-  function renderGames() {
-    const list = GAMES.filter((g) => ui.gamesTab === "all" || g.cat === ui.gamesTab);
-    if (!list.some((g) => g.id === ui.game)) ui.game = list[0].id;
-    const g = selectedGame();
-
-    const filters = [["all", "ALL"], ["arcade", "ARCADE"], ["rhythm", "RHYTHM"], ["trivia", "TRIVIA"], ["drills", "DRILLS"]];
-    $("view-games").innerHTML = `
-      <div class="seg game-filter" aria-label="Show games">${filters.map(([id, label]) =>
-        `<button class="${id === ui.gamesTab ? "on" : ""}" aria-pressed="${id === ui.gamesTab}" data-act="gtab:${id}">${label}</button>`).join("")}</div>` + `
-      <div class="cols">
-        <ul class="list col-list">
-          ${list.map((x) => `<li><button class="${x.id === g.id ? "on" : ""}" aria-pressed="${x.id === g.id}" data-act="game:${x.id}">${x.name}<span class="tag">${gameTag(x)}</span></button></li>`).join("")}
-        </ul>
-        <section class="col-main">
-          <div class="title-row"><h1>${g.name.toUpperCase()}</h1><span class="title-meta">${g.playable ? `BEST ${gameBest(g.id)}${g.id === "ghost" ? " WPM" : g.id === "worm" ? " POINTS" : ""}` : "SOON"}</span></div>
-          <div class="kind-line">${g.kind}</div>
-          <div class="game-art">${g.id === "forest" ? TT.sprites.svg("frog", 220) : g.id === "ghost" ? TT.ghostCore.runnerSvg(220) : g.id === "worm" ? TT.wormCore.wormIcon(240) : `<svg viewBox="0 0 300 300" role="img" aria-label="${g.name} icon">${GAME_ART[g.id]}</svg>`}</div>
-          <div class="detail-line">DIFFICULTY: <strong>${g.id === "tiles" ? "EASY TO EXPERT" : g.id === "ghost" ? "AS FAST AS YOUR GHOST" : g.id === "worm" ? "AS DEEP AS YOU KNOW" : "ADAPTIVE"}</strong></div>
-          <div class="rule-box">${g.desc}${g.playable ? "" : " <strong>Coming in a later update.</strong>"}</div>
-          ${g.playable ? `<button class="outline-btn play-btn" data-act="${playAct(g.id)}">PLAY <kbd>ENTER</kbd></button>` : ""}
-        </section>
-        <aside class="col-side">${statusPanel()}${targetPanel()}</aside>
-      </div>`;
-    renderHints();
-  }
 
   // ---------- game ----------
 
@@ -2750,9 +2685,13 @@
         break;
       case "nav":
         if (x === "test" || x === "practice") startTyping(x);
+        else if (x === "games") openGames();
         else openMenu(x);
         break;
-      case "menu": openMenu(ui.menuView); break;
+      case "menu":
+        if (ui.menuView === "games") openGames();
+        else openMenu(ui.menuView);
+        break;
       case "pause": togglePause(); break;
       case "close":
       case "restart": startTyping(ui.lastTyping); break;
@@ -2784,8 +2723,6 @@
         renderLeaderboard();
         break;
       case "settab": ui.settingsTab = x; renderSettings(); break;
-      case "gtab": ui.gamesTab = x; renderGames(); break;
-      case "game": ui.game = x; renderGames(); break;
       case "set": setSetting(x, y); break;
       case "window":
         if (!window.touchType) break;
@@ -2832,7 +2769,7 @@
   // direction: across the page's columns, and up into the section's tabs and the main tabs. Enter (or
   // Space) presses it. In a list of choices (games, songs, animals) moving also selects, and Enter keeps
   // doing what it says at the bottom (usually PLAY). The page's own shortcuts all still work.
-  const NAV_VIEWS = ["test", "practice", "results", "games", "forest-select", "forest-guide", "tiles-select", "ghost-select", "worm-select", "replay", "leaderboard", "stats", "settings"];
+  const NAV_VIEWS = ["test", "practice", "results", "forest-select", "forest-guide", "tiles-select", "ghost-select", "worm-select", "replay", "leaderboard", "stats", "settings"];
   const FOCUSABLE = "button:not([disabled]), input:not([type=hidden]):not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href]";
   const PICKS = ".list button[aria-pressed], .fh-animal";
   const NAV_AREAS = ".topline, #tabs, #subtabs, #folder";
@@ -3013,7 +2950,7 @@
         else if (forest.isOver()) { if (plainKey(e, "r")) act("replay:last"); }
         else forest.handleKey(e);
       } else if (v === "forest-select") {
-        const keys = { Enter: "fh:play", h: "fh:guide", m: "fh:music", e: "fh:sfx", Escape: "menu" };
+        const keys = { Enter: "fh:play", h: "fh:guide", m: "fh:music", e: "fh:sfx", Escape: "close" };
         if (keys[e.key] && !e.ctrlKey && !e.altKey && !e.metaKey) { e.preventDefault(); act(keys[e.key]); }
       } else {
         const keys = { Enter: "fh:play", Escape: "fh:select" };
@@ -3035,7 +2972,7 @@
         else if (e.key === "Backspace") { e.preventDefault(); act("tl:tapundo"); }
         else if (e.key === "Escape") { e.preventDefault(); act("tl:tapcancel"); }
       } else {
-        const keys = { "]": "tl:harder", "[": "tl:easier", Enter: "tl:play", a: "tl:import", q: "tl:mode:toggle", m: "tl:music", t: "tl:metronome", Escape: "menu" };
+        const keys = { "]": "tl:harder", "[": "tl:easier", Enter: "tl:play", a: "tl:import", q: "tl:mode:toggle", m: "tl:music", t: "tl:metronome", Escape: "close" };
         if (keys[e.key] && !e.ctrlKey && !e.altKey && !e.metaKey) { e.preventDefault(); act(keys[e.key]); }
       }
       return;
@@ -3048,7 +2985,7 @@
         else if (ghostRace.isOver()) { if (plainKey(e, "r")) act("replay:last"); }
         else ghostRace.handleKey(e);
       } else {
-        const keys = { Enter: "gr:play", m: "gr:music", e: "gr:sfx", Escape: "menu" };
+        const keys = { Enter: "gr:play", m: "gr:music", e: "gr:sfx", Escape: "close" };
         if (keys[e.key] && !e.ctrlKey && !e.altKey && !e.metaKey) { e.preventDefault(); act(keys[e.key]); }
       }
       return;
@@ -3063,7 +3000,7 @@
       } else if (plainKey(e, "r")) {
         act("wm:replay");
       } else {
-        const keys = { Enter: "wm:play", m: "wm:music", e: "wm:sfx", Escape: "menu" };
+        const keys = { Enter: "wm:play", m: "wm:music", e: "wm:sfx", Escape: "close" };
         if (keys[e.key] && !e.ctrlKey && !e.altKey && !e.metaKey) { e.preventDefault(); act(keys[e.key]); }
       }
       return;
@@ -3106,9 +3043,6 @@
         return;
       }
       runner.handleKey(e);
-    } else if (v === "games" && e.key === "Enter" && selectedGame().playable) {
-      e.preventDefault();
-      act(playAct(selectedGame().id));
     } else if (v === "stats" && plainKey(e, "p")) {
       act("practice");
     }

@@ -381,18 +381,7 @@ body:not(.typing) .caret.caret-block { animation-name: blink-block; }
 
 /* ---------- games ---------- */
 
-.game-art {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px 0;
-  color: var(--ink);
-}
-.game-art svg { width: 260px; height: 260px; }
-.detail-line { font-size: 18px; padding-bottom: 12px; }
 
-.play-btn { align-self: flex-start; margin-top: 20px; }
 
 /* ---------- path runner ---------- */
 
@@ -1200,7 +1189,6 @@ body:not(.typing) .caret.caret-block { animation-name: blink-block; }
 /* the folder takes a little width, so columns sit a bit closer than they used to */
 .folder .cols { gap: 48px 56px; }
 .folder-head:has(> [hidden]) { display: none; }
-.game-filter { align-self: flex-start; margin-bottom: 24px; }
 
 /* Scope mode draws behind the whole app, so the folders turn see-through */
 html.scope[data-theme] { --desk: #1c1b18; --tab-back: #24231f; --shade: rgba(0, 0, 0, 0.7); }
@@ -1520,7 +1508,6 @@ strong.none { color: var(--muted); font-weight: 600; }
 }
 .wm-art img { width: 108px; height: auto; margin-bottom: 30px; }
 .px-art { image-rendering: pixelated; }
-.game-art .wm-icon { width: 200px; height: auto; }
 .wm-packs { flex-wrap: wrap; margin-bottom: 14px; }
 .wm-today { font-size: 17px; line-height: 1.45; max-width: 62ch; margin: 16px 0 0; }
 .wm-legend dt { display: flex; align-items: center; }
