@@ -63,6 +63,10 @@
   const GRADE_NAMES = { P: "PERFECT", G: "GREAT", O: "GOOD", S: "SLOPPY", M: "MISS", E: "TOO EARLY", X: "WRONG COLUMN", Q: "LOCKED IN" };
   const LEAD_MS = 1200; // quiet time before the first tile shows up
   const LYRIC_SHARE = 0.6; // for a song with untimed lyrics, about this share of words come from them
+  // Words "mix": a sung word without any of the player's weak letters still goes on its tile this
+  // often; the other tiles get practice words for the weak keys instead. Sung words with weak
+  // letters always do.
+  const MIX_PLAIN = 0.55;
   const TITLE_SHARE = 0.12; // without lyrics, about this share of words come from the title, when one fits
   // The words of a song's title, leaving out what file names tend to carry.
   const TITLE_SKIP = new Set(["official", "video", "audio", "lyric", "lyrics", "remastered", "remaster", "feat", "version", "explicit", "music", "full", "song", "track", "the", "and", "for", "from", "with"]);
@@ -1467,6 +1471,9 @@
 
     // A new word for a column. The first letters of the column words all differ, so the first key
     // picks the column. A word needed soon (its column's next tile is close) is kept short.
+    // whether a word has one of the player's weak letters (Settings and Stats: the keys missed most)
+    const weakIn = (w) => !!(live && live.targets && live.targets.some((k) => w.includes(k.key)));
+
     function provide(state, col, t) {
       const D = DIFFS[live.diff];
       const locked = (i) => state.queue && state.tiles.some((x) => x.i === i && x.q);
@@ -1482,13 +1489,16 @@
       // share a first letter with another column's word.
       const sungNow = j >= 0 ? live.sungFor[j] : null;
       const sungMax = Math.min(p.max + SUNG_EXTRA, Math.max(3, p.raw));
-      if (sungNow && sungNow.length >= (D.wordMin || 2) && sungNow.length <= sungMax && !taken.has(sungNow[0])) {
+      if (sungNow && sungNow.length >= (D.wordMin || 2) && sungNow.length <= sungMax && !taken.has(sungNow[0]) &&
+          (!live.mix || weakIn(sungNow) || Math.random() < MIX_PLAIN)) {
         live.recent = [...live.recent, sungNow].slice(-12);
         live.words.push(sungNow);
         return sungNow;
       }
       // Lyrics without times: most words come from the song itself, when one fits.
       let sung = live.lyricWords.length && Math.random() < LYRIC_SHARE ? live.lyricWords.filter(ok) : [];
+      // mix: lyric words with the weak letters first, when there are some
+      if (live.mix && sung.some(weakIn)) sung = sung.filter(weakIn);
       // no lyrics: now and then a word from the title
       if (!sung.length && live.titleWords.length && Math.random() < TITLE_SHARE) sung = live.titleWords.filter(ok);
       let pool = sung;
@@ -1843,6 +1853,7 @@
         sungFor: sound.lyrics !== false ? sungWords(song, diff, queue) : [],
         lyricWords: [], titleWords: [],
         targets: A.weakKeys(), missed: A.weakWords(20),
+        mix: sound.words === "mix", // favour lyric words with the weak letters (see MIX_PLAIN)
       };
       if (sound.lyrics !== false && !live.sungFor.some(Boolean) && TT.lyrics) live.lyricWords = TT.lyrics.words(song.lyrics);
       // A few words come from the song's title. With lyrics they're just more lyric words; without,

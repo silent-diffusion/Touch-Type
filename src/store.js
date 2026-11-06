@@ -32,6 +32,7 @@ window.TT = window.TT || {};
     tilesMetronome: false,
     tilesScope: true,
     tilesLyrics: true,
+    tilesWords: "mix", // Tiles' words: mix (lyrics, favouring your weak letters), lyrics, or practice
     fhMusic: true, // Forest Hop's music and sound effects, each on or off
     fhSfx: true,
     grTrack: "60m", // Ghost Race: the track, who to race (best, last, pace or p:<profile id>), the pace
