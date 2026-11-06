@@ -1528,3 +1528,21 @@ strong.none { color: var(--muted); font-weight: 600; }
 .rp-worm .wm { min-height: 0; }
 .rp-worm .wm-q h2 { font-size: 26px; }
 @media (prefers-reduced-motion: reduce) { .wm-reveal { animation: none; } .wm-caret { animation: none; } }
+
+/* ---------- Settings → Models ---------- */
+
+.mm-total { font-size: 18px; font-weight: 700; padding: 0 4px; }
+.mm-list { display: flex; flex-direction: column; }
+.mm-card { padding: 16px 0 18px; border-bottom: var(--rule); }
+.mm-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.mm-head h3 { margin: 0; font-size: 20px; }
+.mm-use { margin: 6px 0 10px; max-width: 760px; }
+.mm-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.mm-songs { margin: 8px 0 0; }
+.mm-bar { height: 12px; max-width: 520px; margin: 0 0 10px; border: var(--rule); }
+.mm-bar i { display: block; height: 100%; background: var(--accent); transition: width 0.3s; }
+.mm-licence { position: fixed; inset: 40px; z-index: 300; display: flex; flex-direction: column; gap: 12px; padding: 20px 24px;
+  background: var(--ground); color: var(--ink); border: var(--rule); box-shadow: 0 10px 40px var(--shade, rgba(0, 0, 0, 0.4)); }
+.mm-licence-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; letter-spacing: 0.06em; }
+.mm-licence pre { flex: 1; margin: 0; overflow: auto; white-space: pre-wrap; font: 13px/1.5 var(--typing-font, monospace); user-select: text; }
+.mm-head .tag { font-size: 12px; font-weight: 800; letter-spacing: 0.14em; background: var(--ink); color: var(--ground); padding: 3px 8px; }
