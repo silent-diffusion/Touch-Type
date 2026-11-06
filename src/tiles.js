@@ -1006,12 +1006,19 @@
   // across the whole window, under the rest of the app: by 50 (×4) it reaches the window's edges.
   // At ×4 a storm of sparks joins it, thrown out from the play area and swirling round it to the
   // window's edges, and the music comes apart into three (the player's feeds): the vocals draw a
-  // line straight across the bottom of the window that bounces up as they're sung, the bass and
-  // drums drive the outline, and the other instruments throw the sparks. Nothing is ever drawn
-  // over the play area, and at ×4 it and the boxes beside it are opaque. A miss flattens it all
-  // out, and it fades away.
+  // line straight across the bottom of the window that bounces up as they're sung, most of the way
+  // up the window, the bass and drums drive the outline and keep the sparks moving, and the other
+  // instruments throw the sparks. Only the vocal line is ever drawn over the play area, faintly and
+  // behind the words; at ×4 the boxes beside it are opaque. A miss flattens it all out, and it fades away.
   const SCOPE_START = 10, SCOPE_AT = 25, SCOPE_FULL = 50, COLLAPSE_MS = 450;
   const SPARKS_MAX = 900; // the most sparks in the storm at once
+  // The sparks keep moving with the music after they're thrown: each beat (and each drum hit, with the
+  // music in parts) kicks them all outward again, and the bass and drums' level swells them and
+  // brightens them, so the whole storm breathes with the song.
+  const SPARK_DRAG = 0.5;       // how quickly a spark slows (per second); it used to be 0.9
+  const SPARK_LIFE = [1.4, 2.0]; // seconds a spark lasts: at least the first, up to the first plus the second
+  const KICK = 110, KICK_DOWN = 1.6; // px/s outward a beat adds to every spark (a downbeat this much more)
+  const SWELL = 0.9;            // how much bigger the sparks grow at the bass and drums' loudest
   // From ×3 the outline's colour goes round the colour wheel, HUE_SPEED degrees a second (a new
   // colour about every five seconds), starting from the orange it always had. At ×4 the vocal line
   // and the sparks make a triad with it, a third of the wheel round each (TRIAD), turning together.
@@ -1022,8 +1029,15 @@
   const SCOPE_LOWPASS = 1200, SCOPE_SETTLE = 128, SCOPE_MATCH = 128; // Hz the trace is smoothed to; samples the filter needs to settle; points compared to hold the trace still
   const SWING_START = 5, SWING_AT = 60; // px the line swings out: at the start of ×2, and by ×3
   const OUTLINE_GAP = 10; // px between the playable area and the line at rest
-  const VOCAL_SWING = 0.22; // how far the vocal line can bounce up, as a share of the window's height
+  // How far the vocal line can bounce up, as a share of the window's height: at full voice it reaches
+  // from the bottom of the window to well over 80% of the way up. VOCAL_GAIN: how hard the trace is
+  // pushed into its soft limit (lower = louder), so a sung line actually fills that swing.
+  const VOCAL_SWING = 0.86, VOCAL_GAIN = 1.1;
   const VOCAL_FLOOR = 14; // px from the bottom of the window the vocal line lies at rest
+  // Over the play area the vocal line is drawn too, but faint (the field is only mostly opaque at ×4,
+  // style.css), so it rises behind the falling words without getting in their way.
+  const VOCAL_THROUGH = 0.55;
+  const FADE_STEPS = 8, WIDTH_STEPS = 3; // the sparks' batches (see drawStorm)
   const ONSET_RISE = 1.35, ONSET_GAP_MS = 110; // a burst of sparks: the other instruments this much louder than lately, this far apart
 
   function createScope() {
@@ -1036,6 +1050,8 @@
     const outline = newTrace(), vocal = newTrace();
     // the other instruments' loudness lately, for bursts of sparks on their notes
     let otherAvg = 0, otherPeak = 0.003, lastOnset = -1e9;
+    // the bass and drums' loudness the same way, for the sparks' kicks and swell (level: 0 to 1, eased)
+    let lowAvg = 0, lowPeak = 0.003, lowLevel = 0, lastLowOnset = -1e9;
     const feedBufs = {};
     const readFeed = (name, analyser) => {
       const n = analyser.fftSize;
@@ -1134,28 +1150,36 @@
     };
 
     // ×4: the vocals as a line straight across the bottom of the window, from the left edge to the
-    // right, bouncing up as they're sung and lying flat when nobody is. It's behind the UI, the
-    // opaque play area and boxes (and clipped out of the play area anyway), in the triad's second colour.
-    function drawVocal(feed, W, H, sr, shrink) {
+    // right, bouncing up as they're sung (at full voice most of the way up the window) and lying flat
+    // when nobody is. It's behind the UI and the opaque boxes, and only faintly over the play area
+    // (VOCAL_THROUGH, through the mostly opaque field), in the triad's second colour.
+    // The line is built once a frame (vocalPath) and stroked twice: fully outside the play area, faintly over it.
+    let vocalPath = null;
+    function traceVocal(feed, W, H, sr, shrink) {
       const { from, view } = readTrace(vocal, readFeed("vocal", feed), sr);
       const level = Math.min(1, vocal.rms / vocal.peak);
       const amp = H * VOCAL_SWING * storm * shrink * level;
       const mid = H - VOCAL_FLOOR, N = 600;
-      ctx.beginPath();
+      vocalPath = new Path2D();
       for (let k = 0; k <= N; k++) {
-        const v = Math.tanh(traceAt(vocal, from, view, k / N) / (vocal.peak * 2.5));
+        const v = Math.tanh(traceAt(vocal, from, view, k / N) / (vocal.peak * VOCAL_GAIN));
         const x = (k / N) * W, y = mid - (amp * (v + 1)) / 2;
-        if (k) ctx.lineTo(x, y);
-        else ctx.moveTo(x, y);
+        if (k) vocalPath.lineTo(x, y);
+        else vocalPath.moveTo(x, y);
       }
+    }
+    function drawVocal(H, alpha) {
+      if (!vocalPath) return;
       const vh = vocalHue(hue).toFixed(1);
+      // a bit thicker on a taller window, so the bigger swing still reads as one line
+      const thick = Math.max(1, Math.min(1.6, H / 800));
       ctx.globalCompositeOperation = "lighter";
-      ctx.strokeStyle = `hsla(${vh},70%,62%,${(0.45 * storm).toFixed(3)})`;
-      ctx.lineWidth = 7;
-      ctx.stroke();
-      ctx.strokeStyle = `hsla(${vh},85%,90%,${(0.9 * storm).toFixed(3)})`;
-      ctx.lineWidth = 2;
-      ctx.stroke();
+      ctx.strokeStyle = `hsla(${vh},70%,62%,${(0.45 * storm * alpha).toFixed(3)})`;
+      ctx.lineWidth = 7 * thick;
+      ctx.stroke(vocalPath);
+      ctx.strokeStyle = `hsla(${vh},85%,90%,${(0.9 * storm * alpha).toFixed(3)})`;
+      ctx.lineWidth = 2 * thick;
+      ctx.stroke(vocalPath);
       ctx.globalCompositeOperation = "source-over";
     }
 
@@ -1166,10 +1190,11 @@
         const [x, y, nx, ny] = edgePoint(r, Math.random() * perim);
         const out = speed * (0.4 + Math.random() * 0.9), swirl = spin * speed * (0.3 + Math.random() * 0.5);
         // round the play area (clockwise for spin 1): the edge's way along is the way out turned a quarter
-        sparks.push({ x, y, vx: nx * out - ny * swirl, vy: ny * out + nx * swirl, life: 0, max: 0.9 + Math.random() * 1.4, size: 1.6 + Math.random() * 2.6, hot: Math.random() < 0.3 });
+        // kick: how strongly this one answers the beat (so they don't all move as one)
+        sparks.push({ x, y, vx: nx * out - ny * swirl, vy: ny * out + nx * swirl, life: 0, max: SPARK_LIFE[0] + Math.random() * SPARK_LIFE[1], size: 1.6 + Math.random() * 2.6, hot: Math.random() < 0.3, kick: 0.5 + Math.random() * 0.8 });
       }
     }
-    function drawStorm(r, W, H, perim, beat, dt, shrink, now, feeds) {
+    function drawStorm(r, W, H, perim, beat, dt, shrink, now, feeds, drums) {
       const cx = (r.x0 + r.x1) / 2, cy = (r.y0 + r.y1) / 2;
       // The other instruments throw the sparks: a burst when they come in louder than lately (a new
       // note or chord), and a drizzle as loud as they are. With nothing there, it's the beat.
@@ -1188,9 +1213,13 @@
         }
         otherAvg += (rms - otherAvg) * 0.08;
       }
-      if (onset && collapseAt == null) burst(r, perim, Math.round((40 + 120 * onset) * storm), 220 + 300 * onset);
+      if (onset && collapseAt == null) burst(r, perim, Math.round((40 + 120 * onset) * storm), 280 + 380 * onset);
+      // a kick outward for every spark already out there: on each beat, and on each drum hit
+      let kick = 0;
+      if (drums.onset && collapseAt == null) kick = Math.max(kick, 0.5 + 0.5 * drums.onset);
       if (beat && beat.t !== lastBeat && collapseAt == null) {
         lastBeat = beat.t;
+        kick = Math.max(kick, beat.down ? KICK_DOWN : 0.6 + 0.4 * (beat.w == null ? 0.5 : beat.w));
         // now and then, on a downbeat, the swirl turns the other way
         if (!flipAt) flipAt = now + FLIP_MS * (1 + Math.random());
         if (beat.down && now >= flipAt) {
@@ -1198,41 +1227,64 @@
           flipAt = now + FLIP_MS * (1 + Math.random());
         }
         const strong = beat.down ? 1 : 0.35 + 0.65 * (beat.w == null ? 0.5 : beat.w);
-        if (!others) burst(r, perim, Math.round((50 + 110 * strong) * storm), 260 + 260 * strong);
+        if (!others) burst(r, perim, Math.round((50 + 110 * strong) * storm), 320 + 340 * strong);
       }
       // a steady drizzle in between
-      if (collapseAt == null) burst(r, perim, Math.round(storm * 90 * dt * (others ? 0.25 + 0.75 * otherLevel : 1)), 160);
+      if (collapseAt == null) burst(r, perim, Math.round(storm * 90 * dt * (others ? 0.25 + 0.75 * otherLevel : 1)), 200);
       spin += (spinTo - spin) * Math.min(1, dt * 3);
       // each burst (each beat, without the parts) flashes the sparks bright, then they cool
       const glow = others ? Math.max(0, 1 - (now - lastOnset) / 260) : beat ? Math.max(0, 1 - beat.since / 260) : 0;
-      const comp = sparkHue(hue);
-      ctx.globalCompositeOperation = "lighter";
+      // the bass and drums swell every spark and brighten it, and a beat's own flash on top
+      const beatGlow = beat ? Math.max(0, 1 - beat.since / 200) : 0;
+      const swell = 1 + SWELL * drums.level + 0.5 * beatGlow;
+      const bright = 0.4 + 0.35 * drums.level + 0.4 * Math.max(glow, beatGlow);
+      // the swirl itself speeds up with the bass and drums
+      const pull = 90 * (0.7 + 0.8 * drums.level);
+      const comp = sparkHue(hue).toFixed(1);
+      // Drawn in batches: one path for each colour, brightness step and width step, rather than a
+      // stroke for each spark, so the longer-lived storm costs no more a frame than the old one.
+      const batches = new Map();
       const keep = [];
       for (const p of sparks) {
         p.life += dt;
         if (p.life >= p.max) continue;
         // drag, and a gentle pull that keeps the swirl going round the play area
         const dx = p.x - cx, dy = p.y - cy, dist = Math.hypot(dx, dy) || 1;
-        p.vx += spin * (-dy / dist) * 90 * dt;
-        p.vy += spin * (dx / dist) * 90 * dt;
-        p.vx *= 1 - 0.9 * dt;
-        p.vy *= 1 - 0.9 * dt;
+        p.vx += spin * (-dy / dist) * pull * dt;
+        p.vy += spin * (dx / dist) * pull * dt;
+        if (kick) {
+          p.vx += (dx / dist) * KICK * kick * p.kick * storm;
+          p.vy += (dy / dist) * KICK * kick * p.kick * storm;
+        }
+        p.vx *= 1 - SPARK_DRAG * dt;
+        p.vy *= 1 - SPARK_DRAG * dt;
         const ox = p.x, oy = p.y;
         p.x += p.vx * dt;
         p.y += p.vy * dt;
         if (p.x < -20 || p.y < -20 || p.x > W + 20 || p.y > H + 20) continue;
         keep.push(p);
         const fade = (1 - p.life / p.max) * shrink;
-        const a = Math.min(1, (0.5 + 0.5 * glow) * fade);
-        // the triad's third colour: a bright tint for the hot ones
-        ctx.strokeStyle = p.hot ? `hsla(${comp.toFixed(1)},85%,90%,${a.toFixed(3)})` : `hsla(${comp.toFixed(1)},60%,60%,${a.toFixed(3)})`;
-        ctx.lineWidth = p.size * (1 + 0.6 * glow);
-        ctx.beginPath();
-        ctx.moveTo(ox, oy);
-        ctx.lineTo(p.x, p.y);
-        ctx.stroke();
+        const a = Math.min(1, bright * fade);
+        const fa = Math.round(a * FADE_STEPS), wk = Math.min(WIDTH_STEPS - 1, Math.floor(((p.size - 1.6) / 2.6) * WIDTH_STEPS));
+        if (!fa) continue;
+        const key = (p.hot ? 1 : 0) + 2 * fa + 2 * (FADE_STEPS + 1) * wk;
+        let path = batches.get(key);
+        if (!path) batches.set(key, (path = new Path2D()));
+        path.moveTo(ox, oy);
+        path.lineTo(p.x, p.y);
       }
       sparks = keep;
+      ctx.globalCompositeOperation = "lighter";
+      ctx.lineCap = "round";
+      for (const [key, path] of batches) {
+        const hot = key % 2, fa = Math.floor(key / 2) % (FADE_STEPS + 1), wk = Math.floor(key / (2 * (FADE_STEPS + 1)));
+        const a = (fa / FADE_STEPS).toFixed(3);
+        // the triad's third colour: a bright tint for the hot ones
+        ctx.strokeStyle = hot ? `hsla(${comp},85%,90%,${a})` : `hsla(${comp},60%,60%,${a})`;
+        ctx.lineWidth = (1.6 + (2.6 * (wk + 0.5)) / WIDTH_STEPS) * swell;
+        ctx.stroke(path);
+      }
+      ctx.lineCap = "butt";
       ctx.globalCompositeOperation = "source-over";
     }
 
@@ -1288,9 +1340,27 @@
       tap.right.getFloatTimeDomainData(bufR);
       const sr = (tap.left.context && tap.left.context.sampleRate) || 48000;
       const lowPart = tap.feeds && storm > 0 ? readFeed("low", tap.feeds.low) : null;
+      let lowSum = 0, mixSum = 0;
       for (let i = 0; i < len; i++) {
         const mix = (bufL[i] + bufR[i]) / 2;
         bufIn[i] = lowPart && i < lowPart.length ? mix * (1 - storm) + lowPart[i] * storm : mix;
+        if (lowPart && i < lowPart.length) lowSum += lowPart[i] * lowPart[i];
+        mixSum += mix * mix;
+      }
+      // The sparks follow the bass and drums (the whole mix, without the parts): how loud, and a hit
+      // when they jump up louder than lately.
+      const drums = { level: 0, onset: 0 };
+      if (storm > 0 || sparks.length) {
+        const rms = lowPart ? Math.sqrt(lowSum / Math.min(len, lowPart.length)) : Math.sqrt(mixSum / len);
+        lowPeak = Math.max(0.003, rms, lowPeak * 0.997);
+        const lv = rms / lowPeak;
+        lowLevel += (lv - lowLevel) * (lv > lowLevel ? 0.5 : 0.12);
+        if (lowPeak > 0.004 && rms > lowAvg * ONSET_RISE && lv > 0.3 && now - lastLowOnset > ONSET_GAP_MS) {
+          drums.onset = lv;
+          lastLowOnset = now;
+        }
+        lowAvg += (rms - lowAvg) * 0.08;
+        drums.level = lowLevel;
       }
       const { from, view } = readTrace(outline, bufIn, sr);
       // How far the line may swing out: from SWING_START to SWING_AT px through ×2, then through ×3
@@ -1325,9 +1395,20 @@
         ctx.stroke();
         ctx.globalAlpha = 1;
       }
-      if (storm > 0 && tap.feeds && !calm) drawVocal(tap.feeds.vocal, W, H, sr, shrink);
-      if ((storm > 0 || sparks.length) && !calm) drawStorm(r, W, H, perim, beat, dt, shrink, now, tap.feeds);
+      vocalPath = null;
+      if (storm > 0 && tap.feeds && !calm) traceVocal(tap.feeds.vocal, W, H, sr, shrink);
+      drawVocal(H, 1);
+      if ((storm > 0 || sparks.length) && !calm) drawStorm(r, W, H, perim, beat, dt, shrink, now, tap.feeds, drums);
       ctx.restore();
+      // and faintly over the play area, behind the words (the field lets a little through at ×4)
+      if (vocalPath) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(r.x0, r.y0, r.x1 - r.x0, r.y1 - r.y0);
+        ctx.clip();
+        drawVocal(H, VOCAL_THROUGH);
+        ctx.restore();
+      }
     }
 
     return {
