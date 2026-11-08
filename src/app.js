@@ -2337,6 +2337,9 @@
 
   // Settings → Data → This device: deleting everything on this device, in two steps (the button,
   // then a confirmation that says what goes). TT.wipeDevice (store.js) does it and reloads.
+  // The Apple app deletes everything itself (with its iCloud sync's copies, which would otherwise
+  // bring the data straight back); until its bridge has that, it doesn't offer it.
+  const nativeWipe = () => !!(window.touchType && window.touchType.data && window.touchType.data.wipeDevice);
   function wipePanel() {
     const device = APPLE ? "device" : "computer";
     if (ui.wipe === "busy") return `<span class="hint-text" role="status">Deleting everything on this ${device}…</span>`;
@@ -2347,8 +2350,7 @@
     const profiles = TT.profiles.list();
     const names = profiles.map((p) => esc(p.name)).join(", ");
     const songs = TT.music.list().length;
-    const native = !!(window.touchType && window.touchType.data && window.touchType.data.wipeDevice);
-    const models = !native && TT.models.supported() ? TT.models.catalog().filter((m) => TT.models.installed(m.id)) : [];
+    const models = !nativeWipe() && TT.models.supported() ? TT.models.catalog().filter((m) => TT.models.installed(m.id)) : [];
     const modelBytes = models.reduce((n, m) => n + (TT.models.state(m.id).disk || 0), 0);
     return `<div class="wipe-confirm" role="group" aria-label="Confirm deleting all data">
       <p><strong>Delete everything Touch Type keeps on this ${device}?</strong> That's ${profiles.length === 1 ? "the profile" : `all ${profiles.length} profiles`} (${names})
@@ -2403,7 +2405,7 @@
           ${srow("Profile", `<strong style="padding: 0 4px; font-size: 18px">${name}</strong>`)}
           ${srow("Saved results", `<strong style="padding: 0 4px; font-size: 18px">${n} ${n === 1 ? "round" : "rounds"}</strong>`)}
           ${srow("Reset", `<button class="opt danger" data-act="reset-data">DELETE THIS PROFILE'S DATA</button><span class="hint-text">Only ${name}. Settings and other profiles are kept.</span>`)}
-          ${srow("This device", wipePanel())}
+          ${APPLE && !nativeWipe() ? "" : srow("This device", wipePanel())}
           ${srow("Privacy", `<span class="hint-text">No account, no analytics, nothing sent to the developer. <a href="${PRIVACY_URL}" target="_blank" rel="noopener">Read the privacy policy</a></span>`)}
         </div>
         <p class="note">Everything is stored on this computer. Nothing is uploaded.</p>
