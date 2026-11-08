@@ -72,6 +72,42 @@
     });
   }
 
+  // Beat analysis runs in a worker (beat-worker.js), so a whole song's analysis doesn't freeze the
+  // page. Each job gets its own short-lived worker with copies of the samples. Where a worker can't
+  // start, it runs here instead, with the same result. onProgress(0 to 1) follows the analysis.
+  function runBeats(op, buffer, extra = {}, onProgress = () => {}) {
+    const here = () => (op === "analyze"
+      ? TT.beatTrack.analyze(channelsOf(buffer), buffer.sampleRate, onProgress)
+      : TT.beatTrack.beatFeatures(channelsOf(buffer), buffer.sampleRate, extra.beats, extra.quiet));
+    let worker;
+    try {
+      worker = new Worker("beat-worker.js");
+    } catch {
+      return Promise.resolve().then(here);
+    }
+    const channels = channelsOf(buffer).map((ch) => ch.slice());
+    return new Promise((resolve, reject) => {
+      let started = false;
+      worker.onmessage = (e) => {
+        const m = e.data;
+        started = true;
+        if (m.type === "progress") onProgress(m.done);
+        else {
+          worker.terminate();
+          if (m.type === "done") resolve(m.result);
+          else reject(new Error(m.message));
+        }
+      };
+      // a worker that fails to load at all: do it here
+      worker.onerror = (e) => {
+        worker.terminate();
+        if (started) reject(new Error(e.message || "Beat analysis failed."));
+        else { try { resolve(here()); } catch (err) { reject(err); } }
+      };
+      worker.postMessage({ id: 1, op, channels, sampleRate: buffer.sampleRate, ...extra }, channels.map((ch) => ch.buffer));
+    });
+  }
+
   function channelsOf(buffer) {
     const out = [];
     for (let c = 0; c < Math.min(2, buffer.numberOfChannels); c++) out.push(buffer.getChannelData(c));
@@ -118,7 +154,8 @@
 
     list: () => [...metas.values()].sort((a, b) => a.added.localeCompare(b.added)).map((m) => TT.songs.get(PREFIX + m.id)).filter(Boolean),
 
-    // Adds a song from a file. onStep(text) reports progress. Returns the new song's id.
+    // Adds a song from a file. onStep(text, done) reports progress: done is 0 to 1 while the beat is
+    // being found, else undefined. Returns the new song's id.
     async importFile(file, onStep = () => {}) {
       if (!file) throw new Error("No file was chosen.");
       if (file.size > MAX_BYTES) throw new Error("That file is too big (the limit is 60 MB).");
@@ -132,11 +169,11 @@
       }
       if (buffer.duration < MIN_SECONDS) throw new Error("That song is too short (it needs at least 20 seconds).");
       if (buffer.duration > MAX_SECONDS) throw new Error("That song is too long (the limit is 12 minutes).");
-      onStep("Finding the beat…");
+      onStep("Finding the beat…", 0);
       await frame();
       let analysis;
       try {
-        analysis = TT.beatTrack.analyze(channelsOf(buffer), buffer.sampleRate);
+        analysis = await runBeats("analyze", buffer, {}, (done) => onStep("Finding the beat…", done));
       } catch {
         throw new Error("No steady beat could be found in that song.");
       }
@@ -173,7 +210,7 @@
       const meta = metas.get(id);
       if (!meta.analysis.strength || !meta.analysis.pitch) {
         const an = meta.analysis;
-        Object.assign(an, TT.beatTrack.beatFeatures(channelsOf(buffer), buffer.sampleRate, an.beats, an.quiet));
+        Object.assign(an, await runBeats("features", buffer, { beats: an.beats, quiet: an.quiet }));
         rec.analysis = an;
         await tx("readwrite", (s) => s.put(rec));
         register(meta);
@@ -198,7 +235,7 @@
       const buffer = await this.buffer(songId);
       const an = TT.beatTrack.fromTaps(taps, buffer.duration, (beats) => TT.beatTrack.quietBeats(channelsOf(buffer), buffer.sampleRate, beats));
       if (!an) return false;
-      Object.assign(an, TT.beatTrack.beatFeatures(channelsOf(buffer), buffer.sampleRate, an.beats, an.quiet));
+      Object.assign(an, await runBeats("features", buffer, { beats: an.beats, quiet: an.quiet }));
       an.rev = (meta.analysis.rev || 1) + 1;
       const rec = await tx("readonly", (s) => s.get(id));
       if (!rec) return false;

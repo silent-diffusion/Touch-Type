@@ -362,6 +362,9 @@
 
   // The Mac app: shortcuts use Cmd instead of Ctrl, and macOS shows its own close button in full screen.
   const MAC = !!window.touchType && window.touchType.platform === "darwin";
+  // The Apple app (iPhone, iPad, Mac): its bridge says which of its systems it's on.
+  const APPLE = !!window.touchType && !!window.touchType.os;
+  const PRIVACY_URL = "https://github.com/silent-diffusion/Touch-Type/blob/main/PRIVACY.md";
 
   // Full screen has no title bar, so moving the mouse to the very top shows a close button,
   // which hides again once the mouse moves away. (Not on the Mac, which shows its menu bar there.)
@@ -1268,6 +1271,10 @@
     if (checkLudicrous()) ludicrousReveal();
   }
 
+  // Tiles' message line, with a progress bar under it while a song's beat is being found.
+  const tlMsg = () => (ui.tlNote ? `<p class="tl-msg" role="status">${esc(ui.tlNote)}</p>` : "") +
+    (ui.tlBusy && ui.tlProgress != null ? `<div class="tl-bar tl-import-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${ui.tlProgress}"><i style="width: ${ui.tlProgress}%"></i></div>` : "");
+
   function renderTilesSelect() {
     const s = S();
     const C = TT.tilesCore;
@@ -1336,7 +1343,7 @@
           <p class="tl-blurb">Press <strong>Space</strong> or <strong>T</strong> as each word starts to be sung. <strong>Backspace</strong> takes back the last tap. You can save part way and the rest stay untimed.</p>
           <div class="tl-lyric-run" aria-live="polite">${span(i - 2, "done")}${span(i - 1, "done")}${i < w.length ? span(i, "now") : `<span class="now">ALL TIMED</span>`}${[1, 2, 3, 4, 5, 6].map((d) => span(i + d, "next")).join("")}</div>
           <div class="tl-tapcount"><span>${i}</span><span class="caps-label">OF ${w.length} WORDS TIMED</span></div>
-          ${ui.tlNote ? `<p class="tl-msg" role="status">${esc(ui.tlNote)}</p>` : ""}
+          ${tlMsg()}
           <div class="tl-own">
             <button class="fh-play" data-act="tl:tapsave">SAVE <kbd>ENTER</kbd></button>
             <button class="outline-btn" data-act="tl:tapundo">UNDO <kbd>BACKSPACE</kbd></button>
@@ -1349,7 +1356,7 @@
           <div class="title-row"><h1>TAP THE BEAT</h1><span class="title-meta">${esc(song.title.toUpperCase())}</span></div>
           <p class="tl-blurb">Tap <strong>Space</strong> or <strong>T</strong> on every beat while the song plays. Start on a strong beat, the "one" of a bar, and keep going for at least 8 taps. More taps make it more exact.</p>
           <div class="tl-tapcount"><span>${ui.tap.taps.length}</span><span class="caps-label">TAPS${ui.tap.bpm ? ` · ABOUT ${ui.tap.bpm} BPM` : ""}</span></div>
-          ${ui.tlNote ? `<p class="tl-msg" role="status">${esc(ui.tlNote)}</p>` : ""}
+          ${tlMsg()}
           <div class="tl-own">
             <button class="fh-play" data-act="tl:tapsave">SAVE <kbd>ENTER</kbd></button>
             <button class="outline-btn" data-act="tl:tapcancel">CANCEL <kbd>ESC</kbd></button>
@@ -1373,7 +1380,7 @@
         ${tapPanel || lyricsPanel || `<section class="col-main">
           <div class="title-row"><h1>${esc(song.title.toUpperCase())}</h1><span class="title-meta">${esc(song.composer.toUpperCase())}${song.year ? ` · ${song.year}` : ""}</span></div>
           <div class="kind-line">${song.tempo} · ${fmtLength(song.duration)}${song.user ? ` · ${Math.round(song.bpm)} BPM` : ""} · ${words} TILES</div>
-          ${ui.tlNote ? `<p class="tl-msg" role="status">${esc(ui.tlNote)}</p>` : ""}
+          ${tlMsg()}
           <p class="tl-blurb">${esc(song.blurb)}</p>
           ${lyricLine}
           ${timingLine}
@@ -1618,7 +1625,14 @@
     const refresh = () => { if (ui.view === "tiles-select") renderTilesSelect(); };
     ui.tlBusy = true;
     try {
-      const id = await TT.music.importFile(file, (text) => { ui.tlNote = text; refresh(); });
+      const id = await TT.music.importFile(file, (text, done) => {
+        // the bar redraws for every whole percent, not on every message
+        const pct = done == null ? null : Math.floor(done * 100);
+        if (text === ui.tlNote && pct === ui.tlProgress) return;
+        ui.tlNote = text;
+        ui.tlProgress = pct;
+        refresh();
+      });
       S().tilesSong = id;
       TT.save();
       const song = TT.songs.get(id);
@@ -1629,6 +1643,7 @@
       ui.tlNote = err.message;
     }
     ui.tlBusy = false;
+    ui.tlProgress = null;
     refresh();
   });
 
@@ -1822,7 +1837,7 @@
     $("view-replay").innerHTML = `
       <div class="cols">
         <section class="col-main">
-          <div class="title-row"><h1>REPLAY</h1><span class="title-meta">${testName(rec.kind, rec.mode, rec.amount, rec.game, rec.title, rec.queue).toUpperCase()}</span></div>
+          <div class="title-row"><h1>REPLAY</h1><span class="title-meta">${esc(testName(rec.kind, rec.mode, rec.amount, rec.game, rec.title, rec.queue).toUpperCase())}</span></div>
           <div class="kind-line">${fmtDate.format(new Date(rec.date))}</div>
           <div id="rp-stage" class="rp-stage">${game ? "" : `
             <div class="live"><span id="rp-live-num" class="live-num"></span><span id="rp-live-label" class="caps-label"></span></div>
@@ -2215,7 +2230,7 @@
         <thead><tr><th>DATE</th><th>TEST</th><th class="num">WPM</th><th class="num">ACCURACY</th><th class="num">RAW</th><th class="num">REPLAY</th></tr></thead>
         <tbody>${rows.map((h) => `<tr>
           <td>${fmt.format(new Date(h.date))}</td>
-          <td>${testName(h.kind || "test", h.mode, h.amount, h.game, h.title, h.queue)}</td>
+          <td>${esc(testName(h.kind || "test", h.mode, h.amount, h.game, h.title, h.queue))}</td>
           <td class="num"><strong>${Math.round(h.wpm)}</strong></td>
           <td class="num">${Math.round(h.acc)}%</td>
           <td class="num">${Math.round(h.raw)}</td>
@@ -2320,6 +2335,30 @@
       <div class="rule-box push-down">Personal best: <strong class="hl">91 wpm</strong></div>`;
   }
 
+  // Settings → Data → This device: deleting everything on this device, in two steps (the button,
+  // then a confirmation that says what goes). TT.wipeDevice (store.js) does it and reloads.
+  function wipePanel() {
+    const device = APPLE ? "device" : "computer";
+    if (ui.wipe === "busy") return `<span class="hint-text" role="status">Deleting everything on this ${device}…</span>`;
+    if (!ui.wipe) {
+      return `<button class="opt danger" data-act="wipe:ask">DELETE ALL DATA ON THIS ${device.toUpperCase()}</button>` +
+        `<span class="hint-text">Every profile, setting, result, replay and added song. You'll be asked to confirm.</span>`;
+    }
+    const profiles = TT.profiles.list();
+    const names = profiles.map((p) => esc(p.name)).join(", ");
+    const songs = TT.music.list().length;
+    const native = !!(window.touchType && window.touchType.data && window.touchType.data.wipeDevice);
+    const models = !native && TT.models.supported() ? TT.models.catalog().filter((m) => TT.models.installed(m.id)) : [];
+    const modelBytes = models.reduce((n, m) => n + (TT.models.state(m.id).disk || 0), 0);
+    return `<div class="wipe-confirm" role="group" aria-label="Confirm deleting all data">
+      <p><strong>Delete everything Touch Type keeps on this ${device}?</strong> That's ${profiles.length === 1 ? "the profile" : `all ${profiles.length} profiles`} (${names})
+      with their results, replays and game progress, ${songs ? `the ${songs === 1 ? "song" : `${songs} songs`} you added, ` : ""}and all settings.
+      The app then starts fresh, as the first time you opened it. <strong>This can't be undone.</strong>${APPLE ? " What's in your iCloud is kept; delete that with DELETE FROM ICLOUD." : ""}</p>
+      ${models.length ? `<label class="wipe-models"><input type="checkbox" id="wipe-models"> Also delete the downloaded models (${models.map((m) => esc(m.name)).join(", ")}, ${MB(modelBytes)}). You can download them again in Settings → Models.</label>` : ""}
+      <div class="wipe-buttons"><button class="opt danger" data-act="wipe:go">YES, DELETE EVERYTHING</button><button class="opt outline" data-act="wipe:cancel">CANCEL</button></div>
+    </div>`;
+  }
+
   const SETTINGS_VIEWS = {
     appearance() {
       const s = S();
@@ -2364,6 +2403,8 @@
           ${srow("Profile", `<strong style="padding: 0 4px; font-size: 18px">${name}</strong>`)}
           ${srow("Saved results", `<strong style="padding: 0 4px; font-size: 18px">${n} ${n === 1 ? "round" : "rounds"}</strong>`)}
           ${srow("Reset", `<button class="opt danger" data-act="reset-data">DELETE THIS PROFILE'S DATA</button><span class="hint-text">Only ${name}. Settings and other profiles are kept.</span>`)}
+          ${srow("This device", wipePanel())}
+          ${srow("Privacy", `<span class="hint-text">No account, no analytics, nothing sent to the developer. <a href="${PRIVACY_URL}" target="_blank" rel="noopener">Read the privacy policy</a></span>`)}
         </div>
         <p class="note">Everything is stored on this computer. Nothing is uploaded.</p>
         </section>
@@ -2514,7 +2555,10 @@
             `<span class="hint-text">Checks when the app starts and downloads updates in the background.</span>`)}
           ${srow("Updates", `${action}<span class="hint-text" aria-live="polite">${status}</span>`)}
         </div>
-        <p class="note">Touch Type only connects to the internet when you check for updates or turn on automatic updates. It looks for new releases on GitHub (github.com/silent-diffusion/Touch-Type).</p>
+        <p class="note">${APPLE
+          ? "Touch Type only goes online to sync with your iCloud (when sync is on in Settings → Data), and to download a model in Settings → Models when you choose one. New versions come from the App Store."
+          : "Touch Type only goes online when you check for updates or turn on automatic updates, and when you download a model in Settings → Models. Both come from this app's releases on GitHub (github.com/silent-diffusion/Touch-Type)."}
+          <a href="${PRIVACY_URL}" target="_blank" rel="noopener">Privacy policy</a></p>
       </section>
     </div>`;
   };
@@ -2722,7 +2766,7 @@
         else if (x === "pack") ui.lbPack = y;
         renderLeaderboard();
         break;
-      case "settab": ui.settingsTab = x; renderSettings(); break;
+      case "settab": ui.settingsTab = x; if (ui.wipe !== "busy") ui.wipe = false; renderSettings(); break;
       case "set": setSetting(x, y); break;
       case "window":
         if (!window.touchType) break;
@@ -2744,6 +2788,22 @@
       case "profiles":
         ui.settingsTab = "profiles";
         openMenu("settings");
+        break;
+      case "wipe":
+        if (x === "ask") ui.wipe = true;
+        else if (x === "cancel") ui.wipe = false;
+        else if (x === "go" && ui.wipe === true) {
+          const models = !!($("wipe-models") && $("wipe-models").checked);
+          ui.wipe = "busy";
+          renderSettings();
+          TT.wipeDevice({ models }).catch(() => {
+            ui.wipe = false;
+            renderSettings();
+            els.statusLine.textContent = "Not everything could be deleted. Try again.";
+          });
+          break;
+        }
+        renderSettings();
         break;
       case "reset-data":
         if (confirm(`Delete all of ${TT.profiles.active().name}'s results, stats, replays and game progress? This can't be undone.`)) {

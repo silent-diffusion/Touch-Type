@@ -8,6 +8,8 @@
 (() => {
   const A = TT.analysis;
   const W = TT.wordInput;
+  // Words can come from lyrics you add, so they're escaped before they go into the page's markup.
+  const esc = (str) => String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
   const BACK = "<", BACK_WORD = "{";
   // v2: wrong letters are typed and must be backspaced. v3: a missed tile clears the typing unless
   // it's a correct start on another tile. v4: blank tiles, a word under each column. v5: Enter on
@@ -1644,7 +1646,7 @@
           e.classList.toggle("queued", !!t.q);
           e.classList.toggle("sloppy", !!t.q && !t.q.ok);
           // from v4 the tiles are blank; the words are under the columns
-          e.innerHTML = t.q ? `<span>${t.q.w}</span>` : g.v >= 4 ? "" : t === tg ? `<span><b>${typed}</b>${t.w.slice(typed.length)}</span>` : `<span>${t.w}</span>`;
+          e.innerHTML = t.q ? `<span>${esc(t.q.w)}</span>` : g.v >= 4 ? "" : t === tg ? `<span><b>${esc(typed)}</b>${esc(t.w.slice(typed.length))}</span>` : `<span>${esc(t.w)}</span>`;
         }
       }
       for (const [i, e] of tileEls) {
@@ -1678,7 +1680,7 @@
         const on = i === c;
         const n = on ? typed.length : 0;
         const cls = ["tl-word", on ? "on" : "", on && W.ready(g, w) ? "ready" : "", i === nextCol && !on ? "next" : "", !on && (typed || (g.queue && i !== nextCol)) ? "dim" : ""].filter(Boolean).join(" ");
-        return `<div class="${cls}" style="left: ${colLeft(i)}; width: ${100 / colCount()}%; --col: ${colVar(i)}"><span><b>${w.slice(0, n)}</b>${w.slice(n)}</span></div>`;
+        return `<div class="${cls}" style="left: ${colLeft(i)}; width: ${100 / colCount()}%; --col: ${colVar(i)}"><span><b>${esc(w.slice(0, n))}</b>${esc(w.slice(n))}</span></div>`;
       }).join("");
     }
 

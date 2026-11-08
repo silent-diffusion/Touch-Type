@@ -58,7 +58,10 @@ window.TT = window.TT || {};
       return null;
     }
   };
+  // While everything on this device is being deleted (TT.wipeDevice), nothing is written back.
+  let wiping = false;
   const write = (key, value) => {
+    if (wiping) return false;
     try {
       localStorage.setItem(key, JSON.stringify(value));
       return true;
@@ -184,5 +187,41 @@ window.TT = window.TT || {};
       Object.assign(TT.store, cleanData(read(dataKey(id))));
       return true;
     },
+  };
+
+  // Deletes everything Touch Type keeps on this device: every profile (the active one too), all
+  // settings, results, replays, added songs and their parts, and game progress; then reloads, so the
+  // app starts fresh as on its first run. models: also delete the downloaded models (desktop app).
+  // In the Apple app the app itself does it (window.touchType.data.wipeDevice), since it also keeps
+  // copies for iCloud sync; it reloads the page when done.
+  TT.wipeDevice = async ({ models = false } = {}) => {
+    const native = window.touchType && window.touchType.data && window.touchType.data.wipeDevice;
+    if (native) return native();
+    wiping = true;
+    if (models && TT.models && TT.models.supported()) {
+      for (const m of TT.models.catalog()) {
+        if (TT.models.state(m.id).status === "installed") {
+          try { await TT.models.remove(m.id); } catch {}
+        }
+      }
+    }
+    if (TT.closeDB) TT.closeDB();
+    let names = ["touchtype"];
+    try {
+      if (indexedDB.databases) names = [...new Set([...names, ...(await indexedDB.databases()).map((d) => d.name).filter(Boolean)])];
+    } catch {}
+    await Promise.all(names.map((name) => new Promise((resolve) => {
+      const req = indexedDB.deleteDatabase(name);
+      req.onsuccess = req.onerror = () => resolve();
+      // still open somewhere (a worker finishing): the delete goes through once it closes, before
+      // the reloaded page can open it again
+      req.onblocked = () => setTimeout(resolve, 1500);
+    })));
+    try { localStorage.clear(); } catch {}
+    try { sessionStorage.clear(); } catch {}
+    // the desktop app's window can't navigate itself (electron/main.js), so it reloads the page for it
+    const win = window.touchType && window.touchType.window;
+    if (win && win.reload) await win.reload();
+    else location.reload();
   };
 })();

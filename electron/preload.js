@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld("touchType", {
     isFullScreen: () => ipcRenderer.invoke("window-is-fullscreen"),
     setFullScreen: (on) => ipcRenderer.invoke("window-set-fullscreen", !!on),
     close: () => ipcRenderer.invoke("window-close"),
+    reload: () => ipcRenderer.invoke("window-reload"),
     onFullScreen: (cb) => ipcRenderer.on("fullscreen", (_e, on) => cb(on)),
   },
   update: {

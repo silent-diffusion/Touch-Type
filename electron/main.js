@@ -177,6 +177,8 @@ if (!app.requestSingleInstanceLock()) {
   ipcMain.handle("window-is-fullscreen", () => !!win && win.isFullScreen());
   ipcMain.handle("window-set-fullscreen", (_e, on) => win && win.setFullScreen(!!on));
   ipcMain.handle("window-close", () => win && win.close());
+  // the page starting over (after Settings → Data → Delete all data); it can't navigate itself
+  ipcMain.handle("window-reload", () => win && !win.isDestroyed() && win.webContents.reload());
   setUpUpdates();
   models.setUp(ipcMain, (state) => {
     if (win && !win.isDestroyed()) win.webContents.send("models-state", state);

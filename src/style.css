@@ -883,6 +883,7 @@ body:not(.typing) .caret.caret-block { animation-name: blink-block; }
 .tl-bar { height: 14px; border: var(--rule); margin-top: 8px; }
 .tl-bar i { display: block; height: 100%; background: var(--ink); transition: width 0.15s; }
 .tl-bar i.low { background: var(--accent); }
+.tl-import-bar { max-width: 360px; }
 
 .tl-center { display: flex; flex-direction: column; min-width: 0; }
 .tl-head { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
@@ -1535,3 +1536,11 @@ strong.none { color: var(--muted); font-weight: 600; }
 .mm-licence-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; letter-spacing: 0.06em; }
 .mm-licence pre { flex: 1; margin: 0; overflow: auto; white-space: pre-wrap; font: 13px/1.5 var(--typing-font, monospace); user-select: text; }
 .mm-head .tag { font-size: 12px; font-weight: 800; letter-spacing: 0.14em; background: var(--ink); color: var(--ground); padding: 3px 8px; }
+
+/* Settings → Data → This device: the confirmation before deleting everything */
+.wipe-confirm { border: 2px solid var(--accent); padding: 12px 14px; max-width: 620px; }
+.wipe-confirm p { margin: 0 0 12px; line-height: 1.45; }
+.wipe-models { display: block; margin: 0 0 12px; }
+.wipe-models input { margin-right: 6px; }
+.wipe-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+.hint-text a, .note a { color: inherit; }

@@ -38,7 +38,7 @@ A desktop app for improving your touch typing. It has a quick speed test, practi
 - **Profiles:** separate profiles, each with its own results, stats, replays and game progress. Create, rename, switch and delete them in Settings → Profiles.
 - **Settings:** three themes, five accent colors, interface and typing fonts, text size and caret style.
 
-Your data stays on your computer.
+Your data stays on your computer: there's no account, no analytics and nothing is sent to the developer. The app only goes online to download a model you choose, or to check for updates when you ask (or, on Windows, when you turn on automatic updates). Settings → Data can delete everything on this computer. See the [privacy policy](PRIVACY.md).
 
 ### Keyboard shortcuts
 

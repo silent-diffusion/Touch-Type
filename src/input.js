@@ -61,9 +61,10 @@
     return misses;
   }
 
-  // The typed box's contents. Letters are a-z only, so nothing needs escaping.
+  // The typed box's contents, escaped (the games only let letters through, but this doesn't rely on it).
+  const esc = (str) => String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
   const html = (g) =>
-    `<span class="wb-ok">${good(g)}</span>${clean(g) ? "" : `<span class="wb-bad">${wrong(g)}</span>`}`;
+    `<span class="wb-ok">${esc(good(g))}</span>${clean(g) ? "" : `<span class="wb-bad">${esc(wrong(g))}</span>`}`;
 
   // ---------- typing speed in games ----------
   // Games spend a lot of time waiting (for a tile, a gap, the next path), so their speed counts only
