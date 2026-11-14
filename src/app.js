@@ -31,43 +31,16 @@
   const SIZES = { s: ["S", "22px"], m: ["M", "28px"], l: ["L", "34px"], xl: ["XL", "40px"] };
   const CARETS = { line: "Line", block: "Block", underline: "Underline" };
 
-  const GAMES = [
-    { id: "forest", name: "Forest Hop", cat: "arcade", kind: "ARCADE GAME", playable: true,
-      desc: "Pick an animal and get as far through the forest as you can. Type a direction's word, then press Space or Enter to hop. Dodge deer, ride logs, collect treats, and keep moving before your predator catches up." },
-    { id: "tiles", name: "Tiles", cat: "rhythm", kind: "RHYTHM GAME", playable: true,
-      desc: "Tiles fall down the columns in time with the music, and each column has a word at the bottom. Type a column's word, then press Enter or Space as its tile crosses the line. Pick a song, or add your own music, and a difficulty from easy to expert." },
-    { id: "path", name: "Path Runner", cat: "arcade", kind: "ARCADE GAME", playable: true,
-      desc: "Type a path's word to step onto it. The words come from your weak keys. The clock keeps draining, so keep moving." },
-    { id: "ghost", name: "Ghost Race", cat: "arcade", kind: "RACING GAME", playable: true,
-      desc: "Type a track to run it, against a ghost: your own best run played back key for key, your last run, anyone else's best on this computer, or a steady pace. Words only move you on once they're right. Beat the ghost and your new best becomes the one to chase." },
-    { id: "worm", name: "Wormhole", cat: "trivia", kind: "TRIVIA GAME", playable: true,
-      desc: "You're an earthworm. Name things in a category, like a fruit or a country, by typing them: any right answer counts, and the rarer it is, the deeper you dig. Play the Daily Dig, seven prompts a day with one answer each, or Blitz: as many answers as you can in 30 seconds." },
-    { id: "drills", name: "Key Drills", cat: "drills", kind: "DRILL",
-      desc: "Short, fast rounds on your weakest keys and letter pairs." },
-  ];
-
-  const GAME_ART = {
-    tiles: `<path d="M36 40 V260 M264 40 V260" stroke="currentColor" stroke-width="12"/>
-            <path d="M93 40 V260 M150 40 V260 M207 40 V260" stroke="currentColor" stroke-width="4" stroke-dasharray="10 10"/>
-            <rect x="44" y="196" width="212" height="40" fill="none" stroke="currentColor" stroke-width="10"/>
-            <rect x="100" y="56" width="44" height="34" fill="currentColor"/>
-            <rect x="214" y="120" width="44" height="34" fill="currentColor"/>
-            <rect x="44" y="198" width="44" height="36" fill="var(--accent)"/>`,
-    path: `<path d="M150 228 V150 L66 66 M150 150 V48 M150 150 L234 66 M44 104 V44 H104 M112 74 L150 36 L188 74 M196 44 H256 V104" fill="none" stroke="currentColor" stroke-width="22"/>
-           <rect x="124" y="236" width="52" height="52" fill="var(--accent)"/>`,
-    ghost: `<path d="M30 110 H230 M186 66 L230 110 L186 154" fill="none" stroke="currentColor" stroke-width="22"/>
-            <path d="M30 200 H190 M146 156 L190 200 L146 244" fill="none" stroke="var(--accent)" stroke-width="22" stroke-dasharray="26 14"/>`,
-    drills: `<rect x="50" y="50" width="200" height="200" fill="none" stroke="currentColor" stroke-width="22"/>
-             <rect x="115" y="115" width="70" height="70" fill="var(--accent)"/>`,
-  };
-
-  const MENU_VIEWS = ["games", "leaderboard", "stats", "settings"];
+  const MENU_VIEWS = ["leaderboard", "stats", "settings"];
   const FOREST_VIEWS = ["forest", "forest-select", "forest-guide"];
   const TILES_VIEWS = ["tiles", "tiles-select"];
   const GHOST_VIEWS = ["ghost", "ghost-select"];
   const WORM_VIEWS = ["worm", "worm-select"];
-  // What Enter (or the play button) does for each game in the library.
-  const playAct = (id) => ({ forest: "fh:select", tiles: "tl:select", ghost: "gr:select", worm: "wm:select" })[id] || "play";
+  // The games' own screens. The GAMES tab opens the one you had open last (Forest Hop at first);
+  // there's no list of games before them: their tabs are the list. (Path Runner has no screen before
+  // its run, so the GAMES tab doesn't land on it.)
+  const GAME_SCREENS = { forest: "fh:select", tiles: "tl:select", ghost: "gr:select", worm: "wm:select" };
+  const SELECT_VIEWS = ["forest-select", "tiles-select", "ghost-select", "worm-select"];
 
   const ui = {
     view: "test",
@@ -79,8 +52,7 @@
     lbDiff: null,
     lbQueue: null,
     settingsTab: "appearance",
-    gamesTab: "all",
-    game: "forest",
+    lastGame: "forest", // the game whose screen the GAMES tab opens
     targets: [],
   };
 
@@ -124,7 +96,9 @@
     s.tilesMusic = s.tilesMusic !== false;
     s.tilesMetronome = !!s.tilesMetronome;
     s.tilesScope = s.tilesScope !== false;
-    s.tilesLyrics = s.tilesLyrics !== false;
+    // Tiles' words: mix, lyrics or practice (practice was "lyrics off"); tilesLyrics follows it
+    if (!["mix", "lyrics", "practice"].includes(s.tilesWords)) s.tilesWords = s.tilesLyrics === false ? "practice" : "mix";
+    s.tilesLyrics = s.tilesWords !== "practice";
     s.tilesQueue = !!s.tilesQueue;
     s.fhMusic = s.fhMusic !== false;
     s.fhSfx = s.fhSfx !== false;
@@ -212,8 +186,9 @@
     // The test settings show in the folder on the test, practice and results screens only.
     const special = !["test", "practice", "results"].includes(ui.view);
     els.config.hidden = special;
-    $("profile-chip").textContent = TT.profiles.active().name;
-    $("profile-chip").setAttribute("aria-label", `Profile: ${TT.profiles.active().name}. Manage profiles`);
+    const isMain = TT.profiles.activeId() === TT.profiles.mainId();
+    $("profile-chip").textContent = TT.profiles.active().name + (isMain ? " ★" : "");
+    $("profile-chip").setAttribute("aria-label", `Profile: ${TT.profiles.active().name}${isMain ? " (main profile)" : ""}. Manage profiles`);
     if (special) return;
 
     if (ui.lastTyping === "practice") {
@@ -320,17 +295,16 @@
     test: [["ARROWS", "MOVE", "noop"], ["TAB", "RESTART", "restart"], ["ESC", "MENU", "menu"]],
     practice: [["ARROWS", "MOVE", "noop"], ["TAB", "NEW WORDS", "restart"], ["ESC", "MENU", "menu"]],
     results: [["ARROWS", "MOVE", "noop"], ["TAB / ENTER", "NEXT TEST", "restart"], ["R", "REPLAY", "replay:last"], ["P", "PRACTICE WEAK KEYS", "practice"], ["ESC", "MENU", "menu"]],
-    games: [["ARROWS", "MOVE", "noop"], ["ESC", "CLOSE MENU", "close"]],
     game: [["TAB", "RESTART", "play"], ["ESC", "PAUSE", "pause"]],
     forest: [["SPACE / ENTER", "JUMP", "noop"], ["TAB", "RESTART", "fh:play"], ["ESC", "PAUSE", "pause"]],
-    "forest-select": [["ARROWS", "CHOOSE", "noop"], ["ENTER", "PLAY", "fh:play"], ["H", "HOW TO PLAY", "fh:guide"], ["M", "MUSIC", "fh:music"], ["E", "EFFECTS", "fh:sfx"], ["ESC", "MENU", "menu"]],
+    "forest-select": [["ARROWS", "CHOOSE", "noop"], ["ENTER", "PLAY", "fh:play"], ["H", "HOW TO PLAY", "fh:guide"], ["M", "MUSIC", "fh:music"], ["E", "EFFECTS", "fh:sfx"], ["ESC", "CLOSE MENU", "close"]],
     "forest-guide": [["ARROWS", "MOVE", "noop"], ["ENTER", "PLAY", "fh:play"], ["ESC", "BACK", "fh:select"]],
     tiles: [["ENTER / SPACE", "HIT", "noop"], ["TAB", "RESTART", "tl:play"], ["ESC", "PAUSE", "pause"]],
-    "tiles-select": [["ARROWS", "MOVE", "noop"], ["[ ]", "DIFFICULTY", "tl:harder"], ["ENTER", "PLAY", "tl:play"], ["A", "ADD A SONG", "tl:import"], ["Q", "MODE", "tl:mode:toggle"], ["M", "MUSIC", "tl:music"], ["T", "METRONOME", "tl:metronome"], ["ESC", "MENU", "menu"]],
+    "tiles-select": [["ARROWS", "MOVE", "noop"], ["[ ]", "DIFFICULTY", "tl:harder"], ["ENTER", "PLAY", "tl:play"], ["A", "ADD A SONG", "tl:import"], ["Q", "MODE", "tl:mode:toggle"], ["M", "MUSIC", "tl:music"], ["T", "METRONOME", "tl:metronome"], ["ESC", "CLOSE MENU", "close"]],
     ghost: [["SPACE", "NEXT WORD", "noop"], ["TAB", "RESTART", "gr:play"], ["ESC", "PAUSE", "pause"]],
-    "ghost-select": [["ARROWS", "MOVE", "noop"], ["ENTER", "RACE", "gr:play"], ["M", "MUSIC", "gr:music"], ["E", "EFFECTS", "gr:sfx"], ["ESC", "MENU", "menu"]],
+    "ghost-select": [["ARROWS", "MOVE", "noop"], ["ENTER", "RACE", "gr:play"], ["M", "MUSIC", "gr:music"], ["E", "EFFECTS", "gr:sfx"], ["ESC", "CLOSE MENU", "close"]],
     worm: [["ENTER", "DIG IN", "noop"], ["ESC", "PAUSE", "pause"]],
-    "worm-select": [["ARROWS", "MOVE", "noop"], ["ENTER", "DIG", "wm:play"], ["M", "MUSIC", "wm:music"], ["E", "EFFECTS", "wm:sfx"], ["ESC", "MENU", "menu"]],
+    "worm-select": [["ARROWS", "MOVE", "noop"], ["ENTER", "DIG", "wm:play"], ["M", "MUSIC", "wm:music"], ["E", "EFFECTS", "wm:sfx"], ["ESC", "CLOSE MENU", "close"]],
     replay: [["SPACE", "PLAY / PAUSE", "rp:toggle"], ["← →", "SKIP 2S", "rp:skip:2000"], ["↑ ↓", "MOVE", "noop"], ["ESC", "BACK", "rp:back"]],
     stats: [["ARROWS", "MOVE", "noop"], ["P", "PRACTICE WEAK KEYS", "practice"], ["ESC", "CLOSE MENU", "close"]],
     leaderboard: [["ARROWS", "MOVE", "noop"], ["ESC", "CLOSE MENU", "close"]],
@@ -340,7 +314,6 @@
     test: "Type to begin.",
     practice: "Practice ready.",
     results: "Result saved.",
-    games: "Select a game.",
     game: "Type a word to move.",
     forest: "Type a word, then press Space or Enter to hop.",
     "forest-select": "Collect treats on your runs to unlock more animals.",
@@ -364,7 +337,6 @@
       hints = hints.filter(([, , act]) => act !== "practice").map(([key, label, act]) =>
         [key, act === "restart" ? "PRACTICE AGAIN" : label, act]);
     }
-    if (ui.view === "games" && selectedGame().playable) hints = [["ENTER", "PLAY", playAct(selectedGame().id)], ...hints];
     // a Daily Dig that's already done can only be replayed
     if (ui.view === "worm-select" && wormDigDone()) hints = hints.map((h) => (h[0] === "ENTER" ? ["R", "REPLAY", "wm:replay"] : h));
     // In full screen, Esc on a main screen leaves full screen.
@@ -378,7 +350,7 @@
   // ---------- full screen (desktop app) ----------
 
   // The main screens, one per tab. Esc on one of these leaves full screen.
-  const ROOT_VIEWS = ["test", "practice", "games", "leaderboard", "stats", "settings"];
+  const ROOT_VIEWS = ["test", "practice", ...SELECT_VIEWS, "leaderboard", "stats", "settings"];
   ui.fullscreen = false;
 
   function setFullscreenState(on) {
@@ -390,6 +362,9 @@
 
   // The Mac app: shortcuts use Cmd instead of Ctrl, and macOS shows its own close button in full screen.
   const MAC = !!window.touchType && window.touchType.platform === "darwin";
+  // The Apple app (iPhone, iPad, Mac): its bridge says which of its systems it's on.
+  const APPLE = !!window.touchType && !!window.touchType.os;
+  const PRIVACY_URL = "https://github.com/silent-diffusion/Touch-Type/blob/main/PRIVACY.md";
 
   // Full screen has no title bar, so moving the mouse to the very top shows a close button,
   // which hides again once the mouse moves away. (Not on the Mac, which shows its menu bar there.)
@@ -409,8 +384,8 @@
     ["test", "TEST", "nav:test"], ["practice", "PRACTICE", "nav:practice"], ["games", "GAMES", "nav:games"],
     ["leaderboard", "LEADERBOARD", "nav:leaderboard"], ["stats", "STATS", "nav:stats"], ["settings", "SETTINGS", "nav:settings"],
   ];
-  // While you're in the games, the second row of tabs is the library and each playable game.
-  const GAME_TABS = [["library", "LIBRARY", "nav:games"], ["forest", "FOREST HOP", "fh:select"], ["tiles", "TILES", "tl:select"], ["ghost", "GHOST RACE", "gr:select"], ["worm", "WORMHOLE", "wm:select"], ["path", "PATH RUNNER", "play"]];
+  // While you're in the games, the second row of tabs is the games themselves.
+  const GAME_TABS = [["forest", "FOREST HOP", "fh:select"], ["tiles", "TILES", "tl:select"], ["ghost", "GHOST RACE", "gr:select"], ["worm", "WORMHOLE", "wm:select"], ["path", "PATH RUNNER", "play"]];
   const FOLDER_VIEWS = ["leaderboard", "stats", "settings"]; // these draw their own second row of tabs
 
   // Which main tab a screen belongs to.
@@ -428,8 +403,7 @@
     if (GHOST_VIEWS.includes(view)) return "ghost";
     if (WORM_VIEWS.includes(view)) return "worm";
     if (TILES_VIEWS.includes(view)) return "tiles";
-    if (view === "game") return "path";
-    return "library";
+    return "path";
   }
 
   const tabNum = (id) => MAIN_TABS.findIndex(([t]) => t === id) + 1;
@@ -642,6 +616,9 @@
     else if (!FOLDER_VIEWS.includes(view)) folderShown.sub = null;
 
     ui.view = view;
+    // Esc on the typing test (and quitting Path Runner) comes back to the games, to this game's screen
+    if (SELECT_VIEWS.includes(view)) ui.lastGame = gameTabFor(view);
+    if (SELECT_VIEWS.includes(view) || view === "game") ui.menuView = "games";
     els.config.hidden = !["test", "practice", "results"].includes(view);
     renderTabs(view);
     els.typing.hidden = view !== "test" && view !== "practice";
@@ -662,6 +639,11 @@
     renderHints();
   }
 
+  // The GAMES tab: the screen of the game you had open last.
+  function openGames() {
+    act(GAME_SCREENS[ui.lastGame] || GAME_SCREENS.forest);
+  }
+
   function openMenu(view) {
     engine.stop();
     runner.stop();
@@ -672,7 +654,7 @@
     document.body.classList.remove("typing");
     ui.menuView = view;
     show(view);
-    ({ games: renderGames, leaderboard: renderLeaderboard, stats: renderStats, settings: renderSettings })[view]();
+    ({ leaderboard: renderLeaderboard, stats: renderStats, settings: renderSettings })[view]();
   }
 
   // A section's own menu becomes the folder's second row of tabs (it returns no markup of its own).
@@ -680,17 +662,6 @@
     setSubtabs(tabs.map(([id, label]) => [id, label, `${act}:${id}`]), current, tabFor(ui.view));
     return "";
   };
-
-  function statusPanel(title = "STATUS") {
-    const sum = A.summary();
-    return `<div class="rule-head">${title}</div>
-      <dl class="status">${statusRows([
-        ["WPM (last 10):", Math.round(sum.wpm10)],
-        ["Best WPM:", Math.round(sum.best)],
-        ["Accuracy (last 10):", `${Math.round(sum.acc10)}%`],
-        ["Tests taken:", sum.tests, true],
-      ])}</dl>`;
-  }
 
   function targetPanel() {
     const targets = A.weakKeys();
@@ -700,36 +671,6 @@
   }
 
   // ---------- games ----------
-
-  const selectedGame = () => GAMES.find((x) => x.id === ui.game);
-  const gameBest = (id) => (TT.store.games[id] ? TT.store.games[id].best : 0);
-  const gameTag = (x) => (!x.playable ? "SOON" : gameBest(x.id) ? gameBest(x.id) : "NEW");
-
-  function renderGames() {
-    const list = GAMES.filter((g) => ui.gamesTab === "all" || g.cat === ui.gamesTab);
-    if (!list.some((g) => g.id === ui.game)) ui.game = list[0].id;
-    const g = selectedGame();
-
-    const filters = [["all", "ALL"], ["arcade", "ARCADE"], ["rhythm", "RHYTHM"], ["trivia", "TRIVIA"], ["drills", "DRILLS"]];
-    $("view-games").innerHTML = `
-      <div class="seg game-filter" aria-label="Show games">${filters.map(([id, label]) =>
-        `<button class="${id === ui.gamesTab ? "on" : ""}" aria-pressed="${id === ui.gamesTab}" data-act="gtab:${id}">${label}</button>`).join("")}</div>` + `
-      <div class="cols">
-        <ul class="list col-list">
-          ${list.map((x) => `<li><button class="${x.id === g.id ? "on" : ""}" aria-pressed="${x.id === g.id}" data-act="game:${x.id}">${x.name}<span class="tag">${gameTag(x)}</span></button></li>`).join("")}
-        </ul>
-        <section class="col-main">
-          <div class="title-row"><h1>${g.name.toUpperCase()}</h1><span class="title-meta">${g.playable ? `BEST ${gameBest(g.id)}${g.id === "ghost" ? " WPM" : g.id === "worm" ? " POINTS" : ""}` : "SOON"}</span></div>
-          <div class="kind-line">${g.kind}</div>
-          <div class="game-art">${g.id === "forest" ? TT.sprites.svg("frog", 220) : g.id === "ghost" ? TT.ghostCore.runnerSvg(220) : g.id === "worm" ? TT.wormCore.wormIcon(240) : `<svg viewBox="0 0 300 300" role="img" aria-label="${g.name} icon">${GAME_ART[g.id]}</svg>`}</div>
-          <div class="detail-line">DIFFICULTY: <strong>${g.id === "tiles" ? "EASY TO EXPERT" : g.id === "ghost" ? "AS FAST AS YOUR GHOST" : g.id === "worm" ? "AS DEEP AS YOU KNOW" : "ADAPTIVE"}</strong></div>
-          <div class="rule-box">${g.desc}${g.playable ? "" : " <strong>Coming in a later update.</strong>"}</div>
-          ${g.playable ? `<button class="outline-btn play-btn" data-act="${playAct(g.id)}">PLAY <kbd>ENTER</kbd></button>` : ""}
-        </section>
-        <aside class="col-side">${statusPanel()}${targetPanel()}</aside>
-      </div>`;
-    renderHints();
-  }
 
   // ---------- game ----------
 
@@ -1286,6 +1227,11 @@
     expert: "Five columns and no longest word: a word can be as long as the time before its tile allows. A tile about every second, falling fast.",
     ludicrous: "Six columns and words of 7 letters or more, as long as the time before their tile allows. A tile about every half second, falling fastest of all. Health comes back half as fast, and mistakes cost twice as much.",
   };
+  const WORDS_HINT = {
+    mix: "The song's words, as they're sung, most of all the ones with your weak letters; practice words for your weak keys where it pauses.",
+    lyrics: "Every sung word that fits, as it's sung; practice words in between.",
+    practice: "Only practice words for your weak keys, whatever the song.",
+  };
   const MODE_HINT = {
     timed: "Press Enter as each tile crosses the line. Timing counts.",
     queue: "Lock in the next tile's word with Enter and type on. Each tile takes its word at the line, so only typing counts, and tiles come twice as often.",
@@ -1325,6 +1271,10 @@
     if (checkLudicrous()) ludicrousReveal();
   }
 
+  // Tiles' message line, with a progress bar under it while a song's beat is being found.
+  const tlMsg = () => (ui.tlNote ? `<p class="tl-msg" role="status">${esc(ui.tlNote)}</p>` : "") +
+    (ui.tlBusy && ui.tlProgress != null ? `<div class="tl-bar tl-import-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${ui.tlProgress}"><i style="width: ${ui.tlProgress}%"></i></div>` : "");
+
   function renderTilesSelect() {
     const s = S();
     const C = TT.tilesCore;
@@ -1346,10 +1296,10 @@
     const lyricCount = TT.lyrics.words(song.lyrics).length;
     const sungCount = (song.sungWords || []).length ? C.sungWords(song, s.tilesDiff, s.tilesQueue).filter(Boolean).length : 0;
     let lyricLine = "";
-    if (lyricCount && !s.tilesLyrics) lyricLine = "Lyrics are off, so the words are practice words.";
-    else if (sungCount) lyricLine = `The lyrics are timed: ${sungCount === words ? `all ${words} tiles fall` : `${sungCount} of the ${words} tiles fall`} as a word is sung, and get that word when it fits the difficulty. ${sungCount === words ? "Words that don't fit are" : "The rest are"} practice words.`;
+    if (lyricCount && !s.tilesLyrics) lyricLine = "Words are set to practice, so they're all practice words for your weak keys.";
+    else if (sungCount) lyricLine = `The lyrics are timed${song.lyricTimesBy && song.lyricTimesBy !== "you" ? " (found automatically)" : ""}: ${sungCount === words ? `all ${words} tiles fall` : `${sungCount} of the ${words} tiles fall`} as a word is sung, and get that word when it fits the difficulty${s.tilesWords === "mix" ? ", most of all words with your weak letters" : ""}. ${sungCount === words ? "Words that don't fit are" : "The rest are"} practice words.`;
     else if (lyricCount) lyricLine = `Most of the words come from the song's lyrics (${lyricCount} different words).` +
-      (song.user ? " Time them with TIME LYRICS, or paste LRC lyrics with times, and each word lands on the tile where it's sung." : "");
+      (song.user ? (TT.align && TT.align.available() ? " They'll be timed automatically, so each word lands on the tile where it's sung." : " Time them with TIME LYRICS, or paste LRC lyrics with times, and each word lands on the tile where it's sung.") : "");
     else if (s.tilesLyrics && C.titleWords(song.title).length) lyricLine = "A few of the words come from the title." + (song.user ? " Add lyrics with LYRICS and most of them will come from the song." : "");
     else if (song.user) lyricLine = "No lyrics yet. Add them with LYRICS and most of the words will come from the song.";
     if (lyricLine) lyricLine = `<p class="note">${lyricLine}</p>`;
@@ -1363,7 +1313,19 @@
       else if (st.status === "queued") partsLine = `<p class="note">Waiting to be split into ${parts} for the ×4 visuals. You can play it meanwhile.</p>`;
       else if (st.status === "failed") partsLine = `<p class="note">It couldn't be split into its parts: ${esc(st.error)}</p>`;
       else if (!installed && sp.supported()) partsLine = `<p class="note">At ×4 the visuals follow this song's ${parts}. Get the separation pack for a cleaner split.</p>
-          <div class="tl-own"><button class="outline-btn" data-act="goto:music">GET THE SEPARATION PACK</button></div>`;
+          <div class="tl-own"><button class="outline-btn" data-act="goto:models">GET SONG SEPARATION</button></div>`;
+    }
+    // An added song's lyric timing (align.js): being timed, or a way to get it.
+    let timingLine = "";
+    if (song.user && lyricCount && TT.align && TT.align.supported()) {
+      const at = TT.align.statusOf(song.id);
+      if (at.status === "working") timingLine = `<p class="note">Finding when each word is sung… ${at.percent || 0}%. You can play it meanwhile.</p>`;
+      else if (at.status === "queued") timingLine = `<p class="note">Waiting to find when each word is sung${TT.models.installed("separation") ? " (after its vocals are split)" : ""}.</p>`;
+      else if (at.status === "failed") timingLine = `<p class="note">Its lyrics couldn't be timed: ${esc(at.error)}</p>`;
+      else if (at.status === "you" && TT.align.available()) timingLine = `<p class="note">You timed these lyrics by tapping along.</p>
+          <div class="tl-own"><button class="outline-btn" data-act="tl:retime">TIME AUTOMATICALLY</button></div>`;
+      else if (at.status === "none" && !TT.align.available()) timingLine = `<p class="note">Lyric timing can find when each word is sung, so they land on the tiles where they're sung without tapping along.</p>
+          <div class="tl-own"><button class="outline-btn" data-act="goto:models">GET LYRIC TIMING</button></div>`;
     }
     const rows = tilesDiffIds().map((id) => {
       const b = best(song.id, id);
@@ -1381,7 +1343,7 @@
           <p class="tl-blurb">Press <strong>Space</strong> or <strong>T</strong> as each word starts to be sung. <strong>Backspace</strong> takes back the last tap. You can save part way and the rest stay untimed.</p>
           <div class="tl-lyric-run" aria-live="polite">${span(i - 2, "done")}${span(i - 1, "done")}${i < w.length ? span(i, "now") : `<span class="now">ALL TIMED</span>`}${[1, 2, 3, 4, 5, 6].map((d) => span(i + d, "next")).join("")}</div>
           <div class="tl-tapcount"><span>${i}</span><span class="caps-label">OF ${w.length} WORDS TIMED</span></div>
-          ${ui.tlNote ? `<p class="tl-msg" role="status">${esc(ui.tlNote)}</p>` : ""}
+          ${tlMsg()}
           <div class="tl-own">
             <button class="fh-play" data-act="tl:tapsave">SAVE <kbd>ENTER</kbd></button>
             <button class="outline-btn" data-act="tl:tapundo">UNDO <kbd>BACKSPACE</kbd></button>
@@ -1394,7 +1356,7 @@
           <div class="title-row"><h1>TAP THE BEAT</h1><span class="title-meta">${esc(song.title.toUpperCase())}</span></div>
           <p class="tl-blurb">Tap <strong>Space</strong> or <strong>T</strong> on every beat while the song plays. Start on a strong beat, the "one" of a bar, and keep going for at least 8 taps. More taps make it more exact.</p>
           <div class="tl-tapcount"><span>${ui.tap.taps.length}</span><span class="caps-label">TAPS${ui.tap.bpm ? ` · ABOUT ${ui.tap.bpm} BPM` : ""}</span></div>
-          ${ui.tlNote ? `<p class="tl-msg" role="status">${esc(ui.tlNote)}</p>` : ""}
+          ${tlMsg()}
           <div class="tl-own">
             <button class="fh-play" data-act="tl:tapsave">SAVE <kbd>ENTER</kbd></button>
             <button class="outline-btn" data-act="tl:tapcancel">CANCEL <kbd>ESC</kbd></button>
@@ -1418,9 +1380,10 @@
         ${tapPanel || lyricsPanel || `<section class="col-main">
           <div class="title-row"><h1>${esc(song.title.toUpperCase())}</h1><span class="title-meta">${esc(song.composer.toUpperCase())}${song.year ? ` · ${song.year}` : ""}</span></div>
           <div class="kind-line">${song.tempo} · ${fmtLength(song.duration)}${song.user ? ` · ${Math.round(song.bpm)} BPM` : ""} · ${words} TILES</div>
-          ${ui.tlNote ? `<p class="tl-msg" role="status">${esc(ui.tlNote)}</p>` : ""}
+          ${tlMsg()}
           <p class="tl-blurb">${esc(song.blurb)}</p>
           ${lyricLine}
+          ${timingLine}
           ${partsLine}
           ${song.user ? `<div class="tl-own">
             <button class="outline-btn" data-act="tl:lyricsedit">LYRICS</button>
@@ -1444,7 +1407,11 @@
           }).join("")}</div>
           <p class="note">${MODE_HINT[s.tilesQueue ? "queue" : "timed"]}</p>
           <div class="rule-head">SOUND</div>
-          <div class="tl-toggles">${toggle("MUSIC", s.tilesMusic, "tl:music")}${toggle("METRONOME", s.tilesMetronome, "tl:metronome")}${toggle("SCOPE", s.tilesScope, "tl:scope")}${toggle("LYRICS", s.tilesLyrics, "tl:lyrics")}</div>
+          <div class="tl-toggles">${toggle("MUSIC", s.tilesMusic, "tl:music")}${toggle("METRONOME", s.tilesMetronome, "tl:metronome")}${toggle("SCOPE", s.tilesScope, "tl:scope")}</div>
+          <div class="rule-head">WORDS</div>
+          <div class="seg tl-wordmode" aria-label="Words">${[["mix", "MIX"], ["lyrics", "LYRICS"], ["practice", "PRACTICE"]].map(([id, label]) =>
+            `<button class="${id === s.tilesWords ? "on" : ""}" aria-pressed="${id === s.tilesWords}" data-act="tl:words:${id}">${label}</button>`).join("")}</div>
+          <p class="note">${WORDS_HINT[s.tilesWords]}</p>
           <div class="rule-head">YOUR BEST${s.tilesQueue ? " · QUEUE" : ""}</div>
           <dl class="status">${statusRows(rows)}</dl>
           <div class="side-label">How to play:</div>
@@ -1509,7 +1476,7 @@
     show("tiles");
     setPlaying(true);
     renderBar();
-    tiles.newGame(s.tilesSong, s.tilesDiff, { music: s.tilesMusic, metronome: s.tilesMetronome, scope: s.tilesScope, lyrics: s.tilesLyrics, queue: s.tilesQueue });
+    tiles.newGame(s.tilesSong, s.tilesDiff, { music: s.tilesMusic, metronome: s.tilesMetronome, scope: s.tilesScope, lyrics: s.tilesLyrics, words: s.tilesWords, queue: s.tilesQueue });
   }
 
   // ---------- Ludicrous: the reveal ----------
@@ -1658,7 +1625,14 @@
     const refresh = () => { if (ui.view === "tiles-select") renderTilesSelect(); };
     ui.tlBusy = true;
     try {
-      const id = await TT.music.importFile(file, (text) => { ui.tlNote = text; refresh(); });
+      const id = await TT.music.importFile(file, (text, done) => {
+        // the bar redraws for every whole percent, not on every message
+        const pct = done == null ? null : Math.floor(done * 100);
+        if (text === ui.tlNote && pct === ui.tlProgress) return;
+        ui.tlNote = text;
+        ui.tlProgress = pct;
+        refresh();
+      });
       S().tilesSong = id;
       TT.save();
       const song = TT.songs.get(id);
@@ -1669,6 +1643,7 @@
       ui.tlNote = err.message;
     }
     ui.tlBusy = false;
+    ui.tlProgress = null;
     refresh();
   });
 
@@ -1795,6 +1770,10 @@
     if (x === "timelyrics") { startTap("lyrics"); return; }
     if (x === "tapundo") { if (ui.tap && ui.tap.mode === "lyrics" && ui.tap.taps.length) { ui.tap.taps.pop(); renderTilesSelect(); } return; }
     if (x === "tapsave") { saveTap(); return; }
+    if (x === "retime") {
+      if (confirm("Time this song's lyrics automatically? The times you tapped are replaced.")) TT.align.retime(S().tilesSong).then(renderTilesSelect);
+      return;
+    }
     if (x === "tapcancel") { stopTap(); ui.tlNote = ""; renderTilesSelect(); return; }
     if (x === "delete") { deleteSong(); return; }
     if (ui.tap) return; // the rest waits until tapping is done
@@ -1807,7 +1786,8 @@
     else if (x === "music") s.tilesMusic = !s.tilesMusic;
     else if (x === "metronome") s.tilesMetronome = !s.tilesMetronome;
     else if (x === "scope") s.tilesScope = !s.tilesScope;
-    else if (x === "lyrics") s.tilesLyrics = !s.tilesLyrics;
+    else if (x === "lyrics") { s.tilesWords = s.tilesLyrics ? "practice" : "mix"; s.tilesLyrics = s.tilesWords !== "practice"; }
+    else if (x === "words" && ["mix", "lyrics", "practice"].includes(y)) { s.tilesWords = y; s.tilesLyrics = y !== "practice"; }
     else if (x === "mode") s.tilesQueue = y === "toggle" ? !s.tilesQueue : y === "queue";
     else return;
     TT.save();
@@ -1857,7 +1837,7 @@
     $("view-replay").innerHTML = `
       <div class="cols">
         <section class="col-main">
-          <div class="title-row"><h1>REPLAY</h1><span class="title-meta">${testName(rec.kind, rec.mode, rec.amount, rec.game, rec.title, rec.queue).toUpperCase()}</span></div>
+          <div class="title-row"><h1>REPLAY</h1><span class="title-meta">${esc(testName(rec.kind, rec.mode, rec.amount, rec.game, rec.title, rec.queue).toUpperCase())}</span></div>
           <div class="kind-line">${fmtDate.format(new Date(rec.date))}</div>
           <div id="rp-stage" class="rp-stage">${game ? "" : `
             <div class="live"><span id="rp-live-num" class="live-num"></span><span id="rp-live-label" class="caps-label"></span></div>
@@ -2250,7 +2230,7 @@
         <thead><tr><th>DATE</th><th>TEST</th><th class="num">WPM</th><th class="num">ACCURACY</th><th class="num">RAW</th><th class="num">REPLAY</th></tr></thead>
         <tbody>${rows.map((h) => `<tr>
           <td>${fmt.format(new Date(h.date))}</td>
-          <td>${testName(h.kind || "test", h.mode, h.amount, h.game, h.title, h.queue)}</td>
+          <td>${esc(testName(h.kind || "test", h.mode, h.amount, h.game, h.title, h.queue))}</td>
           <td class="num"><strong>${Math.round(h.wpm)}</strong></td>
           <td class="num">${Math.round(h.acc)}%</td>
           <td class="num">${Math.round(h.raw)}</td>
@@ -2355,6 +2335,32 @@
       <div class="rule-box push-down">Personal best: <strong class="hl">91 wpm</strong></div>`;
   }
 
+  // Settings → Data → This device: deleting everything on this device, in two steps (the button,
+  // then a confirmation that says what goes). TT.wipeDevice (store.js) does it and reloads.
+  // The Apple app deletes everything itself (with its iCloud sync's copies, which would otherwise
+  // bring the data straight back); until its bridge has that, it doesn't offer it.
+  const nativeWipe = () => !!(window.touchType && window.touchType.data && window.touchType.data.wipeDevice);
+  function wipePanel() {
+    const device = APPLE ? "device" : "computer";
+    if (ui.wipe === "busy") return `<span class="hint-text" role="status">Deleting everything on this ${device}…</span>`;
+    if (!ui.wipe) {
+      return `<button class="opt danger" data-act="wipe:ask">DELETE ALL DATA ON THIS ${device.toUpperCase()}</button>` +
+        `<span class="hint-text">Every profile, setting, result, replay and added song. You'll be asked to confirm.</span>`;
+    }
+    const profiles = TT.profiles.list();
+    const names = profiles.map((p) => esc(p.name)).join(", ");
+    const songs = TT.music.list().length;
+    const models = !nativeWipe() && TT.models.supported() ? TT.models.catalog().filter((m) => TT.models.installed(m.id)) : [];
+    const modelBytes = models.reduce((n, m) => n + (TT.models.state(m.id).disk || 0), 0);
+    return `<div class="wipe-confirm" role="group" aria-label="Confirm deleting all data">
+      <p><strong>Delete everything Touch Type keeps on this ${device}?</strong> That's ${profiles.length === 1 ? "the profile" : `all ${profiles.length} profiles`} (${names})
+      with their results, replays and game progress, ${songs ? `the ${songs === 1 ? "song" : `${songs} songs`} you added, ` : ""}and all settings.
+      The app then starts fresh, as the first time you opened it. <strong>This can't be undone.</strong>${APPLE ? " What's in your iCloud is kept; delete that with DELETE FROM ICLOUD." : ""}</p>
+      ${models.length ? `<label class="wipe-models"><input type="checkbox" id="wipe-models"> Also delete the downloaded models (${models.map((m) => esc(m.name)).join(", ")}, ${MB(modelBytes)}). You can download them again in Settings → Models.</label>` : ""}
+      <div class="wipe-buttons"><button class="opt danger" data-act="wipe:go">YES, DELETE EVERYTHING</button><button class="opt outline" data-act="wipe:cancel">CANCEL</button></div>
+    </div>`;
+  }
+
   const SETTINGS_VIEWS = {
     appearance() {
       const s = S();
@@ -2399,6 +2405,8 @@
           ${srow("Profile", `<strong style="padding: 0 4px; font-size: 18px">${name}</strong>`)}
           ${srow("Saved results", `<strong style="padding: 0 4px; font-size: 18px">${n} ${n === 1 ? "round" : "rounds"}</strong>`)}
           ${srow("Reset", `<button class="opt danger" data-act="reset-data">DELETE THIS PROFILE'S DATA</button><span class="hint-text">Only ${name}. Settings and other profiles are kept.</span>`)}
+          ${APPLE && !nativeWipe() ? "" : srow("This device", wipePanel())}
+          ${srow("Privacy", `<span class="hint-text">No account, no analytics, nothing sent to the developer. <a href="${PRIVACY_URL}" target="_blank" rel="noopener">Read the privacy policy</a></span>`)}
         </div>
         <p class="note">Everything is stored on this computer. Nothing is uploaded.</p>
         </section>
@@ -2408,6 +2416,7 @@
     profiles() {
       const P = TT.profiles;
       const active = P.activeId();
+      const main = P.mainId();
       const list = P.list();
       const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
       const rows = list.map((p) => {
@@ -2420,10 +2429,13 @@
                <button class="opt on" type="submit">SAVE</button>
                <button class="opt" type="button" data-act="profile:cancel">CANCEL</button>
              </form>`
-          : `<span class="profile-name">${esc(p.name)}</span>${isActive ? `<span class="tag">ACTIVE</span>` : ""}`;
+          : `<span class="profile-name">${esc(p.name)}</span>${isActive ? `<span class="tag">ACTIVE</span>` : ""}${p.id === main ? `<span class="tag">MAIN ★</span>` : ""}`;
         const actions = renaming ? "" :
           (isActive ? "" : `<button class="opt outline" data-act="profile:switch:${p.id}">SWITCH</button>`) +
           `<button class="opt" data-act="profile:rename:${p.id}" aria-label="Rename ${esc(p.name)}">RENAME</button>` +
+          (p.id === main
+            ? `<button class="opt" data-act="profile:unmain:${p.id}" aria-label="${esc(p.name)} is not the main profile">NOT MAIN</button>`
+            : `<button class="opt" data-act="profile:main:${p.id}" aria-label="Make ${esc(p.name)} the main profile">MAKE MAIN</button>`) +
           (isActive || list.length < 2 ? "" : `<button class="opt danger" data-act="profile:delete:${p.id}" aria-label="Delete ${esc(p.name)}">DELETE</button>`);
         return `<div class="profile-row ${isActive ? "active" : ""}">
           <div class="profile-main">${name}<span class="hint-text">${plural(s.tests, "test")} · ${plural(s.games, "game")} · best ${Math.round(s.best)} wpm</span></div>
@@ -2438,7 +2450,7 @@
             <input id="new-profile-name" class="text-input" name="name" maxlength="${P.MAX_NAME}" placeholder="Name" required>
             <button class="opt outline" type="submit">CREATE</button>
           </form>
-          <p class="note">Each profile keeps its own results, stats, replays and Forest Hop progress. Appearance and the other settings are shared.</p>
+          <p class="note">Each profile keeps its own results, stats, replays and Forest Hop progress. Appearance and the other settings are shared. One profile can be your main profile (★): the one that's yours, for when your profiles sync between devices.</p>
         </section>
       </div>`;
     },
@@ -2456,10 +2468,26 @@
     } else if (x === "cancel") {
       ui.renaming = null;
       renderSettings();
+    } else if (x === "main") {
+      const p = P.list().find((z) => z.id === id);
+      const was = P.list().find((z) => z.id === P.mainId());
+      if (p && confirm(`Make "${p.name}" your main profile?${was ? ` "${was.name}" will no longer be the main one.` : ""}\n\nOnly one profile can be the main one. It's marked with a ★.`)) {
+        P.setMain(id);
+        renderBar();
+        renderSettings();
+      }
+    } else if (x === "unmain") {
+      const p = P.list().find((z) => z.id === id);
+      if (p && confirm(`Stop using "${p.name}" as your main profile? No profile will be the main one until you choose one again.`)) {
+        P.setMain(null);
+        renderBar();
+        renderSettings();
+      }
     } else if (x === "delete") {
       const p = P.list().find((z) => z.id === id);
-      if (p && confirm(`Delete the profile "${p.name}" and all of its results, replays and game progress? This can't be undone.`)) {
+      if (p && confirm(`Delete the profile "${p.name}" and all of its results, replays and game progress?${id === P.mainId() ? " It's your main profile, so no profile will be the main one afterwards." : ""} This can't be undone.`)) {
         P.remove(id);
+        renderBar();
         renderSettings();
       }
     }
@@ -2529,57 +2557,117 @@
             `<span class="hint-text">Checks when the app starts and downloads updates in the background.</span>`)}
           ${srow("Updates", `${action}<span class="hint-text" aria-live="polite">${status}</span>`)}
         </div>
-        <p class="note">Touch Type only connects to the internet when you check for updates or turn on automatic updates. It looks for new releases on GitHub (github.com/silent-diffusion/Touch-Type).</p>
+        <p class="note">${APPLE
+          ? "Touch Type only goes online to sync with your iCloud (when sync is on in Settings → Data), and to download a model in Settings → Models when you choose one. New versions come from the App Store."
+          : "Touch Type only goes online when you check for updates or turn on automatic updates, and when you download a model in Settings → Models. Both come from this app's releases on GitHub (github.com/silent-diffusion/Touch-Type)."}
+          <a href="${PRIVACY_URL}" target="_blank" rel="noopener">Privacy policy</a></p>
       </section>
     </div>`;
   };
 
-  // Settings → Music: the separation pack, which splits the songs you add into their parts for
-  // Tiles' ×4 visuals (separate.js). One click downloads it; it can be removed again here.
+  // Settings → Models: the optional models (models.js) — song separation for Tiles' ×4 visuals
+  // (separate.js) and lyric timing (align.js) — each downloaded only when the user asks, with a
+  // progress bar, Cancel and Delete, what it's for, and its licence.
   const MB = (bytes) => `${Math.round(bytes / 1e6)} MB`;
-  SETTINGS_VIEWS.music = () => {
-    const sp = TT.separate;
-    const about = `<p class="note">With the separation pack, Touch Type splits the songs you add to Tiles into vocals, drums, bass and other instruments, on this computer, so the ×4 visuals can follow each part: the line along the bottom follows the vocals, the outline the bass and drums, and the sparks everything else. It runs in the background, on your graphics card when it can, and you can play a song while it's being split. Until then, Tiles uses a quicker, rougher split.</p>
-        <p class="note">The pack is about 100 MB. It's only downloaded when you click Download, from GitHub (github.com/silent-diffusion/Touch-Type). It uses Deezer's Spleeter model and Microsoft's ONNX Runtime; their licences come with it.</p>`;
-    if (!sp.supported()) {
+  const pct = (n) => `<div class="mm-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${n}"><i style="width:${n}%"></i></div>`;
+
+  // What a model is doing for the songs: split, timed, or what's left.
+  function modelSongsLine(id) {
+    const songs = TT.music.list();
+    if (id === "separation") {
+      const sp = TT.separate, st = sp.state(), c = sp.counts();
+      if (!c.total) return "No added songs yet.";
+      let line = `${c.done} of ${c.total} ${c.total === 1 ? "song" : "songs"} split.`;
+      const working = songs.find((x) => sp.statusOf(x.id).status === "working");
+      const failed = songs.filter((x) => sp.statusOf(x.id).status === "failed");
+      if (working) line += ` Splitting “${esc(working.title)}”… ${sp.statusOf(working.id).percent || 0}%${st.device ? ` (on the ${st.device === "gpu" ? "graphics card" : "processor"})` : ""}.`;
+      if (failed.length) line += ` ${failed.length === 1 ? "One song" : `${failed.length} songs`} couldn't be split: ${esc(sp.statusOf(failed[0].id).error)}`;
+      return line;
+    }
+    const al = TT.align, st = al.state(), c = al.counts();
+    if (!c.withLyrics) return "No added songs with lyrics yet. Add lyrics to a song in Tiles and it's timed in the background.";
+    let line = `${c.auto} of ${c.withLyrics} ${c.withLyrics === 1 ? "song" : "songs"} with lyrics timed${c.tapped ? `, ${c.tapped} by you (tapping overrides; TIME AUTOMATICALLY in Tiles undoes it)` : ""}.`;
+    const working = songs.find((x) => al.statusOf(x.id).status === "working");
+    const waiting = songs.filter((x) => al.statusOf(x.id).status === "queued").length;
+    const failed = songs.filter((x) => al.statusOf(x.id).status === "failed");
+    if (working) line += ` Timing “${esc(working.title)}”… ${al.statusOf(working.id).percent || 0}%${st.device ? ` (on the ${st.device === "gpu" ? "graphics card" : "processor"})` : ""}.`;
+    if (waiting && TT.models.installed("separation")) line += ` ${waiting} waiting, some for their vocals to be split.`;
+    else if (waiting) line += ` ${waiting} waiting.`;
+    if (failed.length) line += ` ${failed.length === 1 ? "One song" : `${failed.length} songs`} couldn't be timed: ${esc(al.statusOf(failed[0].id).error)}`;
+    return line;
+  }
+
+  SETTINGS_VIEWS.models = () => {
+    const M = TT.models;
+    if (!M.supported()) {
       return `<div class="cols"><section class="col-main">
-        <div class="settings-rows">${srow("Separation pack", `<span class="hint-text">Only available in the desktop app.</span>`)}</div>
-        ${about}
+        <p class="note">Optional models (song separation and lyric timing for Tiles) are only available in the desktop and Apple apps.</p>
       </section></div>`;
     }
-    const st = sp.state(), p = st.pack;
-    let action = "", status;
-    if (st.dev) status = "A local copy is in use (for testing).";
-    else if (p.status === "installed") {
-      action = `<button class="opt outline" data-act="pack:remove">REMOVE</button>`;
-      status = `Installed (${MB(p.size)}). Songs already split keep their parts if you remove it.`;
-    } else if (p.status === "downloading") {
-      action = `<button class="opt outline" data-act="pack:cancel">CANCEL</button>`;
-      status = `Downloading… ${p.percent}%`;
-    } else {
-      action = `<button class="opt on" data-act="pack:install">DOWNLOAD (${MB(p.size || 100e6)})</button>`;
-      status = p.status === "error" ? `The download didn't finish: ${esc(p.error)}` : "Not installed.";
-    }
-    const songs = TT.music.list();
-    const c = sp.counts();
-    const working = songs.find((x) => sp.statusOf(x.id).status === "working");
-    const failed = songs.filter((x) => sp.statusOf(x.id).status === "failed");
-    let progress = !c.total ? "No added songs yet." : `${c.done} of ${c.total} ${c.total === 1 ? "song" : "songs"} split.`;
-    if (working) progress += ` Splitting “${esc(working.title)}”… ${sp.statusOf(working.id).percent || 0}%${st.device ? ` (on the ${st.device === "gpu" ? "graphics card" : "processor"})` : ""}.`;
-    if (failed.length) progress += ` ${failed.length === 1 ? "One song" : `${failed.length} songs`} couldn't be split: ${esc(sp.statusOf(failed[0].id).error)}`;
+    const gpu = TT.align.gpu();
+    const cards = M.catalog().map((m) => {
+      const st = M.state(m.id);
+      const size = M.downloadSize(m.id);
+      const recommended = m.gpu !== null && gpu !== null && m.gpu === gpu && st.status !== "installed";
+      let action, status;
+      if (st.status === "installed") {
+        action = `<button class="opt outline" data-act="model:remove:${m.id}">DELETE</button>`;
+        status = `Installed · ${MB(st.disk || size)} on this device.`;
+      } else if (st.status === "downloading") {
+        action = `<button class="opt outline" data-act="model:cancel:${m.id}">CANCEL</button>`;
+        status = `Downloading… ${st.percent}% of ${MB(size)}`;
+      } else {
+        action = `<button class="opt on" data-act="model:install:${m.id}">DOWNLOAD (${MB(size)})</button>`;
+        status = st.status === "error" ? `The download didn't finish: ${esc(st.error)}` : `Not downloaded · ${MB(size)}${m.runtime && size > m.files.reduce((n, f) => n + f.size, 0) ? " with ONNX Runtime, which the other models share" : ""}.`;
+      }
+      return `<article class="mm-card">
+        <div class="mm-head"><h3>${esc(m.name)}</h3>${recommended ? `<span class="tag">RECOMMENDED HERE</span>` : ""}${st.status === "installed" ? `<span class="tag">INSTALLED</span>` : ""}</div>
+        <p class="mm-use">${esc(m.use)}</p>
+        ${st.status === "downloading" ? pct(st.percent) : ""}
+        <div class="mm-row">${action}<button class="opt outline" data-act="model:licence:${m.id}">LICENCE</button><span class="hint-text" aria-live="polite">${status}</span></div>
+        ${st.status === "installed" ? `<p class="hint-text mm-songs" aria-live="polite">${modelSongsLine(m.id === "separation" ? "separation" : "lyrics")}</p>` : ""}
+      </article>`;
+    }).join("");
     return `<div class="cols">
       <section class="col-main">
-        <div class="settings-rows">
-          ${srow("Separation pack", `${action}<span class="hint-text" aria-live="polite">${status}</span>`)}
-          ${srow("Your songs", `<span class="hint-text" aria-live="polite">${progress}</span>`)}
-        </div>
-        ${about}
+        <div class="settings-rows">${srow("On this device", `<span class="mm-total">${MB(M.diskUsed())}</span><span class="hint-text">used by the models you've downloaded.</span>`)}</div>
+        <div class="mm-list">${cards}</div>
+        <p class="note">Each model is downloaded only when you choose Download, from this app's releases on GitHub (github.com/silent-diffusion/Touch-Type), and checked before it's kept. They all run on this ${TT.align.gpu() ? "device, on its graphics card when they can" : "device"}; nothing is sent anywhere. Delete one any time: songs keep the parts and lyric times already made.</p>
+        <p class="note">Lyric timing listens to a song for its lyrics (from the separated vocals when song separation is installed too) and finds when each word is sung, so Tiles can deal the words you type as they're sung. Times you tap with TIME LYRICS always win. The graphics-card version is quicker; the small one suits devices without one.</p>
       </section>
     </div>`;
   };
 
+  // A licence (TT.LICENCES, licences.js) over the page; Esc or CLOSE shuts it.
+  function showLicence(key, title) {
+    const text = (TT.LICENCES || {})[key] || "The licence isn't available.";
+    const box = document.createElement("div");
+    box.className = "mm-licence";
+    box.setAttribute("role", "dialog");
+    box.setAttribute("aria-label", title);
+    box.innerHTML = `<div class="mm-licence-head"><strong>${esc(title.toUpperCase())}</strong><button type="button" class="opt outline">CLOSE <kbd>ESC</kbd></button></div><pre></pre>`;
+    box.querySelector("pre").textContent = text;
+    const close = () => { box.remove(); document.removeEventListener("keydown", onKey, true); };
+    const onKey = (e) => { if (e.key === "Escape") { e.preventDefault(); e.stopImmediatePropagation(); close(); } };
+    box.querySelector("button").addEventListener("click", close);
+    document.addEventListener("keydown", onKey, true);
+    document.body.appendChild(box);
+    box.querySelector("button").focus();
+  }
+
+  function modelAct(x, id) {
+    const m = TT.MODELS.byId(id);
+    if (!m) return;
+    if (x === "install") TT.models.install(id);
+    else if (x === "cancel") TT.models.cancel(id);
+    else if (x === "remove") {
+      const keep = id === "separation" ? "Songs already split keep their parts." : "Songs already timed keep their lyric times.";
+      if (confirm(`Delete ${m.name} (${MB(TT.models.state(id).disk || TT.models.downloadSize(id))})? ${keep}`)) TT.models.remove(id);
+    } else if (x === "licence") showLicence(m.licence, `${m.name}: licence`);
+  }
+
   function renderSettings() {
-    const tabs = [["appearance", "Appearance"], ["practice", "Practice"], ["profiles", "Profiles"], ["music", "Music"], ["updates", "Updates"], ["data", "Data"]];
+    const tabs = [["appearance", "Appearance"], ["practice", "Practice"], ["profiles", "Profiles"], ["models", "Models"], ["updates", "Updates"], ["data", "Data"]];
     $("view-settings").innerHTML = subtabs(tabs, ui.settingsTab, "settab") + SETTINGS_VIEWS[ui.settingsTab]();
   }
 
@@ -2643,9 +2731,13 @@
         break;
       case "nav":
         if (x === "test" || x === "practice") startTyping(x);
+        else if (x === "games") openGames();
         else openMenu(x);
         break;
-      case "menu": openMenu(ui.menuView); break;
+      case "menu":
+        if (ui.menuView === "games") openGames();
+        else openMenu(ui.menuView);
+        break;
       case "pause": togglePause(); break;
       case "close":
       case "restart": startTyping(ui.lastTyping); break;
@@ -2676,9 +2768,7 @@
         else if (x === "pack") ui.lbPack = y;
         renderLeaderboard();
         break;
-      case "settab": ui.settingsTab = x; renderSettings(); break;
-      case "gtab": ui.gamesTab = x; renderGames(); break;
-      case "game": ui.game = x; renderGames(); break;
+      case "settab": ui.settingsTab = x; if (ui.wipe !== "busy") ui.wipe = false; renderSettings(); break;
       case "set": setSetting(x, y); break;
       case "window":
         if (!window.touchType) break;
@@ -2688,14 +2778,11 @@
       case "update":
         if (window.touchType && ["check", "download", "install"].includes(x)) window.touchType.update[x]();
         break;
-      case "pack":
-        if (x === "remove" && !confirm("Remove the separation pack? Songs already split keep their parts.")) break;
-        if (["install", "cancel", "remove"].includes(x)) TT.separate[x]();
-        break;
+      case "model": modelAct(x, y); break;
       case "goto":
-        // from the Tiles song screen to Settings → Music
-        if (x === "music") {
-          ui.settingsTab = "music";
+        // from the Tiles song screen to Settings → Models
+        if (x === "models" || x === "music") {
+          ui.settingsTab = "models";
           openMenu("settings");
         }
         break;
@@ -2703,6 +2790,22 @@
       case "profiles":
         ui.settingsTab = "profiles";
         openMenu("settings");
+        break;
+      case "wipe":
+        if (x === "ask") ui.wipe = true;
+        else if (x === "cancel") ui.wipe = false;
+        else if (x === "go" && ui.wipe === true) {
+          const models = !!($("wipe-models") && $("wipe-models").checked);
+          ui.wipe = "busy";
+          renderSettings();
+          TT.wipeDevice({ models }).catch(() => {
+            ui.wipe = false;
+            renderSettings();
+            els.statusLine.textContent = "Not everything could be deleted. Try again.";
+          });
+          break;
+        }
+        renderSettings();
         break;
       case "reset-data":
         if (confirm(`Delete all of ${TT.profiles.active().name}'s results, stats, replays and game progress? This can't be undone.`)) {
@@ -2728,7 +2831,7 @@
   // direction: across the page's columns, and up into the section's tabs and the main tabs. Enter (or
   // Space) presses it. In a list of choices (games, songs, animals) moving also selects, and Enter keeps
   // doing what it says at the bottom (usually PLAY). The page's own shortcuts all still work.
-  const NAV_VIEWS = ["test", "practice", "results", "games", "forest-select", "forest-guide", "tiles-select", "ghost-select", "worm-select", "replay", "leaderboard", "stats", "settings"];
+  const NAV_VIEWS = ["test", "practice", "results", "forest-select", "forest-guide", "tiles-select", "ghost-select", "worm-select", "replay", "leaderboard", "stats", "settings"];
   const FOCUSABLE = "button:not([disabled]), input:not([type=hidden]):not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href]";
   const PICKS = ".list button[aria-pressed], .fh-animal";
   const NAV_AREAS = ".topline, #tabs, #subtabs, #folder";
@@ -2909,7 +3012,7 @@
         else if (forest.isOver()) { if (plainKey(e, "r")) act("replay:last"); }
         else forest.handleKey(e);
       } else if (v === "forest-select") {
-        const keys = { Enter: "fh:play", h: "fh:guide", m: "fh:music", e: "fh:sfx", Escape: "menu" };
+        const keys = { Enter: "fh:play", h: "fh:guide", m: "fh:music", e: "fh:sfx", Escape: "close" };
         if (keys[e.key] && !e.ctrlKey && !e.altKey && !e.metaKey) { e.preventDefault(); act(keys[e.key]); }
       } else {
         const keys = { Enter: "fh:play", Escape: "fh:select" };
@@ -2931,7 +3034,7 @@
         else if (e.key === "Backspace") { e.preventDefault(); act("tl:tapundo"); }
         else if (e.key === "Escape") { e.preventDefault(); act("tl:tapcancel"); }
       } else {
-        const keys = { "]": "tl:harder", "[": "tl:easier", Enter: "tl:play", a: "tl:import", q: "tl:mode:toggle", m: "tl:music", t: "tl:metronome", Escape: "menu" };
+        const keys = { "]": "tl:harder", "[": "tl:easier", Enter: "tl:play", a: "tl:import", q: "tl:mode:toggle", m: "tl:music", t: "tl:metronome", Escape: "close" };
         if (keys[e.key] && !e.ctrlKey && !e.altKey && !e.metaKey) { e.preventDefault(); act(keys[e.key]); }
       }
       return;
@@ -2944,7 +3047,7 @@
         else if (ghostRace.isOver()) { if (plainKey(e, "r")) act("replay:last"); }
         else ghostRace.handleKey(e);
       } else {
-        const keys = { Enter: "gr:play", m: "gr:music", e: "gr:sfx", Escape: "menu" };
+        const keys = { Enter: "gr:play", m: "gr:music", e: "gr:sfx", Escape: "close" };
         if (keys[e.key] && !e.ctrlKey && !e.altKey && !e.metaKey) { e.preventDefault(); act(keys[e.key]); }
       }
       return;
@@ -2959,7 +3062,7 @@
       } else if (plainKey(e, "r")) {
         act("wm:replay");
       } else {
-        const keys = { Enter: "wm:play", m: "wm:music", e: "wm:sfx", Escape: "menu" };
+        const keys = { Enter: "wm:play", m: "wm:music", e: "wm:sfx", Escape: "close" };
         if (keys[e.key] && !e.ctrlKey && !e.altKey && !e.metaKey) { e.preventDefault(); act(keys[e.key]); }
       }
       return;
@@ -3002,9 +3105,6 @@
         return;
       }
       runner.handleKey(e);
-    } else if (v === "games" && e.key === "Enter" && selectedGame().playable) {
-      e.preventDefault();
-      act(playAct(selectedGame().id));
     } else if (v === "stats" && plainKey(e, "p")) {
       act("practice");
     }
@@ -3052,13 +3152,19 @@
   TT.music.load().then(() => {
     if (ui.view === "tiles-select") renderTilesSelect();
     TT.separate.start();
+    TT.align.start();
   });
+  TT.models.start();
   // The separation pack and the songs being split: keep the screens that show them up to date
   // (but not the song screen while lyrics are being edited or tapped, which would lose the typing).
-  TT.separate.onChange(() => {
-    if (ui.view === "settings" && ui.settingsTab === "music") renderSettings();
+  // The same for the models (Settings → Models) and lyric timing.
+  const modelsChanged = () => {
+    if (ui.view === "settings" && ui.settingsTab === "models") renderSettings();
     if (ui.view === "tiles-select" && !ui.lyricsEdit && !ui.tap) renderTilesSelect();
-  });
+  };
+  TT.separate.onChange(modelsChanged);
+  TT.models.onChange(modelsChanged);
+  TT.align.onChange(modelsChanged);
   document.fonts.ready.then(() => {
     if (ui.view === "test" || ui.view === "practice") engine.relayout();
   });

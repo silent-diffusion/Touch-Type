@@ -76,7 +76,8 @@
     return out;
   }
 
-  function envelope(x, rate) {
+  // onFrame(share done), if given, is told how far along it is every 256 frames.
+  function envelope(x, rate, onFrame) {
     const frames = Math.max(0, Math.floor((x.length - N) / HOP) + 1);
     const fps = rate / HOP;
     const win = new Float64Array(N);
@@ -86,6 +87,7 @@
     const flux = new Float32Array(frames), low = new Float32Array(frames), level = new Float32Array(frames);
     const lowBins = Math.max(2, Math.round(160 / (rate / N)));
     for (let f = 0; f < frames; f++) {
+      if (onFrame && (f & 255) === 0) onFrame(f / frames);
       const o = f * HOP;
       let e = 0;
       for (let i = 0; i < N; i++) {
@@ -310,10 +312,15 @@
   }
 
   // The whole analysis. channels: Float32Arrays of samples. Returns what gets saved with a song.
-  function analyze(channels, sampleRate) {
+  // onProgress(share done, 0 to 1), if given, follows the work: the onset envelope's frames are
+  // most of it (about 85% of the time, measured on a 75 s song), mixing down and the rest share the remainder.
+  function analyze(channels, sampleRate, onProgress) {
+    const step = onProgress || (() => {});
     const { x, rate } = mono(channels, sampleRate);
     const duration = channels[0].length / sampleRate;
-    const env = envelope(x, rate);
+    step(0.08);
+    const env = envelope(x, rate, (d) => step(0.08 + 0.8 * d));
+    step(0.88);
     if (env.onset.length < env.fps * 8) throw new Error("too short");
     const P = period(env.onset, env.fps);
     const frames = track(env.onset, P);
@@ -322,7 +329,8 @@
     const times = extend(halveIfDoubled(halfShift(tidy(frames.map(toSec)), env), env), duration - 0.05).filter((t) => t >= 0 && t <= duration);
     const { down, quiet } = bars(times, env);
     const gaps = times.slice(1).map((t, i) => t - times[i]);
-    return {
+    step(0.92);
+    const result = {
       method: "auto",
       bpm: Math.round((60 / median(gaps)) * 10) / 10,
       beats: times.map((t) => Math.round(t * 1000) / 1000),
@@ -332,6 +340,8 @@
       pitch: pitches(x, rate, times, quiet),
       duration,
     };
+    step(1);
+    return result;
   }
 
   // Beats from tapping along. taps: song times in seconds. The first tap is taken as the first

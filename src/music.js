@@ -64,9 +64,47 @@
       notes: [],
       lyrics: meta.lyrics || "",
       sungWords: sungWords(meta),
+      // who timed the lyrics: "you" (tapped along), lyric timing's version (align.js), or null
+      lyricTimesBy: (meta.lyricTimes || []).length ? meta.lyricTimesBy || "you" : null,
       beats: TT.beatTrack.toSongBeats(an),
       duration: an.duration,
       buffer: decoded.id === meta.id ? decoded.buffer : null,
+    });
+  }
+
+  // Beat analysis runs in a worker (beat-worker.js), so a whole song's analysis doesn't freeze the
+  // page. Each job gets its own short-lived worker with copies of the samples. Where a worker can't
+  // start, it runs here instead, with the same result. onProgress(0 to 1) follows the analysis.
+  function runBeats(op, buffer, extra = {}, onProgress = () => {}) {
+    const here = () => (op === "analyze"
+      ? TT.beatTrack.analyze(channelsOf(buffer), buffer.sampleRate, onProgress)
+      : TT.beatTrack.beatFeatures(channelsOf(buffer), buffer.sampleRate, extra.beats, extra.quiet));
+    let worker;
+    try {
+      worker = new Worker("beat-worker.js");
+    } catch {
+      return Promise.resolve().then(here);
+    }
+    const channels = channelsOf(buffer).map((ch) => ch.slice());
+    return new Promise((resolve, reject) => {
+      let started = false;
+      worker.onmessage = (e) => {
+        const m = e.data;
+        started = true;
+        if (m.type === "progress") onProgress(m.done);
+        else {
+          worker.terminate();
+          if (m.type === "done") resolve(m.result);
+          else reject(new Error(m.message));
+        }
+      };
+      // a worker that fails to load at all: do it here
+      worker.onerror = (e) => {
+        worker.terminate();
+        if (started) reject(new Error(e.message || "Beat analysis failed."));
+        else { try { resolve(here()); } catch (err) { reject(err); } }
+      };
+      worker.postMessage({ id: 1, op, channels, sampleRate: buffer.sampleRate, ...extra }, channels.map((ch) => ch.buffer));
     });
   }
 
@@ -116,7 +154,8 @@
 
     list: () => [...metas.values()].sort((a, b) => a.added.localeCompare(b.added)).map((m) => TT.songs.get(PREFIX + m.id)).filter(Boolean),
 
-    // Adds a song from a file. onStep(text) reports progress. Returns the new song's id.
+    // Adds a song from a file. onStep(text, done) reports progress: done is 0 to 1 while the beat is
+    // being found, else undefined. Returns the new song's id.
     async importFile(file, onStep = () => {}) {
       if (!file) throw new Error("No file was chosen.");
       if (file.size > MAX_BYTES) throw new Error("That file is too big (the limit is 60 MB).");
@@ -130,11 +169,11 @@
       }
       if (buffer.duration < MIN_SECONDS) throw new Error("That song is too short (it needs at least 20 seconds).");
       if (buffer.duration > MAX_SECONDS) throw new Error("That song is too long (the limit is 12 minutes).");
-      onStep("Finding the beat…");
+      onStep("Finding the beat…", 0);
       await frame();
       let analysis;
       try {
-        analysis = TT.beatTrack.analyze(channelsOf(buffer), buffer.sampleRate);
+        analysis = await runBeats("analyze", buffer, {}, (done) => onStep("Finding the beat…", done));
       } catch {
         throw new Error("No steady beat could be found in that song.");
       }
@@ -150,8 +189,10 @@
       metas.set(meta.id, meta);
       decoded = { id: meta.id, buffer };
       register(meta);
-      // with the separation pack installed, its parts are made in the background
+      // with the separation pack installed, its parts are made in the background, and with lyric
+      // timing, when its words are sung
       if (TT.separate) TT.separate.add(PREFIX + meta.id);
+      if (TT.align) TT.align.add(PREFIX + meta.id);
       return PREFIX + meta.id;
     },
 
@@ -169,7 +210,7 @@
       const meta = metas.get(id);
       if (!meta.analysis.strength || !meta.analysis.pitch) {
         const an = meta.analysis;
-        Object.assign(an, TT.beatTrack.beatFeatures(channelsOf(buffer), buffer.sampleRate, an.beats, an.quiet));
+        Object.assign(an, await runBeats("features", buffer, { beats: an.beats, quiet: an.quiet }));
         rec.analysis = an;
         await tx("readwrite", (s) => s.put(rec));
         register(meta);
@@ -194,7 +235,7 @@
       const buffer = await this.buffer(songId);
       const an = TT.beatTrack.fromTaps(taps, buffer.duration, (beats) => TT.beatTrack.quietBeats(channelsOf(buffer), buffer.sampleRate, beats));
       if (!an) return false;
-      Object.assign(an, TT.beatTrack.beatFeatures(channelsOf(buffer), buffer.sampleRate, an.beats, an.quiet));
+      Object.assign(an, await runBeats("features", buffer, { beats: an.beats, quiet: an.quiet }));
       an.rev = (meta.analysis.rev || 1) + 1;
       const rec = await tx("readonly", (s) => s.get(id));
       if (!rec) return false;
@@ -206,15 +247,18 @@
     },
 
     // Saves the times of an added song's lyric words from tapping along ([{ t, w }]); empty clears them.
-    async setLyricTimes(songId, times) {
+    // by: "you" when tapped along, else lyric timing's version (align.js), which tapping replaces.
+    async setLyricTimes(songId, times, by = "you") {
       const id = savedId(songId);
       const meta = metas.get(id);
       if (!meta) return false;
       const rec = await tx("readonly", (s) => s.get(id));
       if (!rec) return false;
       rec.lyricTimes = times.map((x) => ({ t: Math.round(x.t * 1000) / 1000, w: x.w }));
+      rec.lyricTimesBy = rec.lyricTimes.length ? by : null;
       await tx("readwrite", (s) => s.put(rec));
       meta.lyricTimes = rec.lyricTimes;
+      meta.lyricTimesBy = rec.lyricTimesBy;
       register(meta);
       return true;
     },
@@ -227,12 +271,14 @@
       const lyrics = String(text || "").slice(0, 20000);
       const rec = await tx("readonly", (s) => s.get(id));
       if (!rec) return false;
-      if (lyrics !== (rec.lyrics || "")) rec.lyricTimes = [];
+      if (lyrics !== (rec.lyrics || "")) { rec.lyricTimes = []; rec.lyricTimesBy = null; }
       rec.lyrics = lyrics;
       await tx("readwrite", (s) => s.put(rec));
       meta.lyrics = lyrics;
       meta.lyricTimes = rec.lyricTimes || [];
+      meta.lyricTimesBy = rec.lyricTimesBy || null;
       register(meta);
+      if (TT.align) TT.align.add(songId); // new lyrics are timed again
       return true;
     },
 
@@ -244,6 +290,7 @@
       if (decoded.id === id) decoded = { id: null, buffer: null };
       TT.songs.unregister(songId);
       if (TT.separate) await TT.separate.forget(songId);
+      if (TT.align) TT.align.forget(songId);
     },
   };
 })();

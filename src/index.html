@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Touch Type</title>
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-src 'none'">
   <link rel="stylesheet" href="fonts/fonts.css">
   <link rel="stylesheet" href="style.css">
 </head>
@@ -83,7 +83,6 @@
     <main id="view-ghost-select" class="view" hidden></main>
     <main id="view-worm" class="view" hidden></main>
     <main id="view-worm-select" class="view" hidden></main>
-    <main id="view-games" class="view menu-view" hidden></main>
     <main id="view-leaderboard" class="view menu-view" hidden></main>
     <main id="view-stats" class="view menu-view" hidden></main>
     <main id="view-settings" class="view menu-view" hidden></main>
@@ -115,6 +114,10 @@
   <script src="beats.js"></script>
   <script src="music.js"></script>
   <script src="separate.js"></script>
+  <script src="models.js"></script>
+  <script src="licences.js"></script>
+  <script src="modelmanager.js"></script>
+  <script src="align.js"></script>
   <script src="review.js"></script>
   <script src="app.js"></script>
 </body>

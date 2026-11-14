@@ -40,6 +40,14 @@
   }
 
   TT.openDB = open;
+  // For deleting everything (TT.wipeDevice): closes the database and keeps it closed, so it can be
+  // deleted and nothing reopens it before the page reloads.
+  TT.closeDB = () => {
+    const was = dbPromise;
+    dbPromise = Promise.reject(new Error("The saved data is being deleted."));
+    dbPromise.catch(() => {});
+    if (was) was.then((db) => db.close(), () => {});
+  };
   TT.newRoundId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 
   // Each recording belongs to a profile. Ones saved before profiles existed belong to the first one.
