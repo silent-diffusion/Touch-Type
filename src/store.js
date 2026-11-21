@@ -75,11 +75,24 @@ window.TT = window.TT || {};
   // A table keyed by letters or words has no prototype, so a key like "constructor" (a word in a
   // song's lyrics, say) or "__proto__" is only ever a key and never one of Object's own members.
   const table = (x) => Object.assign(Object.create(null), isObject(x) ? x : null);
+  // A saved round's letter counts and missed words go into the analysis's tables (analysis.js) as
+  // their keys: each count has to be a pair and each word a word, and none may be named like one of
+  // Object's own members ("__proto__", "constructor"), or a table would take it for its own and
+  // write on every object's prototype.
+  const plainName = (k) => typeof k === "string" && !(k in Object.prototype);
+  const cleanRound = (h) => {
+    if (h.keys && !isObject(h.keys)) delete h.keys;
+    for (const k of Object.keys(h.keys || {})) if (!plainName(k) || !Array.isArray(h.keys[k])) delete h.keys[k];
+    if (h.missedWords && !(Array.isArray(h.missedWords) && h.missedWords.every(plainName))) {
+      h.missedWords = Array.isArray(h.missedWords) ? h.missedWords.filter(plainName) : [];
+    }
+    return h;
+  };
   const cleanData = (d) => {
     const games = isObject(d && d.games) ? d.games : {};
     for (const id of Object.keys(games)) if (!isObject(games[id])) delete games[id];
     return {
-      history: Array.isArray(d && d.history) ? d.history.filter(isObject) : [],
+      history: Array.isArray(d && d.history) ? d.history.filter((h) => isObject(h) && cleanRound(h)) : [],
       keyStats: table(d && d.keyStats),   // lifetime: letter -> { expected, missed }
       weakWords: table(d && d.weakWords), // lifetime: word -> times typed with a mistake
       games,                              // game id -> progress

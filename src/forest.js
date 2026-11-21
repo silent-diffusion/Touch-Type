@@ -1276,7 +1276,7 @@
     function renderHud() {
       const th = theme(g.animal);
       const best = Math.max(record().best, score(g));
-      const treats = replay ? g.treats : record().treats + g.treats;
+      const treats = Number(replay ? g.treats : record().treats + g.treats) || 0; // (a number whatever was saved: it goes into markup)
       const left = g.v >= 2 && g.threatStart != null && !g.over ? Math.max(0, Math.ceil((g.threatGrace - (viewT - g.threatStart)) / 1000)) : null;
       if (live && live.state === "running" && left !== lastLeft) {
         if (left != null) snd.play(lastLeft == null ? "warn" : "tick");
@@ -1296,7 +1296,7 @@
       };
       part("score", score(g), (e) => { e.textContent = score(g); });
       part("best", best, (e) => { e.textContent = `BEST ${best}`; });
-      part("treats", `${th.treat}|${treats}`, (e) => { e.innerHTML = `${TT.sprites.svg(th.treat, 26)}<span>${Number(treats) || 0}</span>`; });
+      part("treats", `${th.treat}|${treats}`, (e) => { e.innerHTML = `${TT.sprites.svg(th.treat, 26)}<span>${treats}</span>`; });
       el.treats.title = th.treats[1];
       part("animal", g.animal, (e) => { e.innerHTML = `${TT.sprites.svg(g.animal, 26)}<span>${g.animal.toUpperCase()}</span>`; });
       el.threat.hidden = left == null;
