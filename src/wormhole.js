@@ -362,6 +362,8 @@
     d.daily ||= {};
     d.blitz ||= {};
     d.history ||= [];
+    // (damaged data: a day's dig needs a date for its key and its list of picks, or it's left out)
+    for (const k of Object.keys(d.daily)) if (!/^\d{4}-\d\d-\d\d$/.test(k) || !d.daily[k] || !Array.isArray(d.daily[k].picks)) delete d.daily[k];
     return d;
   }
 

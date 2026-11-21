@@ -789,6 +789,9 @@
     delete d.acorns;
     d.bestBy ||= {};
     d.runsBy ||= {};
+    // (damaged data: back to the animals that start unlocked, and the first of them)
+    if (!Array.isArray(d.unlocked)) d.unlocked = FH_ANIMALS.filter((a) => !a.cost).map((a) => a.kind);
+    if (!FH_ANIMALS.some((a) => a.kind === d.animal)) d.animal = FH_ANIMALS[0].kind;
     return d;
   };
 
@@ -1441,7 +1444,7 @@
     }
     const rows = tilesDiffIds().map((id) => {
       const b = best(song.id, id);
-      return [`${C.DIFFS[id].name[0]}${C.DIFFS[id].name.slice(1).toLowerCase()}:`, b ? `${esc(b.grade)} · ${esc(b.score.toLocaleString())}` : "—"];
+      return [`${C.DIFFS[id].name[0]}${C.DIFFS[id].name.slice(1).toLowerCase()}:`, b ? `${esc(b.grade)} · ${Number(b.score).toLocaleString()}` : "—"];
     });
     rows[rows.length - 1][2] = true;
     const toggle = (label, on, act) => `<button class="opt ${on ? "on" : ""}" aria-pressed="${on}" data-act="${act}">${label} ${on ? "ON" : "OFF"}</button>`;
@@ -2200,7 +2203,7 @@
       head = ["SCORE", "GRADE", "WPM", "ACCURACY", "CLEARED"];
       rows = players.map((p) => {
         const b = p.games.tiles && p.games.tiles.bestBy && p.games.tiles.bestBy[key];
-        return b && { p, best: b.score, cells: [b.score.toLocaleString(), b.grade, Math.round(b.wpm), `${Math.round(b.acc)}%`, b.cleared ? "Yes" : "No"] };
+        return b && { p, best: b.score, cells: [Number(b.score).toLocaleString(), b.grade, Math.round(b.wpm), `${Math.round(b.acc)}%`, b.cleared ? "Yes" : "No"] };
       });
     } else if (tab === "ghost") {
       // fastest first, per track
