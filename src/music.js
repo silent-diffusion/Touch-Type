@@ -146,13 +146,18 @@
       for (const rec of all || []) {
         const { blob, ...meta } = rec;
         if (!meta.analysis) continue;
-        metas.set(meta.id, meta);
-        register(meta);
+        // songs added before lyrics read from a file had a limit
+        if (meta.lyrics) meta.lyrics = String(meta.lyrics).slice(0, TT.lyrics.MAX_CHARS);
+        // a saved song that can't be read (damaged data) is left out, and the rest still load
+        try {
+          register(meta);
+          metas.set(meta.id, meta);
+        } catch {}
       }
       return this.list();
     },
 
-    list: () => [...metas.values()].sort((a, b) => a.added.localeCompare(b.added)).map((m) => TT.songs.get(PREFIX + m.id)).filter(Boolean),
+    list: () => [...metas.values()].sort((a, b) => String(a.added).localeCompare(String(b.added))).map((m) => TT.songs.get(PREFIX + m.id)).filter(Boolean),
 
     // Adds a song from a file. onStep(text, done) reports progress: done is 0 to 1 while the beat is
     // being found, else undefined. Returns the new song's id.
@@ -268,7 +273,7 @@
       const id = savedId(songId);
       const meta = metas.get(id);
       if (!meta) return false;
-      const lyrics = String(text || "").slice(0, 20000);
+      const lyrics = String(text || "").slice(0, TT.lyrics.MAX_CHARS);
       const rec = await tx("readonly", (s) => s.get(id));
       if (!rec) return false;
       if (lyrics !== (rec.lyrics || "")) { rec.lyricTimes = []; rec.lyricTimesBy = null; }

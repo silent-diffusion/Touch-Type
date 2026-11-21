@@ -13,10 +13,21 @@
 (() => {
   const TAG = /\[(\d+):(\d+(?:[.:]\d+)?)\]|<(\d+):(\d+(?:[.:]\d+)?)>|\[[a-z]+:[^\]]*\]/gi;
 
+  // Everything but letters and apostrophes, trimmed off both ends. (Done by hand, one pass from each
+  // end: the regex for it, /[^a-z']+$/, takes time that grows with the square of a long run of other
+  // characters, and lyrics come from files.)
+  const wordChar = (ch) => (ch >= "a" && ch <= "z") || ch === "'";
+  function trimmed(w) {
+    let from = 0, to = w.length;
+    while (from < to && !wordChar(w[from])) from++;
+    while (to > from && !wordChar(w[to - 1])) to--;
+    return w.slice(from, to);
+  }
+
   // One word as the game uses it: lower case a-z, accents dropped, punctuation trimmed. Null for
   // anything else (apostrophes, digits, single letters).
   function clean(tok) {
-    const w = String(tok).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/^[^a-z']+|[^a-z']+$/g, "");
+    const w = trimmed(String(tok).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase());
     return w.length >= 2 && /^[a-z]+$/.test(w) ? w : null;
   }
   const split = (text) => String(text || "").replace(TAG, " ").split(/[\s\-–—/]+/);
@@ -248,15 +259,20 @@
     return data ? utf8.decode(b.subarray(data.at + 8, data.end)) : null;
   }
 
+  // Lyrics are kept to this many characters however they arrive (pasted, opened from a file, or read
+  // from a song's tags), so a file with a huge lyrics tag can't slow the app down.
+  const MAX_CHARS = 20000;
+
   // The lyrics inside an audio file, or null. bytes: an ArrayBuffer of the whole file.
   function fromFile(bytes) {
     const b = new Uint8Array(bytes);
     try {
-      return id3(b) || flac(b) || ogg(b) || mp4(b) || null;
+      const text = id3(b) || flac(b) || ogg(b) || mp4(b) || null;
+      return text ? text.slice(0, MAX_CHARS) : null;
     } catch {
       return null;
     }
   }
 
-  TT.lyrics = { clean, words, sequence, timed, fromFile };
+  TT.lyrics = { MAX_CHARS, clean, words, sequence, timed, fromFile };
 })();
