@@ -1066,7 +1066,7 @@
 
   const W = TT.wordInput;
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
-  const tierTag = (tier) => `<span class="wm-tier t${tier}">${TIERS[tier]}</span>`;
+  const tierTag = (tier) => `<span class="wm-tier t${esc(tier)}">${esc(TIERS[tier])}</span>`;
 
   const TEMPLATE = `
     <div class="wm">
@@ -1204,7 +1204,7 @@
         const r = note.r;
         if (r.name) {
           const as = r.how === "exact" ? "" : ` · counted as <strong>${esc(r.name)}</strong>`;
-          html = `${tierTag(r.tier)} <strong>+${r.pts}</strong>${r.mult > 1 ? ` <span class="wm-mult">×${r.mult}</span>` : ""} ${esc(r.name)}${as}`;
+          html = `${tierTag(r.tier)} <strong>+${esc(r.pts)}</strong>${r.mult > 1 ? ` <span class="wm-mult">×${esc(r.mult)}</span>` : ""} ${esc(r.name)}${as}`;
         } else if (r.bad === "dup") html = `You've already dug up <strong>${esc(r.what)}</strong>.`;
         else if (r.bad === "amb") html = `So close to two answers: did you mean ${r.opts.map((o) => `<strong>${esc(o)}</strong>`).join(" or ")}?`;
         else if (r.bad === "near") html = `Did you mean <strong>${esc(r.opts[0])}</strong>? Press <strong>Enter</strong> to dig it in, or keep typing.`;
@@ -1216,13 +1216,13 @@
       if (st.mode === "daily") {
         el.dots.innerHTML = st.prompts.map((_, k) => {
           const pk = st.picks[k];
-          const cls = k < st.picks.length ? (pk ? `t${pk.tier}` : "none") : k === st.i ? "now" : "";
+          const cls = k < st.picks.length ? (pk ? `t${esc(pk.tier)}` : "none") : k === st.i ? "now" : "";
           return `<span class="${cls}" title="Prompt ${k + 1}"></span>`;
         }).join("");
         el.found.innerHTML = "";
       } else {
         el.dots.innerHTML = "";
-        el.found.innerHTML = st.finds.slice().reverse().map((f) => `<span class="wm-chip t${f.tier}">${esc(f.name)}<b>+${f.pts}</b></span>`).join("");
+        el.found.innerHTML = st.finds.slice().reverse().map((f) => `<span class="wm-chip t${esc(f.tier)}">${esc(f.name)}<b>+${esc(f.pts)}</b></span>`).join("");
       }
     }
 
@@ -1238,11 +1238,11 @@
       const cuts = (r.cuts || []).map(esc).join(" · ");
       let body;
       if (rv.f) {
-        const others = r.others ? `${r.others === 1 ? "Someone else" : `${r.others} others`} on this computer said it too.` : "Nobody else on this computer has said it.";
-        const before = r.before ? ` You've used it ${r.before === 1 ? "once" : `${r.before} times`} before.` : "";
+        const others = r.others ? `${r.others === 1 ? "Someone else" : `${esc(r.others)} others`} on this computer said it too.` : "Nobody else on this computer has said it.";
+        const before = r.before ? ` You've used it ${r.before === 1 ? "once" : `${esc(r.before)} times`} before.` : "";
         body = `
           ${tierTag(r.tier)}
-          <div class="wm-gain">+${r.pts}</div>
+          <div class="wm-gain">+${esc(r.pts)}</div>
           <div class="wm-ans">${esc(r.name)}</div>
           ${r.how === "exact" ? "" : `<p>Counted as <strong>${esc(r.name)}</strong>.</p>`}
           <p>${others}${before}</p>`;
@@ -1601,7 +1601,7 @@
         const rows = st.prompts.map((pid, k) => {
           const pk = e.picks[k];
           const q = (promptById(pid) || { q: "" }).q;
-          return `<li><span>${esc(q)}</span>${pk && pk.name ? `<strong class="t${pk.tier}">${esc(pk.name)}</strong>${tierTag(pk.tier)}<em>+${pk.pts}</em>` : `<strong class="none">no answer</strong><em>+0</em>`}</li>`;
+          return `<li><span>${esc(q)}</span>${pk && pk.name ? `<strong class="t${esc(pk.tier)}">${esc(pk.name)}</strong>${tierTag(pk.tier)}<em>+${esc(pk.pts)}</em>` : `<strong class="none">no answer</strong><em>+0</em>`}</li>`;
         }).join("");
         const best = e.picks.filter((x) => x && x.name).sort((a, b) => b.tier - a.tier || b.pts - a.pts)[0];
         const run = streak(d);
@@ -1620,7 +1620,7 @@
         const missed = deepCuts(b, L.crowds[0], [...st.given], 6);
         const best = L.newBest
           ? L.prevBest ? `<strong class="hl">New best for ${esc(packName(st.spec.pack))}!</strong> ${pts - L.prevBest.score} more than before.` : `<strong class="hl">First Blitz in ${esc(packName(st.spec.pack))}.</strong>`
-          : `Your best in ${esc(packName(st.spec.pack))} is ${L.prevBest.score}.`;
+          : `Your best in ${esc(packName(st.spec.pack))} is ${esc(L.prevBest.score)}.`;
         html = `
           <h2>${esc(promptById(st.prompts[0]).q.toUpperCase())}</h2>
           <div class="fh-over-score">${pts}</div>

@@ -170,7 +170,7 @@
       const missed = A.weakWords(20);
       els.targets.hidden = !ui.targets.length;
       els.targets.innerHTML = `<span class="caps-label">TARGET KEYS</span>` +
-        ui.targets.map((t) => `<span class="chip">${t.key}</span>`).join("");
+        ui.targets.map((t) => `<span class="chip">${esc(t.key)}</span>`).join("");
       els.note.textContent = ui.targets.length || missed.length
         ? `Start typing to begin. About ${s.mix}% of words use your target keys or words you've missed; the rest are ordinary words.`
         : "Not enough data yet. Finish a few speed tests and your weak keys will show up here. For now this is a normal test.";
@@ -817,7 +817,7 @@
     const open = unlocked(pick);
     const cards = FH_ANIMALS.map((a) => {
       const on = a.kind === pick.kind;
-      const tag = !unlocked(a) ? `LOCKED<span class="fh-dot"> ·</span> ${a.cost}` : d.bestBy[a.kind] ? `BEST ${d.bestBy[a.kind]}` : "NEW";
+      const tag = !unlocked(a) ? `LOCKED<span class="fh-dot"> ·</span> ${a.cost}` : d.bestBy[a.kind] ? `BEST ${esc(d.bestBy[a.kind])}` : "NEW";
       return `<button class="fh-animal ${on ? "on" : ""} ${unlocked(a) ? "" : "locked"}" data-act="fh:pick:${a.kind}" aria-pressed="${on}" aria-label="${a.title.toLowerCase()}${unlocked(a) ? "" : ", locked"}">
         ${TT.sprites.svg(a.kind, 90)}<span class="fh-animal-name">${a.title}</span><span class="caps-label">${tag}</span>
       </button>`;
@@ -831,7 +831,7 @@
     $("view-forest-select").innerHTML = `
       <div class="cols">
         <section class="col-main">
-          <div class="title-row"><h1>CHOOSE YOUR ANIMAL</h1><span class="title-meta fh-acorns">${d.treats} TREATS</span></div>
+          <div class="title-row"><h1>CHOOSE YOUR ANIMAL</h1><span class="title-meta fh-acorns">${esc(d.treats)} TREATS</span></div>
           <div class="kind-line">EVERY ANIMAL HOPS THE SAME</div>
           <div class="fh-animals">${cards}</div>
         </section>
@@ -843,8 +843,8 @@
           <dl class="status">${statusRows([
             ["Collects:", `<span class="fh-inline">${TT.sprites.svg(th.treat, 22)}${th.treats[1]}</span>`],
             ["Watch out for:", `<span class="fh-inline">${TT.sprites.svg(th.predator, 22)}${th.name.toLowerCase()}</span>`],
-            ["Best:", open && d.bestBy[pick.kind] ? `${d.bestBy[pick.kind]} steps` : "—"],
-            ["Runs:", open ? d.runsBy[pick.kind] || 0 : "—", true],
+            ["Best:", open && d.bestBy[pick.kind] ? `${esc(d.bestBy[pick.kind])} steps` : "—"],
+            ["Runs:", open ? esc(d.runsBy[pick.kind] || 0) : "—", true],
           ])}</dl>
           ${action}
           <div class="rule-head">SOUND</div>
@@ -1017,7 +1017,7 @@
     const races = d.history.filter((h) => h.track === tr.id);
     const vs = opts.map((o) => {
       const on = o.id === pick.id, off = !o.run && o.id !== "pace";
-      return `<button class="gr-vs-opt ${on ? "on" : ""}" aria-pressed="${on}" data-act="gr:vs:${o.id}"${off ? " disabled" : ""}>
+      return `<button class="gr-vs-opt ${on ? "on" : ""}" aria-pressed="${on}" data-act="gr:vs:${esc(o.id)}"${off ? " disabled" : ""}>
         ${TT.ghostCore.runnerSvg(34, "", true)}<span><strong>${esc(o.label)}</strong><small>${esc(o.note)}</small></span></button>`;
     }).join("");
     $("view-ghost-select").innerHTML = `
@@ -1124,7 +1124,7 @@
     return wormDays().includes(p.slice(4)) ? p : "daily";
   };
   const wormDay = (pick) => (pick === "daily" ? WM.dayKey() : pick.slice(4));
-  const digTag = (e) => (!e ? "NEW" : e.done ? `${e.score}` : `${e.picks.filter(Boolean).length}/${WM.DAILY_N}`);
+  const digTag = (e) => (!e ? "NEW" : e.done ? esc(e.score) : `${e.picks.filter(Boolean).length}/${WM.DAILY_N}`);
   // the chosen dig, when it's a Daily that's done
   const wormDone = () => {
     const pick = wormPick();
@@ -1147,7 +1147,7 @@
     renderWormSelect();
   }
 
-  const tierChip = (tier) => `<span class="wm-tier t${tier}">${WM.TIERS[tier]}</span>`;
+  const tierChip = (tier) => `<span class="wm-tier t${esc(tier)}">${esc(WM.TIERS[tier])}</span>`;
 
   function renderWormSelect() {
     const s = S(), d = WM.data(), pick = wormPick();
@@ -1156,7 +1156,7 @@
       const on = id === pick;
       return `<li><button class="${on ? "on" : ""}" aria-pressed="${on}" data-act="wm:pick:${id}">${label}<span class="tag">${tag}</span></button></li>`;
     };
-    const best = (pk) => (d.blitz[pk] ? `BEST ${d.blitz[pk].score}` : "NEW");
+    const best = (pk) => (d.blitz[pk] ? `BEST ${esc(d.blitz[pk].score)}` : "NEW");
     const list = item("daily", "DAILY DIG", digTag(d.daily[today])) + item("blitz", "BLITZ", best(s.wmPack)) +
       `<li class="tl-group caps-label">PAST DIGS</li>` +
       wormDays().map((day) => item(`day:${day}`, WM.dayLabel(day).toUpperCase(), d.daily[day] ? digTag(d.daily[day]) : "PLAY")).join("");
@@ -1172,9 +1172,9 @@
         <div class="wm-art">${WM.wormIcon(150)}</div>
         <div class="side-label">Prompts from:</div>
         <div class="seg wm-packs" aria-label="Prompts from">${packs.map((p) =>
-          `<button class="${p.id === s.wmPack ? "on" : ""}" aria-pressed="${p.id === s.wmPack}" data-act="wm:pack:${p.id}">${esc(p.name.toUpperCase())}</button>`).join("")}</div>
+          `<button class="${p.id === s.wmPack ? "on" : ""}" aria-pressed="${p.id === s.wmPack}" data-act="wm:pack:${esc(p.id)}">${esc(p.name.toUpperCase())}</button>`).join("")}</div>
         <dl class="status">${statusRows([
-          ["Your best:", b ? `${b.score} points · ${b.n} ${b.n === 1 ? "answer" : "answers"}` : "—"],
+          ["Your best:", b ? `${esc(b.score)} points · ${esc(b.n)} ${b.n === 1 ? "answer" : "answers"}` : "—"],
           ["Best prompt:", b ? esc(WM.promptById(b.prompt) ? WM.promptById(b.prompt).q : "—") : "—"],
           ["Rounds:", rounds, true],
         ])}</dl>
@@ -1189,7 +1189,7 @@
       if (e && e.done) {
         const rows = prompts.map((pid, k) => {
           const pk = e.picks[k], q = (WM.promptById(pid) || { q: "" }).q;
-          return `<li><span>${esc(q)}</span>${pk && pk.name ? `<strong class="t${pk.tier}">${esc(pk.name)}</strong>${tierChip(pk.tier)}<em>+${pk.pts}</em>` : `<strong class="none">no answer</strong><em>+0</em>`}</li>`;
+          return `<li><span>${esc(q)}</span>${pk && pk.name ? `<strong class="t${esc(pk.tier)}">${esc(pk.name)}</strong>${tierChip(pk.tier)}<em>+${esc(pk.pts)}</em>` : `<strong class="none">no answer</strong><em>+0</em>`}</li>`;
         }).join("");
         const last = e.rounds && e.rounds[e.rounds.length - 1];
         body = `
@@ -1207,7 +1207,7 @@
         <div class="kind-line">7 PROMPTS · 25 SECONDS EACH · ONE ANSWER EACH${isToday ? "" : " · DOESN'T COUNT FOR YOUR STREAK"}</div>
         <div class="wm-art">${WM.wormIcon(150)}</div>
         <dl class="status">${statusRows([
-          ["Points:", e ? e.score : "—"],
+          ["Points:", e ? esc(e.score) : "—"],
           ["Depth:", e && e.score ? `${WM.fmtDepth(WM.metres(e.score))} · ${WM.placeAt(e.score).toLowerCase().replace(/^./, (c) => c.toUpperCase())}` : "—"],
           ["Day streak:", WM.streak(d)],
           ["Best dig:", Object.values(d.daily).reduce((m, x) => Math.max(m, x.done ? x.score : 0), 0) || "—", true],
@@ -1391,7 +1391,7 @@
       const b = best(x.id, s.tilesDiff);
       const on = x.id === song.id;
       const tag = b ? b.grade : x.user ? `${Math.round(x.bpm)} BPM` : x.tempo;
-      return `<li><button class="${on ? "on" : ""}" aria-pressed="${on}" data-act="tl:song:${x.id}">${esc(x.title)}<span class="tag">${tag}</span></button></li>`;
+      return `<li><button class="${on ? "on" : ""}" aria-pressed="${on}" data-act="tl:song:${esc(x.id)}">${esc(x.title)}<span class="tag">${esc(tag)}</span></button></li>`;
     };
     const mine = TT.music.list();
     const songs = TT.songs.list.map(item).join("") +
@@ -1434,7 +1434,7 @@
     }
     const rows = tilesDiffIds().map((id) => {
       const b = best(song.id, id);
-      return [`${C.DIFFS[id].name[0]}${C.DIFFS[id].name.slice(1).toLowerCase()}:`, b ? `${b.grade} · ${b.score.toLocaleString()}` : "—"];
+      return [`${C.DIFFS[id].name[0]}${C.DIFFS[id].name.slice(1).toLowerCase()}:`, b ? `${esc(b.grade)} · ${esc(b.score.toLocaleString())}` : "—"];
     });
     rows[rows.length - 1][2] = true;
     const toggle = (label, on, act) => `<button class="opt ${on ? "on" : ""}" aria-pressed="${on}" data-act="${act}">${label} ${on ? "ON" : "OFF"}</button>`;
@@ -1976,7 +1976,7 @@
           </div>
           <div class="rp-controls">
             <button id="rp-play" class="outline-btn" data-act="rp:toggle">PLAY</button>
-            <input id="rp-scrub" type="range" min="0" max="${rec.duration}" step="10" value="0" aria-label="Replay position">
+            <input id="rp-scrub" type="range" min="0" max="${esc(rec.duration)}" step="10" value="0" aria-label="Replay position">
             <span id="rp-time" class="rp-time"></span>
             <div class="seg" aria-label="Playback speed">${SPEEDS.map((s) =>
               `<button class="${s === rp.speed ? "on" : ""}" aria-pressed="${s === rp.speed}" data-act="rp:speed:${s}">${s}×</button>`).join("")}</div>
@@ -2185,7 +2185,7 @@
       const key = bestKey(song.id, diff, queue);
       const btn = (label, on, act) => `<button class="${on ? "on" : ""}" aria-pressed="${on}" data-act="${act}">${esc(label)}</button>`;
       filters = `<div class="lb-filters">
-          <div class="seg lb-songs" aria-label="Song">${songs.map((x) => btn(x.title, x.id === song.id, `lb:song:${x.id}`)).join("")}</div>
+          <div class="seg lb-songs" aria-label="Song">${songs.map((x) => btn(x.title, x.id === song.id, `lb:song:${esc(x.id)}`)).join("")}</div>
           <div class="seg" aria-label="Difficulty">${tilesDiffIds().map((d) => btn(TT.tilesCore.DIFFS[d].name, d === diff, `lb:diff:${d}`)).join("")}</div>
           <div class="seg" aria-label="Mode">${btn("TIMED", !queue, "lb:mode:timed")}${btn("QUEUE", queue, "lb:mode:queue")}</div>
         </div>`;
@@ -2280,7 +2280,7 @@
         <aside class="col-side">
           <div class="rule-head">YOU</div>
           <dl class="status">${statusRows([
-            ["Player:", TT.profiles.active().name],
+            ["Player:", esc(TT.profiles.active().name)],
             ["Rank:", mine >= 0 ? `${mine + 1} of ${rows.length}` : "Not ranked yet"],
             [say("Players on this computer:", "Players on this device:"), players.length, true],
           ])}</dl>
@@ -2337,10 +2337,10 @@
       return `<table class="table">
         <thead><tr><th>KEY</th><th>RECENT MISS RATE</th><th class="num">ATTEMPTS</th><th class="num">ALL-TIME MISSES</th></tr></thead>
         <tbody>${rows.map(([k, o]) => `<tr>
-          <td class="mono">${k}${targets.has(k) ? `<span class="tag">TARGET</span>` : ""}</td>
+          <td class="mono">${esc(k)}${targets.has(k) ? `<span class="tag">TARGET</span>` : ""}</td>
           <td><span class="bar-cell"><i style="width: ${Math.round((o.rate / max) * 160)}px; --w: ${(o.rate / max).toFixed(3)}"></i>${(o.rate * 100).toFixed(1)}%</span></td>
-          <td class="num">${o.attempts}</td>
-          <td class="num">${life[k] ? life[k].missed : 0}</td>
+          <td class="num">${esc(o.attempts)}</td>
+          <td class="num">${esc(life[k] ? life[k].missed : 0)}</td>
         </tr>`).join("")}</tbody>
       </table>
       <p class="caps-label foot-caption">A KEY NEEDS ${A.MIN_ATTEMPTS} ATTEMPTS BEFORE IT CAN BE A TARGET. A TEST'S WEIGHT HALVES EVERY ${A.HALF_LIFE} TESTS.</p>`;
@@ -2356,7 +2356,7 @@
           <td class="mono">${esc(w.word)}</td>
           <td><span class="bar-cell"><i style="width: ${Math.round((w.score / max) * 160)}px; --w: ${(w.score / max).toFixed(3)}"></i></span></td>
           <td class="num">${w.count}</td>
-          <td class="num">${TT.store.weakWords[w.word] || w.count}</td>
+          <td class="num">${esc(TT.store.weakWords[w.word] || w.count)}</td>
         </tr>`).join("")}</tbody>
       </table>`;
     },
@@ -2373,7 +2373,7 @@
           <td class="num" data-h="WPM"><strong>${Math.round(h.wpm)}</strong></td>
           <td class="num" data-h="ACCURACY">${Math.round(h.acc)}%</td>
           <td class="num" data-h="RAW">${Math.round(h.raw)}</td>
-          <td class="num">${h.id ? `<button class="opt outline sm" data-act="replay:${h.id}" aria-label="Replay this round">▶</button>` : `<span class="muted">—</span>`}</td>
+          <td class="num">${h.id ? `<button class="opt outline sm" data-act="replay:${esc(h.id)}" aria-label="Replay this round">▶</button>` : `<span class="muted">—</span>`}</td>
         </tr>`).join("")}</tbody>
       </table>
       <p class="caps-label foot-caption">ROUNDS ARE RECORDED FROM v1.1 ON. OLDER ROUNDS CAN'T BE REPLAYED.</p>`;
@@ -2567,19 +2567,19 @@
         const isActive = p.id === active;
         const renaming = ui.renaming === p.id;
         const name = renaming
-          ? `<form class="profile-form" data-form="rename:${p.id}">
+          ? `<form class="profile-form" data-form="rename:${esc(p.id)}">
                <input class="text-input" name="name" value="${esc(p.name)}" maxlength="${P.MAX_NAME}" aria-label="New name for ${esc(p.name)}" required>
                <button class="opt on" type="submit">SAVE</button>
                <button class="opt" type="button" data-act="profile:cancel">CANCEL</button>
              </form>`
           : `<span class="profile-name">${esc(p.name)}</span>${isActive ? `<span class="tag">ACTIVE</span>` : ""}${p.id === main ? `<span class="tag">MAIN ★</span>` : ""}`;
         const actions = renaming ? "" :
-          (isActive ? "" : `<button class="opt outline" data-act="profile:switch:${p.id}">SWITCH</button>`) +
-          `<button class="opt" data-act="profile:rename:${p.id}" aria-label="Rename ${esc(p.name)}">RENAME</button>` +
+          (isActive ? "" : `<button class="opt outline" data-act="profile:switch:${esc(p.id)}">SWITCH</button>`) +
+          `<button class="opt" data-act="profile:rename:${esc(p.id)}" aria-label="Rename ${esc(p.name)}">RENAME</button>` +
           (p.id === main
-            ? `<button class="opt" data-act="profile:unmain:${p.id}" aria-label="${esc(p.name)} is not the main profile">NOT MAIN</button>`
-            : `<button class="opt" data-act="profile:main:${p.id}" aria-label="Make ${esc(p.name)} the main profile">MAKE MAIN</button>`) +
-          (isActive || list.length < 2 ? "" : `<button class="opt danger" data-act="profile:delete:${p.id}" aria-label="Delete ${esc(p.name)}">DELETE</button>`);
+            ? `<button class="opt" data-act="profile:unmain:${esc(p.id)}" aria-label="${esc(p.name)} is not the main profile">NOT MAIN</button>`
+            : `<button class="opt" data-act="profile:main:${esc(p.id)}" aria-label="Make ${esc(p.name)} the main profile">MAKE MAIN</button>`) +
+          (isActive || list.length < 2 ? "" : `<button class="opt danger" data-act="profile:delete:${esc(p.id)}" aria-label="Delete ${esc(p.name)}">DELETE</button>`);
         return `<div class="profile-row ${isActive ? "active" : ""}">
           <div class="profile-main">${name}<span class="hint-text">${plural(s.tests, "test")} · ${plural(s.games, "game")} · best ${Math.round(s.best)} wpm</span></div>
           <div class="controls">${actions}</div>

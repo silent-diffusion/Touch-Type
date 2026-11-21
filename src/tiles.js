@@ -2196,8 +2196,8 @@
       });
 
       const best = prev && g.score > prev.score
-        ? `<strong class="hl">New best!</strong> Previous best was ${prev.score.toLocaleString()}.`
-        : prev ? `Best ${prev.score.toLocaleString()}` : `First time on this song and difficulty${live.queue ? " in queue mode" : ""}.`;
+        ? `<strong class="hl">New best!</strong> Previous best was ${esc(prev.score.toLocaleString())}.`
+        : prev ? `Best ${esc(prev.score.toLocaleString())}` : `First time on this song and difficulty${live.queue ? " in queue mode" : ""}.`;
       const c = g.counts;
       el.over.dataset.shows = "result";
       el.over.innerHTML = `

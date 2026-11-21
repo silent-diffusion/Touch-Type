@@ -1296,7 +1296,7 @@
       };
       part("score", score(g), (e) => { e.textContent = score(g); });
       part("best", best, (e) => { e.textContent = `BEST ${best}`; });
-      part("treats", `${th.treat}|${treats}`, (e) => { e.innerHTML = `${TT.sprites.svg(th.treat, 26)}<span>${treats}</span>`; });
+      part("treats", `${th.treat}|${treats}`, (e) => { e.innerHTML = `${TT.sprites.svg(th.treat, 26)}<span>${Number(treats) || 0}</span>`; });
       el.treats.title = th.treats[1];
       part("animal", g.animal, (e) => { e.innerHTML = `${TT.sprites.svg(g.animal, 26)}<span>${g.animal.toUpperCase()}</span>`; });
       el.threat.hidden = left == null;

@@ -12,6 +12,8 @@
 // typing replay and can be raced as ghosts.
 (() => {
   const C = TT.typingCore;
+  // A ghost's label can hold a profile's name, so it's escaped before it goes into the page's markup.
+  const esc = (str) => String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
   const COUNT_MS = 900;   // each step of the start: on your marks, set, then the gun
   const START = [["ON YOUR MARKS", "marks"], ["SET", "set"], ["GO!", "gun"]];
   const FINISH_MS = 1300; // the finish plays this long before the results
@@ -789,7 +791,7 @@
       const diff = L.ghost.finish - L.finishT;
       const photo = Math.abs(diff) < PHOTO_MS;
       const head = photo ? "PHOTO FINISH!" : L.won ? "YOU WIN!" : "THE GHOST WINS";
-      const by = photo ? `${L.won ? "You" : "The ghost"} took it by ${Math.max(1, Math.round(Math.abs(diff)))} ms.` : L.won ? `You beat ${L.ghost.label.toLowerCase()} by ${fmt(diff)}s.` : `${L.ghost.label} finished ${fmt(-diff)}s ahead.`;
+      const by = photo ? `${L.won ? "You" : "The ghost"} took it by ${Math.max(1, Math.round(Math.abs(diff)))} ms.` : L.won ? `You beat ${esc(L.ghost.label.toLowerCase())} by ${fmt(diff)}s.` : `${esc(L.ghost.label)} finished ${fmt(-diff)}s ahead.`;
       const best = L.newBest
         ? L.prevBest ? `<strong class="hl">New best!</strong> ${fmt(L.prevBest.time - L.finishT)}s faster than before. It's the ghost to beat now.` : `<strong class="hl">First run on this track.</strong> It's your ghost now.`
         : `Your best here is ${clock(L.prevBest.time)}s.`;

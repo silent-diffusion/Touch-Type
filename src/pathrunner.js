@@ -4,6 +4,8 @@
 (() => {
   const A = TT.analysis;
   const W = TT.wordInput;
+  // Words can come from the saved list of words you've missed, so they're escaped before they go into the page's markup.
+  const esc = (str) => String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
   const RULES = 2;        // v2: wrong letters are typed and must be backspaced (v1 recordings have no v)
   const START_TIME = 8;   // seconds on the clock at the start
   const MAX_TIME = 10;
@@ -228,7 +230,7 @@
       const match = good && c.word.startsWith(good);
       const typed = match ? good.length : 0;
       return `<div class="pr-cell open active ${g.buf && !match ? "dim" : ""} ${c.bonus ? "bonus" : ""}">${bonus}` +
-        `<span class="pr-word"><b>${c.word.slice(0, typed)}</b>${c.word.slice(typed)}</span></div>`;
+        `<span class="pr-word"><b>${esc(c.word.slice(0, typed))}</b>${esc(c.word.slice(typed))}</span></div>`;
     }
 
     function renderBoard() {
