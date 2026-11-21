@@ -69,22 +69,42 @@ window.TT = window.TT || {};
       return false;
     }
   };
-  const cleanData = (d) => ({
-    history: Array.isArray(d && d.history) ? d.history : [],
-    keyStats: (d && d.keyStats) || {},   // lifetime: letter -> { expected, missed }
-    weakWords: (d && d.weakWords) || {}, // lifetime: word -> times typed with a mistake
-    games: (d && d.games) || {},         // game id -> progress
-  });
+  // Saved data is only trusted for its shape as far as it's checked here: whatever is of the wrong
+  // kind is left out, so damaged (or tampered-with) data can't stop the app from starting.
+  const isObject = (x) => !!x && typeof x === "object" && !Array.isArray(x);
+  // A table keyed by letters or words has no prototype, so a key like "constructor" (a word in a
+  // song's lyrics, say) or "__proto__" is only ever a key and never one of Object's own members.
+  const table = (x) => Object.assign(Object.create(null), isObject(x) ? x : null);
+  const cleanData = (d) => {
+    const games = isObject(d && d.games) ? d.games : {};
+    for (const id of Object.keys(games)) if (!isObject(games[id])) delete games[id];
+    return {
+      history: Array.isArray(d && d.history) ? d.history.filter(isObject) : [],
+      keyStats: table(d && d.keyStats),   // lifetime: letter -> { expected, missed }
+      weakWords: table(d && d.weakWords), // lifetime: word -> times typed with a mistake
+      games,                              // game id -> progress
+    };
+  };
   const cleanName = (name) => String(name || "").trim().replace(/\s+/g, " ").slice(0, MAX_NAME);
+  // The saved profiles, or null if there are none that can be used: each needs an id of its own.
+  const cleanProfiles = (p) => {
+    if (!isObject(p) || !Array.isArray(p.list)) return null;
+    const ids = new Set();
+    const list = p.list.filter((x) => isObject(x) && typeof x.id === "string" && x.id && !ids.has(x.id) && ids.add(x.id));
+    for (const x of list) x.name = cleanName(x.name) || "Player";
+    return list.length ? { ...p, list } : null;
+  };
 
-  const global = read(GLOBAL_KEY) || {};
-  let profiles = read(PROFILES_KEY);
+  const savedGlobal = read(GLOBAL_KEY);
+  const global = isObject(savedGlobal) ? savedGlobal : {};
+  let profiles = cleanProfiles(read(PROFILES_KEY));
 
   // First run with profiles: everything saved so far becomes "Player 1". The old copy is only
-  // removed once the new one has been written and read back.
-  if (!profiles || !Array.isArray(profiles.list) || !profiles.list.length) {
+  // removed once the new one has been written and read back. (If the first profile's data is there
+  // already, the list of profiles was lost or damaged: its data is kept as it is.)
+  if (!profiles) {
     profiles = { active: "default", list: [{ id: "default", name: "Player 1", created: new Date().toISOString() }] };
-    if (write(dataKey("default"), cleanData(global)) && read(dataKey("default"))) {
+    if ((read(dataKey("default")) || write(dataKey("default"), cleanData(global))) && read(dataKey("default"))) {
       write(PROFILES_KEY, profiles);
       write(GLOBAL_KEY, { version: 3, settings: global.settings || {} });
     }
@@ -232,19 +252,21 @@ window.TT = window.TT || {};
       }
     }
     if (TT.closeDB) TT.closeDB();
-    let names = ["touchtype"];
-    try {
-      if (indexedDB.databases) names = [...new Set([...names, ...(await indexedDB.databases()).map((d) => d.name).filter(Boolean)])];
-    } catch {}
-    await Promise.all(names.map((name) => new Promise((resolve) => {
-      const req = indexedDB.deleteDatabase(name);
+    // Only Touch Type's own database (rounds.js) and its own keys (touchtype.*) go. In a browser,
+    // other pages can share this page's storage (every page opened from a file does, in Chrome),
+    // and what they keep there isn't ours to delete.
+    await new Promise((resolve) => {
+      const req = indexedDB.deleteDatabase("touchtype");
       req.onsuccess = req.onerror = () => resolve();
       // still open somewhere (a worker finishing): the delete goes through once it closes, before
       // the reloaded page can open it again
       req.onblocked = () => setTimeout(resolve, 1500);
-    })));
-    try { localStorage.clear(); } catch {}
-    try { sessionStorage.clear(); } catch {}
+    });
+    const removeOurs = (storage) => {
+      for (const key of Object.keys(storage)) if (key.startsWith("touchtype.")) storage.removeItem(key);
+    };
+    try { removeOurs(localStorage); } catch {}
+    try { removeOurs(sessionStorage); } catch {}
     // the desktop app's window can't navigate itself (electron/main.js), so it reloads the page for it
     const win = window.touchType && window.touchType.window;
     if (win && win.reload) await win.reload();

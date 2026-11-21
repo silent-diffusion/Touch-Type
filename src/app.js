@@ -106,6 +106,7 @@
     s.grMusic = s.grMusic !== false;
     s.grSfx = s.grSfx !== false;
     if (!TT.ghostCore.TRACKS.some((t) => t.id === s.grTrack)) s.grTrack = "60m";
+    if (!TT.ghostCore.PACES.includes(s.grPace)) s.grPace = 45;
     s.wmMusic = s.wmMusic !== false;
     s.wmSfx = s.wmSfx !== false;
     if (s.wmPack !== "mixed" && !TT.wormCore.PACKS.some((p) => p.id === s.wmPack)) s.wmPack = "mixed";
