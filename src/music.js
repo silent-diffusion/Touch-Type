@@ -50,7 +50,7 @@
       id: PREFIX + meta.id,
       key: `${meta.id}:${an.rev || 1}`,
       user: true,
-      title: meta.name,
+      title: typeof meta.name === "string" && meta.name ? meta.name : "Song", // (a damaged record may have none)
       composer: "Your music",
       year: "",
       tempo: "YOUR FILE",

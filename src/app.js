@@ -73,6 +73,12 @@
   };
 
   const esc = (str) => String(str).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+  // A saved date as text. One that can't be read (damaged data) shows as a dash: formatting it
+  // would throw, and the page it's on would never be drawn.
+  const fmtWhen = (fmt, value) => {
+    const d = new Date(value);
+    return isNaN(d) ? "—" : fmt.format(d);
+  };
 
   // ---------- settings ----------
 
@@ -1970,7 +1976,7 @@
       <div class="cols">
         <section class="col-main">
           <div class="title-row"><h1>REPLAY</h1><span class="title-meta">${esc(testName(rec.kind, rec.mode, rec.amount, rec.game, rec.title, rec.queue).toUpperCase())}</span></div>
-          <div class="kind-line">${fmtDate.format(new Date(rec.date))}</div>
+          <div class="kind-line">${fmtWhen(fmtDate, rec.date)}</div>
           <div id="rp-stage" class="rp-stage">${game ? "" : `
             <div class="live"><span id="rp-live-num" class="live-num"></span><span id="rp-live-label" class="caps-label"></span></div>
             <div id="rp-words-box" class="words-box"><div id="rp-words" class="words"></div></div>`}
@@ -2175,7 +2181,7 @@
     const me = TT.profiles.activeId();
     const players = TT.profiles.list().map((p) => ({ name: p.name, you: p.id === me, games: TT.profiles.games(p.id) || {} }));
     const day = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" });
-    const date = (iso) => (iso ? day.format(new Date(iso)) : "—");
+    const date = (iso) => (iso ? fmtWhen(day, iso) : "—");
     let head, rows, filters = "", what;
 
     if (tab === "tiles") {
@@ -2369,7 +2375,7 @@
       return `<table class="table">
         <thead><tr><th>DATE</th><th>TEST</th><th class="num">WPM</th><th class="num">ACCURACY</th><th class="num">RAW</th><th class="num">REPLAY</th></tr></thead>
         <tbody>${rows.map((h) => `<tr>
-          <td>${fmt.format(new Date(h.date))}</td>
+          <td>${fmtWhen(fmt, h.date)}</td>
           <td>${esc(testName(h.kind || "test", h.mode, h.amount, h.game, h.title, h.queue))}</td>
           <td class="num" data-h="WPM"><strong>${Math.round(h.wpm)}</strong></td>
           <td class="num" data-h="ACCURACY">${Math.round(h.acc)}%</td>
@@ -2388,14 +2394,15 @@
   let keystrokeToken = 0;
   async function renderKeystrokes() {
     const token = ++keystrokeToken;
-    const recs = await TT.rounds.recent(150);
+    const R = TT.review;
+    // a recording that can't be read (damaged data) is left out, and the rest are still analysed
+    const recs = (await TT.rounds.recent(150)).filter((rec) => { try { return !!R.analyze(rec); } catch { return false; } });
     if (token !== keystrokeToken || ui.view !== "stats" || ui.statsTab !== "keystrokes") return;
     const body = $("stats-body");
     if (!recs.length) {
       body.innerHTML = empty("No recordings yet", "Every test, practice round and game is recorded from v1.1 on. Finish one and its keystrokes will be analyzed here.");
       return;
     }
-    const R = TT.review;
     const weights = recs.map((_, i) => Math.pow(0.5, i / A.HALF_LIFE));
     const all = R.combine(recs.map(R.analyze), weights);
     const conf = R.topConfusions(all.confusions, 12);
