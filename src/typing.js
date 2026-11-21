@@ -135,17 +135,32 @@
       if (!wordEls[i]) return;
       const w = c.words[i];
       const t = c.typed[i];
+      const n = Math.max(w.length, t.length);
+      const letters = wordEls[i].children;
+      // A word that's already on screen only has the letters that changed touched: typing a letter
+      // recolours one span, rather than replacing the word and laying every line out again.
+      const fresh = !letters.length;
       let html = "";
-      for (let j = 0; j < Math.max(w.length, t.length); j++) {
+      for (let j = 0; j < n; j++) {
         let cls = "";
         let ch = w[j];
         if (j < t.length) {
           if (j < w.length) cls = t[j] === w[j] ? "correct" : "incorrect";
           else { cls = "extra"; ch = t[j]; }
         }
-        html += `<span class="${cls}">${ch}</span>`;
+        if (fresh) html += `<span class="${cls}">${ch}</span>`;
+        else if (letters[j]) {
+          if (letters[j].className !== cls) letters[j].className = cls;
+          if (j >= w.length && letters[j].textContent !== ch) letters[j].textContent = ch;
+        } else {
+          const s = document.createElement("span");
+          s.className = cls;
+          s.textContent = ch;
+          wordEls[i].appendChild(s);
+        }
       }
-      wordEls[i].innerHTML = html;
+      if (fresh) wordEls[i].innerHTML = html;
+      else while (letters.length > n) wordEls[i].lastChild.remove();
       wordEls[i].classList.toggle("error", i < c.index && t !== w);
     }
 
@@ -185,23 +200,26 @@
       const n = c.typed[c.index].length;
       const atEnd = n >= letters.length;
       const l = letters[atEnd ? letters.length - 1 : n];
-      const x = l.offsetLeft + (atEnd ? l.offsetWidth : 0);
+      // Every position is read before the caret is moved: reading one after moving it would make
+      // the browser lay the page out a second time for the same key.
+      const lw = l.offsetWidth, lh = l.offsetHeight, lt = l.offsetTop;
+      const x = l.offsetLeft + (atEnd ? lw : 0);
+      // Keep the current word on the second line once we're past the first.
+      const shift = Math.max(0, wordEl.offsetTop - wordEls[0].offsetTop - lineStep);
       const style = TT.store.settings.caret;
 
       caret.className = `caret caret-${style}`;
       if (style === "line") {
         caret.style.width = "3px";
-        caret.style.height = `${l.offsetHeight}px`;
-        caret.style.transform = `translate(${x - 1.5}px, ${l.offsetTop}px)`;
+        caret.style.height = `${lh}px`;
+        caret.style.transform = `translate(${x - 1.5}px, ${lt}px)`;
       } else {
-        const h = style === "block" ? l.offsetHeight : 3;
-        caret.style.width = `${l.offsetWidth}px`;
+        const h = style === "block" ? lh : 3;
+        caret.style.width = `${lw}px`;
         caret.style.height = `${h}px`;
-        caret.style.transform = `translate(${x}px, ${l.offsetTop + l.offsetHeight - h}px)`;
+        caret.style.transform = `translate(${x}px, ${lt + lh - h}px)`;
       }
 
-      // Keep the current word on the second line once we're past the first.
-      const shift = Math.max(0, wordEl.offsetTop - wordEls[0].offsetTop - lineStep);
       wordsEl.style.transform = `translateY(${-shift}px)`;
     }
 

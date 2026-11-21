@@ -145,13 +145,15 @@
     },
   });
 
+  // (This runs ten times a second during a test, so each is only written when it changes.)
+  const setText = (el, text) => { if (el.textContent !== String(text)) el.textContent = text; };
   function renderLive({ mode, amount, index, started, elapsedMs }) {
     if (mode === "time") {
-      els.liveNum.textContent = started ? Math.max(0, Math.ceil(amount - elapsedMs / 1000)) : amount;
-      els.liveLabel.textContent = started ? "SECONDS LEFT" : "SECONDS";
+      setText(els.liveNum, started ? Math.max(0, Math.ceil(amount - elapsedMs / 1000)) : amount);
+      setText(els.liveLabel, started ? "SECONDS LEFT" : "SECONDS");
     } else {
-      els.liveNum.textContent = `${index}/${amount}`;
-      els.liveLabel.textContent = "WORDS";
+      setText(els.liveNum, `${index}/${amount}`);
+      setText(els.liveLabel, "WORDS");
     }
   }
 
