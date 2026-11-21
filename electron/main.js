@@ -2,7 +2,7 @@
 // The app never goes online by itself: update checks only happen when the user clicks
 // "Check for updates" in Settings, or has turned on automatic updates there, and the optional
 // models (models.js) only download when the user clicks Download for one in Settings → Models.
-const { app, BrowserWindow, Menu, dialog, ipcMain, protocol, screen, shell } = require("electron");
+const { app, BrowserWindow, Menu, dialog, ipcMain, protocol, screen, session, shell } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const path = require("path");
 const models = require("./models");
@@ -121,6 +121,11 @@ async function promptRestart(version) {
 function setUpUpdates() {
   autoUpdater.autoDownload = false;        // downloads only after the user (or automatic mode) asks
   autoUpdater.autoInstallOnAppQuit = true; // a finished download installs when the app closes
+  // electron-updater sends a random id for this installation with every check (the x-user-staging-id
+  // header, kept in .updaterId in the data folder; it's for staged roll-outs on an update server of
+  // one's own). GitHub has no use for it, and the privacy policy says a check sends nothing of the
+  // kind, so everyone sends the same value instead.
+  autoUpdater.requestHeaders = { "x-user-staging-id": "none" };
 
   autoUpdater.on("checking-for-update", () => setUpdate({ status: "checking", error: null }));
   autoUpdater.on("update-not-available", () => setUpdate({ status: "none" }));
@@ -184,6 +189,9 @@ if (!app.requestSingleInstanceLock()) {
     if (win && !win.isDestroyed()) win.webContents.send("models-state", state);
   });
   app.whenReady().then(() => {
+    // The page asks for no permissions (camera, microphone, location, notifications and so on), and
+    // Electron grants whatever is asked for unless it's told otherwise: every request is turned down.
+    session.defaultSession.setPermissionRequestHandler((_contents, _permission, done) => done(false));
     protocol.handle(models.SCHEME, models.serve);
     createWindow();
   });
