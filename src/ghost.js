@@ -385,8 +385,25 @@
     let raf = 0;
     let wordEls = [], caret = null, ghostMark = null, lineStep = 0;
     let hudSig = "";
+    // place() runs every frame, but where the caret and the ghost's mark go only changes when a key
+    // changes the words, the ghost reaches another letter, or the words are laid out again. geo counts
+    // the changes to the words' layout, and placedMe and placedGhost are what was placed last, so a
+    // frame with nothing new reads no layout at all.
+    let geo = 0, placedMe = "", placedGhost = "";
+    let gapText = null; // the gap chip's text, beside its ghost (which is drawn once)
+    let accent = "";    // the accent colour, read when a race starts or the stage changes size
 
-    new ResizeObserver(() => { relayout(); draw(); }).observe(root.querySelector(".gr-stage"));
+    // The canvas's size on the page, kept from when it last changed: asking for it every frame makes
+    // the browser work the layout out again in the middle of the frame. (0 until it's first known.)
+    let cw = 0, ch = 0;
+    new ResizeObserver(() => { cw = canvas.clientWidth; ch = canvas.clientHeight; }).observe(canvas);
+
+    const readAccent = () => { accent = getComputedStyle(root).getPropertyValue("--accent").trim() || "#B4472B"; };
+    new ResizeObserver(() => { readAccent(); relayout(); draw(); }).observe(root.querySelector(".gr-stage"));
+    // anything else that moves the letters: the words' box changing size, a font arriving late
+    new ResizeObserver(() => { geo++; }).observe(el.words);
+    if (document.fonts && document.fonts.addEventListener) document.fonts.addEventListener("loadingdone", () => { geo++; });
+    // (one race screen is made, at start-up, so this listener is added once)
 
     const now = () => performance.now();
     const raceT = () => {
@@ -402,16 +419,31 @@
       const e = wordEls[i];
       if (!e) return;
       const w = live.c.words[i], t = live.c.typed[i];
+      const n = Math.max(w.length, t.length);
+      const letters = e.children;
+      // as in the speed test (typing.js): a word already on screen only has its changed letters touched
+      const fresh = !letters.length;
       let html = "";
-      for (let j = 0; j < Math.max(w.length, t.length); j++) {
+      for (let j = 0; j < n; j++) {
         let cls = "", ch = w[j];
         if (j < t.length) {
           if (j < w.length) cls = t[j] === w[j] ? "correct" : "incorrect";
           else { cls = "extra"; ch = t[j]; }
         }
-        html += `<span class="${cls}">${ch}</span>`;
+        if (fresh) html += `<span class="${cls}">${ch}</span>`;
+        else if (letters[j]) {
+          if (letters[j].className !== cls) letters[j].className = cls;
+          if (j >= w.length && letters[j].textContent !== ch) letters[j].textContent = ch;
+        } else {
+          const s = document.createElement("span");
+          s.className = cls;
+          s.textContent = ch;
+          e.appendChild(s);
+        }
       }
-      e.innerHTML = html;
+      if (fresh) e.innerHTML = html;
+      else while (letters.length > n) e.lastChild.remove();
+      geo++;
     }
     function renderWords() {
       el.words.innerHTML = "";
@@ -435,6 +467,7 @@
       const first = wordEls[0], cs = getComputedStyle(first);
       lineStep = first.offsetHeight + parseFloat(cs.marginTop) + parseFloat(cs.marginBottom);
       el.box.style.height = `${lineStep * 3}px`;
+      geo++;
       place();
     }
     // the letter element at (word, letter), and whether the spot is just past it
@@ -448,36 +481,56 @@
     function place() {
       if (!live || !caret) return;
       const c = live.c;
-      const me = letterAt(c.index, (c.typed[c.index] || "").length);
+      const n = (c.typed[c.index] || "").length;
+      const style = TT.store.settings.caret;
+      // the ghost's spot: its characters along, as a word and letter
+      const at = live.ghost.at(raceT());
+      let p = Math.floor(at), i = 0;
+      while (i < live.c.words.length - 1 && p > live.c.words[i].length) { p -= live.c.words[i].length + 1; i++; }
+      const meSig = `${geo}|${c.index}|${n}|${style}`, ghostSig = `${geo}|${i}|${p}|${at <= 0}`;
+      const moveMe = meSig !== placedMe, moveGhost = ghostSig !== placedGhost;
+      if (!moveMe && !moveGhost) return;
+      placedMe = meSig;
+      placedGhost = ghostSig;
+      // every position is read before anything is moved, so the layout is worked out once, not twice
+      const me = moveMe ? letterAt(c.index, n) : null;
+      const gh = moveGhost ? letterAt(i, Math.max(0, p)) : null;
+      let x = 0, lw = 0, lh = 0, lt = 0, shift = 0, gx = 0, gHeight = 0, gTop = 0;
       if (me) {
         const { l, atEnd } = me;
-        const x = l.offsetLeft + (atEnd ? l.offsetWidth : 0);
-        const style = TT.store.settings.caret;
+        lw = l.offsetWidth;
+        lh = l.offsetHeight;
+        lt = l.offsetTop;
+        x = l.offsetLeft + (atEnd ? lw : 0);
+        // keep your line second once you're past the first
+        const cur = wordEls[Math.min(c.index, wordEls.length - 1)];
+        shift = Math.max(0, cur.offsetTop - wordEls[0].offsetTop - lineStep);
+      }
+      if (gh) {
+        gx = gh.l.offsetLeft + (gh.atEnd ? gh.l.offsetWidth : 0);
+        gHeight = gh.l.offsetHeight;
+        gTop = gh.l.offsetTop;
+      }
+      if (me) {
         caret.className = `caret caret-${style}`;
         if (style === "line") {
           caret.style.width = "3px";
-          caret.style.height = `${l.offsetHeight}px`;
-          caret.style.transform = `translate(${x - 1.5}px, ${l.offsetTop}px)`;
+          caret.style.height = `${lh}px`;
+          caret.style.transform = `translate(${x - 1.5}px, ${lt}px)`;
         } else {
-          const hh = style === "block" ? l.offsetHeight : 3;
-          caret.style.width = `${l.offsetWidth}px`;
+          const hh = style === "block" ? lh : 3;
+          caret.style.width = `${lw}px`;
           caret.style.height = `${hh}px`;
-          caret.style.transform = `translate(${x}px, ${l.offsetTop + l.offsetHeight - hh}px)`;
+          caret.style.transform = `translate(${x}px, ${lt + lh - hh}px)`;
         }
-        // keep your line second once you're past the first
-        const cur = wordEls[Math.min(c.index, wordEls.length - 1)];
-        const shift = Math.max(0, cur.offsetTop - wordEls[0].offsetTop - lineStep);
         el.words.style.transform = `translateY(${-shift}px)`;
       }
-      // the ghost's spot: its characters along, as a word and letter
-      let p = Math.floor(live.ghost.at(raceT())), i = 0;
-      while (i < live.c.words.length - 1 && p > live.c.words[i].length) { p -= live.c.words[i].length + 1; i++; }
-      const gh = letterAt(i, Math.max(0, p));
-      ghostMark.hidden = !gh || live.ghost.at(raceT()) <= 0;
-      if (gh) {
-        const x = gh.l.offsetLeft + (gh.atEnd ? gh.l.offsetWidth : 0);
-        ghostMark.style.height = `${gh.l.offsetHeight}px`;
-        ghostMark.style.transform = `translate(${x - 2}px, ${gh.l.offsetTop}px)`;
+      if (moveGhost) {
+        ghostMark.hidden = !gh || at <= 0;
+        if (gh) {
+          ghostMark.style.height = `${gHeight}px`;
+          ghostMark.style.transform = `translate(${gx - 2}px, ${gTop}px)`;
+        }
       }
     }
 
@@ -485,7 +538,7 @@
 
     function draw() {
       if (!live) return;
-      const w = canvas.clientWidth, h = canvas.clientHeight;
+      const w = cw || canvas.clientWidth, h = ch || canvas.clientHeight;
       if (!w || !h) return;
       const dpr = window.devicePixelRatio || 1;
       if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
@@ -503,7 +556,7 @@
       }
       drawRace(ctx, {
         w, h, t, total: live.total, metres: live.track.metres, state: live.state,
-        accent: getComputedStyle(root).getPropertyValue("--accent").trim() || "#B4472B",
+        accent: accent || (readAccent(), accent),
         night: document.documentElement.dataset.theme === "night",
         me: { pos: along(live.c), moved: live.movedAt },
         ghost: { pos: gp, label: live.ghost.label, moving: (live.state === "running" || live.state === "finishing") && gp < live.total && t > 0, finishAt: live.ghost.finish },
@@ -526,10 +579,16 @@
       hudSig = sig;
       el.time.textContent = clock(Math.max(0, t));
       el.wpm.textContent = st ? `${Math.round(st.wpm)} WPM` : "— WPM";
-      const g = runnerSvg(24, "", true);
-      if (gap == null) el.gap.innerHTML = `${g}<span>EVEN</span>`;
-      else el.gap.innerHTML = `${g}<span class="${gap >= 0 ? "ahead" : "behind"}">${gap >= 0 ? "+" : "−"}${fmt(Math.abs(gap))}s ${gap >= 0 ? "AHEAD" : "BEHIND"}</span>`;
-      el.vs.textContent = `${live.ghost.label.toUpperCase()} · ${clock(live.ghost.finish)}s`;
+      // the little ghost beside the gap is a few hundred rects: it's made once, and after that only the text changes
+      if (!gapText || gapText.parentNode !== el.gap) {
+        el.gap.innerHTML = `${runnerSvg(24, "", true)}<span></span>`;
+        gapText = el.gap.lastChild;
+      }
+      if (gap == null) gapText.removeAttribute("class");
+      else gapText.className = gap >= 0 ? "ahead" : "behind";
+      gapText.textContent = gap == null ? "EVEN" : `${gap >= 0 ? "+" : "−"}${fmt(Math.abs(gap))}s ${gap >= 0 ? "AHEAD" : "BEHIND"}`;
+      const vs = `${live.ghost.label.toUpperCase()} · ${clock(live.ghost.finish)}s`;
+      if (el.vs.textContent !== vs) el.vs.textContent = vs;
     }
 
     function frame() {
@@ -595,6 +654,8 @@
         movedAt: -1e9, side: 0, msg: null, finishT: null, won: false, cheerAt: -1e9, flashed: false,
       };
       hudSig = "";
+      placedMe = placedGhost = "";
+      readAccent();
       el.over.hidden = true;
       el.count.hidden = true;
       el.count.classList.remove("pop");

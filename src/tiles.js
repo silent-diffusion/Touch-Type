@@ -1571,11 +1571,19 @@
 
     // The tiles fall down a track tilted back in 3D, like a Guitar Hero highway. It pivots on the
     // line, so a tile at the line sits exactly on its word.
+    // The field's and the track's widths are kept from when they last changed (trackW, fieldW): asking
+    // for them every frame, between the frame's own changes, makes the browser work the layout out
+    // again each time. (0 until they're first known; then they're read as before.)
+    let trackW = 0, fieldW = 0;
     const measure = () => {
       layout();
+      trackW = el.track.clientWidth;
+      fieldW = el.hw.clientWidth;
       render();
     };
-    new ResizeObserver(measure).observe(el.track);
+    const sizes = new ResizeObserver(measure);
+    sizes.observe(el.track);
+    sizes.observe(el.hw);
 
     const progress = () => {
       const d = (TT.store.games.tiles ||= { best: 0, plays: 0, history: [], bestBy: {} });
@@ -1682,7 +1690,7 @@
           // from v4 the tiles are blank; the words are under the columns
           e.innerHTML = t.q ? `<span>${esc(t.q.w)}</span>` : g.v >= 4 ? "" : t === tg ? `<span><b>${esc(typed)}</b>${esc(t.w.slice(typed.length))}</span>` : `<span>${esc(t.w)}</span>`;
           // in a small window a locked-in word is as large as its tile has room for
-          if (fitted) e.style.fontSize = t.q ? `${Math.max(11, Math.min(wordMax, Math.floor((el.hw.clientWidth / colCount() - 12 - wordRoom) / (t.q.w.length * 0.62))))}px` : "";
+          if (fitted) e.style.fontSize = t.q ? `${Math.max(11, Math.min(wordMax, Math.floor(((fieldW || el.hw.clientWidth) / colCount() - 12 - wordRoom) / (t.q.w.length * 0.62))))}px` : "";
         }
       }
       for (const [i, e] of tileEls) {
@@ -1704,7 +1712,7 @@
       // queue mode: the column of the next tile to type for
       const up = g.queue ? nextUp(g) : null;
       const nextCol = up ? up.l : -1;
-      const width = el.hw.clientWidth;
+      const width = fieldW || el.hw.clientWidth;
       const two = el.hw.classList.contains("stagger");
       const sig = [g.words.join(" "), c, typed, g.bad, nextCol, width, two, wordRoom, wordMax].join("|");
       if (el.words.sig === sig) return;
@@ -1911,7 +1919,7 @@
       el.hw.classList.toggle("streak", on);
       el.streak.hidden = !on;
       const cv = el.bubbles, c = cv.getContext("2d");
-      const dpr = window.devicePixelRatio || 1, Wt = el.track.clientWidth;
+      const dpr = window.devicePixelRatio || 1, Wt = trackW || el.track.clientWidth;
       if (cv.width !== Math.round(Wt * dpr) || cv.height !== Math.round(H * dpr)) {
         cv.width = Math.round(Wt * dpr);
         cv.height = Math.round(H * dpr);

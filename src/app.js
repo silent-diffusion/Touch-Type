@@ -522,13 +522,27 @@
   }
   document.addEventListener("scroll", (e) => {
     const el = e.target;
+  // The redraw watcher below runs on every change inside the folder, which in a game or a test is
+  // every key and frame. It only has work to do on a page that has been scrolled, or that shows a
+  // list of choices, so those are noted here and every other change is skipped cheaply. (A game
+  // being played and the typing test never show a list, so there it doesn't even look for one.)
+  const scrolledPages = new Set();
+  const colLists = $("folder").getElementsByClassName("col-list");
+  const listShown = () => {
+    if (PLAY_VIEWS.includes(ui.view) || ui.view === "test" || ui.view === "practice") return false;
+    for (const el of colLists) if (el.matches(SCROLLERS) && !el.closest("[hidden]")) return true;
+    return false;
+  };
     if (!(el instanceof Element) || !el.matches(SCROLLERS) || !$("folder").contains(el)) return;
-    scrollSaved.set(`${scrollPage()}|${scrollersShown().indexOf(el)}`, el.scrollTop);
+    const page = scrollPage();
+    scrollSaved.set(`${page}|${scrollersShown().indexOf(el)}`, el.scrollTop);
+    if (el.scrollTop) scrolledPages.add(page);
   }, true);
   new MutationObserver(() => {
     const page = scrollPage();
     scrollersShown().forEach((el, i) => {
       const top = scrollSaved.get(`${page}|${i}`);
+    if (!scrolledPages.has(page) && !listShown()) return;
       if (top && !el.scrollTop) el.scrollTop = top;
       const on = el.matches(".col-list") && el.querySelector(".on");
       if (!on) return;

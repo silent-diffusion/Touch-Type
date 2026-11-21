@@ -1123,6 +1123,10 @@
       <p class="visually-hidden" data-f="sr" aria-live="polite"></p>
     </div>`;
 
+  // counts fonts arriving, since a late one changes how wide the typed word is (see placeTyped)
+  let fontsLoaded = 0;
+  if (document.fonts && document.fonts.addEventListener) document.fonts.addEventListener("loadingdone", () => { fontsLoaded++; });
+
   TT.createForest = ({ root, onStart, onEnd, replayOnly = false }) => {
     root.innerHTML = TEMPLATE;
     const el = Object.fromEntries([...root.querySelectorAll("[data-f]")].map((x) => [x.dataset.f, x]));
@@ -1140,6 +1144,7 @@
     let raf = 0;
     let cam = { lane: null };
     let hudSig = "";
+    let hud = {}; // what each part of the HUD shows now (see renderHud)
     let srSig = "";
     let colors = themeColors();
 
@@ -1149,6 +1154,11 @@
       delete d.acorns;
       return d;
     };
+
+    // The canvas's size on the page, kept from when it last changed: asking for it every frame makes
+    // the browser work the layout out again in the middle of the frame. (0 until it's first known.)
+    let cw = 0, ch = 0;
+    new ResizeObserver(() => { cw = canvas.clientWidth; ch = canvas.clientHeight; }).observe(canvas);
 
     const ro = new ResizeObserver(() => {
       fh.classList.toggle("portrait", fh.clientHeight > fh.clientWidth * 1.05);
@@ -1204,7 +1214,7 @@
 
     function draw() {
       if (!g) return;
-      const w = canvas.clientWidth, h = canvas.clientHeight;
+      const w = cw || canvas.clientWidth, h = ch || canvas.clientHeight;
       if (!w || !h) return;
       const dpr = window.devicePixelRatio || 1;
       if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
@@ -1218,14 +1228,21 @@
       placeTyped();
     }
 
-    // The typed word sits under the animal, kept inside the field.
+    // The typed word sits under the animal, kept inside the field. Its box is only measured again when
+    // what's in it, its font size or whether it's showing has changed (not on every frame).
+    let typedKey = null, typedHalf = 0;
     function placeTyped() {
       if (!typedAt) return;
       const box = el.typed;
       box.style.fontSize = `${typedAt.fs}px`;
-      const half = box.offsetWidth / 2;
+      const key = `${typedAt.fs}|${box.hidden}|${fontsLoaded}|${hud.typed}|${cw}`;
+      if (key !== typedKey) {
+        typedKey = key;
+        typedHalf = box.offsetWidth / 2;
+      }
+      const half = typedHalf;
       const x = typedAt.right != null ? typedAt.right - half : typedAt.x;
-      box.style.left = `${Math.max(half + 8, Math.min(canvas.clientWidth - half - 8, x))}px`;
+      box.style.left = `${Math.max(half + 8, Math.min((cw || canvas.clientWidth) - half - 8, x))}px`;
       box.style.top = `${typedAt.y}px`;
     }
 
@@ -1255,15 +1272,24 @@
       }
       const sig = [score(g), best, treats, g.animal, left, g.buf, g.bad].join("|");
       if (sig === hudSig) return;
+      // a new round, a replay or a relayout draws every part again
+      if (hudSig === "") hud = {};
       hudSig = sig;
-      el.score.textContent = score(g);
-      el.best.textContent = `BEST ${best}`;
-      el.treats.innerHTML = `${TT.sprites.svg(th.treat, 26)}<span>${treats}</span>`;
+      // Each part is only written when it has changed: most keys change nothing but the typed word,
+      // and the chips' sprites are a hundred or so rects each.
+      const part = (name, key, write) => {
+        if (hud[name] === key) return;
+        hud[name] = key;
+        write(el[name]);
+      };
+      part("score", score(g), (e) => { e.textContent = score(g); });
+      part("best", best, (e) => { e.textContent = `BEST ${best}`; });
+      part("treats", `${th.treat}|${treats}`, (e) => { e.innerHTML = `${TT.sprites.svg(th.treat, 26)}<span>${treats}</span>`; });
       el.treats.title = th.treats[1];
-      el.animal.innerHTML = `${TT.sprites.svg(g.animal, 26)}<span>${g.animal.toUpperCase()}</span>`;
+      part("animal", g.animal, (e) => { e.innerHTML = `${TT.sprites.svg(g.animal, 26)}<span>${g.animal.toUpperCase()}</span>`; });
       el.threat.hidden = left == null;
-      if (left != null) el.threat.innerHTML = `${TT.sprites.svg(th.predator, 26)}<span>${th.name} · ${left}</span>`;
-      el.typed.innerHTML = W.html(g);
+      if (left != null) part("threat", `${th.predator}|${th.name}|${left}`, (e) => { e.innerHTML = `${TT.sprites.svg(th.predator, 26)}<span>${th.name} · ${left}</span>`; });
+      part("typed", W.html(g), (e) => { e.innerHTML = hud.typed; });
       el.typed.hidden = !g.buf || g.over;
       placeTyped();
     }

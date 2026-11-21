@@ -244,7 +244,9 @@
 
     function renderTimer() {
       const t = g.over ? 0 : Math.max(0, timeLeft(g, viewT));
-      el.time.textContent = `${t.toFixed(1)}S`;
+      // (written only when the tenth changes: this runs every frame)
+      const text = `${t.toFixed(1)}S`;
+      if (el.time.textContent !== text) el.time.textContent = text;
       el.bar.style.width = `${(t / MAX_TIME) * 100}%`;
       el.bar.classList.toggle("low", t < 2.5);
     }

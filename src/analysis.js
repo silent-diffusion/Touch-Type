@@ -50,8 +50,14 @@
     return Object.values(out).sort((a, b) => b.score - a.score).slice(0, limit);
   }
 
+  // (a list's total is worked out once: the games pick from the same lists on every step)
+  const totals = new WeakMap();
   function pickWeighted(items) {
-    const total = items.reduce((sum, x) => sum + x.score, 0);
+    let total = totals.get(items);
+    if (total === undefined) {
+      total = items.reduce((sum, x) => sum + x.score, 0);
+      totals.set(items, total);
+    }
     let r = Math.random() * total;
     for (const x of items) {
       r -= x.score;
@@ -73,14 +79,26 @@
     return out;
   };
 
+  // The practice words that use the target keys, each scored by how often its keys are missed. A
+  // round asks for words on every step with the same targets, so the list is kept with them.
+  const keyPools = new WeakMap();
+  function keyPoolFor(targets) {
+    let pool = keyPools.get(targets);
+    if (!pool) {
+      const rate = Object.fromEntries(targets.map((t) => [t.key, t.rate]));
+      pool = PRACTICE_WORDS
+        .map((word) => ({ word, score: [...new Set(word)].reduce((s, l) => s + (rate[l] || 0), 0) }))
+        .filter((x) => x.score > 0);
+      keyPools.set(targets, pool);
+    }
+    return pool;
+  }
+
   // mixPct% of words are targeted (weak-key words, plus words you've missed); the rest are ordinary.
   function practiceWords(n, targets, missed, mixPct) {
     if (!targets.length && !missed.length) return TT.randomWords(n);
 
-    const rate = Object.fromEntries(targets.map((t) => [t.key, t.rate]));
-    const keyPool = PRACTICE_WORDS
-      .map((word) => ({ word, score: [...new Set(word)].reduce((s, l) => s + (rate[l] || 0), 0) }))
-      .filter((x) => x.score > 0);
+    const keyPool = keyPoolFor(targets);
 
     const out = [];
     let prev = null;

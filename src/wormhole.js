@@ -1111,6 +1111,10 @@
 
     const now = () => performance.now();
     const gameT = () => (live ? (live.state === "paused" ? live.pausedAt : live.state === "over" ? live.endT + live.startAt : now()) - live.startAt : replay ? replay.T : 0);
+    // The canvas's size on the page, kept from when it last changed: asking for it every frame makes
+    // the browser work the layout out again in the middle of the frame. (0 until it's first known.)
+    let cw = 0, ch = 0;
+    new ResizeObserver(() => { cw = canvas.clientWidth; ch = canvas.clientHeight; }).observe(canvas);
     new ResizeObserver(() => { if (st) render(gameT()); }).observe(root.querySelector(".wm-stage"));
 
     // ---------- drawing ----------
@@ -1131,7 +1135,7 @@
     }
 
     function draw(T) {
-      const w = canvas.clientWidth, h = canvas.clientHeight;
+      const w = cw || canvas.clientWidth, h = ch || canvas.clientHeight;
       if (!w || !h || !st) return;
       const dpr = window.devicePixelRatio || 1;
       if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
