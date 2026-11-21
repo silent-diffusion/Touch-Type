@@ -1566,7 +1566,7 @@
     if (!t) return;
     const ok = await TT.music.setLyrics(s.tilesSong, t.value);
     ui.lyricsEdit = false;
-    const n = TT.lyrics.words(t.value).length;
+    const n = TT.lyrics.words(t.value.slice(0, TT.lyrics.MAX_CHARS)).length; // what was kept
     ui.tlNote = !ok ? "The lyrics couldn't be saved." : n ? `Lyrics saved: ${n} different words.` : "Lyrics cleared.";
     renderTilesSelect();
   }
@@ -2614,7 +2614,7 @@
     } else if (x === "rename") {
       ui.renaming = id;
       renderSettings();
-      const input = document.querySelector(`[data-form="rename:${id}"] input`);
+      const input = document.querySelector(`[data-form="rename:${CSS.escape(id)}"] input`);
       if (input) { input.focus(); input.select(); }
     } else if (x === "cancel") {
       ui.renaming = null;

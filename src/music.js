@@ -146,7 +146,7 @@
       for (const rec of all || []) {
         const { blob, ...meta } = rec;
         if (!meta.analysis) continue;
-        // songs added before lyrics read from a file had a limit
+        // (lyrics read from a file had no limit once, so a song saved then can hold more)
         if (meta.lyrics) meta.lyrics = String(meta.lyrics).slice(0, TT.lyrics.MAX_CHARS);
         // a saved song that can't be read (damaged data) is left out, and the rest still load
         try {
