@@ -97,10 +97,12 @@ async function fetchFile(base, f, dir, onBytes, cancelled) {
       if (done) break;
       hash.update(value);
       got += value.length;
+      if (got > f.size) break; // more than the file is: it can't be right, so it stops here (and is thrown away below)
       onBytes(value.length);
       if (!out.write(Buffer.from(value))) await new Promise((r) => out.once("drain", r));
     }
   } finally {
+    reader.cancel().catch(() => {}); // if it stopped early (cancelled, or too long), nothing more is fetched
     await new Promise((r) => out.end(r));
   }
   if (got !== f.size || hash.digest("hex") !== f.sha256) {
