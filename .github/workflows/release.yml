@@ -10,8 +10,10 @@ on:
 permissions:
   contents: write
 
+# The token that can write releases is given only to the steps that talk to GitHub (GH_TOKEN on
+# each), and checkouts don't keep it, so "npm ci" and anything it runs never see it. The actions are
+# pinned to a commit, with the version that commit is in a comment.
 env:
-  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   GH_REPO: ${{ github.repository }}
 
 jobs:
@@ -20,7 +22,9 @@ jobs:
   draft:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
 
       - name: Check tag matches package.json version
         run: |
@@ -31,6 +35,8 @@ jobs:
           fi
 
       - name: Create draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           v=${GITHUB_REF_NAME#v}
           gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 ||
@@ -41,9 +47,11 @@ jobs:
     needs: draft
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 24
           cache: npm
@@ -52,14 +60,18 @@ jobs:
 
       - name: Build and upload installer
         run: npx electron-builder --win --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   mac:
     needs: draft
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 24
           cache: npm
@@ -71,12 +83,15 @@ jobs:
         run: npx electron-builder --mac --publish always
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   publish:
     needs: [windows, mac]
     runs-on: ubuntu-latest
     steps:
       - name: Check uploads and publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           v=${GITHUB_REF_NAME#v}
           assets=$(gh release view "$GITHUB_REF_NAME" --json assets --jq '.assets[].name')
