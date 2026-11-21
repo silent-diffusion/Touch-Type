@@ -258,9 +258,13 @@
     return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
   };
   const addDays = (k, n) => keyOfIndex(dayIndex(k) + n);
+  // (a date formatter is slow to make, and the dig list asks for fourteen labels: one is kept for each style)
+  const dayFormats = new Map();
   const dayLabel = (k, opts = { weekday: "short", day: "numeric", month: "short" }) => {
     const [y, m, d] = k.split("-").map(Number);
-    return new Intl.DateTimeFormat("en-GB", { ...opts, timeZone: "UTC" }).format(new Date(Date.UTC(y, m - 1, d)));
+    const style = JSON.stringify(opts);
+    if (!dayFormats.has(style)) dayFormats.set(style, new Intl.DateTimeFormat("en-GB", { ...opts, timeZone: "UTC" }));
+    return dayFormats.get(style).format(new Date(Date.UTC(y, m - 1, d)));
   };
 
   function rng(seed) {

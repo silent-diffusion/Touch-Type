@@ -108,6 +108,7 @@
 
   // how much wider than tall a sprite is (1 for most)
   const aspect = (kind) => S[kind].rows[0].length / S[kind].rows.length;
+  const svgs = new Map(); // "kind|size" -> its markup (see svg)
 
   TT.sprites = {
     kinds: Object.keys(S),
@@ -130,14 +131,19 @@
       TT.sprites.draw(c.getContext("2d"), kind, 0, 0, c.width);
       return c;
     },
-    // Markup version for places that are built from HTML strings.
+    // Markup version for places that are built from HTML strings. (Each sprite's markup at a size is
+    // put together once: the screens that use it are redrawn whole on every choice.)
     svg(kind, size) {
+      const key = `${kind}|${size}`;
+      if (svgs.has(key)) return svgs.get(key);
       const sp = S[kind];
       let rects = "";
       sp.rows.forEach((row, y) => [...row].forEach((ch, x) => {
         if (ch !== ".") rects += `<rect x="${x}" y="${y}" width="1.02" height="1.02" fill="${sp.pal[ch] || K}"/>`;
       }));
-      return `<svg viewBox="0 0 ${sp.rows[0].length} ${sp.rows.length}" width="${Math.round(size * aspect(kind))}" height="${size}" shape-rendering="crispEdges" role="img" aria-label="${kind}">${rects}</svg>`;
+      const svg = `<svg viewBox="0 0 ${sp.rows[0].length} ${sp.rows.length}" width="${Math.round(size * aspect(kind))}" height="${size}" shape-rendering="crispEdges" role="img" aria-label="${kind}">${rects}</svg>`;
+      svgs.set(key, svg);
+      return svg;
     },
   };
 })();

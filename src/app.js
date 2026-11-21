@@ -557,12 +557,24 @@
     });
   }).observe($("folder"), { childList: true, subtree: true });
 
+  // A copy of what's showing inside a node: hidden parts are left out as it's copied. (Copying the
+  // whole folder and then removing them meant copying every game's and every page's hidden markup,
+  // thousands of nodes, on each change of tab.)
+  function cloneShown(node) {
+    if (node.nodeType !== 1 || !node.querySelector("[hidden]")) return node.cloneNode(true);
+    const copy = node.cloneNode(false);
+    for (const child of node.childNodes) {
+      if (child.nodeType === 1 && child.hasAttribute("hidden")) continue;
+      copy.appendChild(cloneShown(child));
+    }
+    return copy;
+  }
+
   function folderGhost(target) {
     const r = target.getBoundingClientRect();
     // the copy starts unscrolled, so note where each scrolling part was (in the order the copy keeps)
     const scrolled = [...target.querySelectorAll(SCROLLERS)].filter((e) => !e.closest("[hidden]")).map((e) => e.scrollTop);
-    const ghost = target.cloneNode(true);
-    ghost.querySelectorAll("[hidden]").forEach((e) => e.remove());
+    const ghost = cloneShown(target);
     ghost.scrolled = scrolled;
     [ghost, ...ghost.querySelectorAll("[id]")].forEach((e) => e.removeAttribute("id"));
     ghost.querySelectorAll("[data-act]").forEach((e) => e.removeAttribute("data-act"));

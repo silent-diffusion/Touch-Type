@@ -157,8 +157,14 @@
     ctx.drawImage(sh, Math.round(cx - w / 2), Math.round(feet - h), Math.round(w), Math.round(h));
     ctx.restore();
   }
-  // the sprinter as markup, for the track screen and the library
+  // the sprinter as markup, for the track screen and the library (put together once for each size and colour)
+  const runnerSvgs = new Map();
   function runnerSvg(size, accent = "var(--accent)", ghost = false) {
+    const key = `${size}|${accent}|${ghost}`;
+    if (!runnerSvgs.has(key)) runnerSvgs.set(key, makeRunnerSvg(size, accent, ghost));
+    return runnerSvgs.get(key);
+  }
+  function makeRunnerSvg(size, accent, ghost) {
     const pal = ghost ? GHOST_PAL : runnerPal(accent);
     const line = ghost ? "rgba(255,255,255,0.35)" : "#2a2823";
     let outline = "", rects = "";

@@ -121,6 +121,32 @@ window.TT = window.TT || {};
 
   const saveProfiles = () => write(PROFILES_KEY, profiles);
 
+  // Another profile's game progress and summary, as last read. The leaderboard and Ghost Race's
+  // list of ghosts ask for them on every redraw, and reading a profile means parsing its whole
+  // history (up to a megabyte), so they're kept for as long as what's stored is the same text.
+  const others = new Map(); // id -> { raw, games, summary }
+  const summarize = (d) => {
+    const tests = d.history.filter((h) => h.kind !== "game");
+    return {
+      tests: tests.length,
+      games: d.history.length - tests.length,
+      best: tests.reduce((m, h) => Math.max(m, h.wpm), 0),
+    };
+  };
+  function other(id) {
+    let raw = null;
+    try {
+      raw = localStorage.getItem(dataKey(id));
+    } catch {}
+    let o = others.get(id);
+    if (!o || o.raw !== raw) {
+      const d = cleanData(read(dataKey(id)));
+      o = { raw, games: d.games, summary: summarize(d) };
+      others.set(id, o);
+    }
+    return o;
+  }
+
   TT.profiles = {
     MAX_NAME,
     list: () => profiles.list.map((p) => ({ ...p })),
@@ -137,18 +163,12 @@ window.TT = window.TT || {};
     },
 
     summary(id) {
-      const d = id === profiles.active ? TT.store : cleanData(read(dataKey(id)));
-      const tests = d.history.filter((h) => h.kind !== "game");
-      return {
-        tests: tests.length,
-        games: d.history.length - tests.length,
-        best: tests.reduce((m, h) => Math.max(m, h.wpm), 0),
-      };
+      return id === profiles.active ? summarize(TT.store) : { ...other(id).summary };
     },
 
     // A profile's game progress, read-only (the leaderboard compares every profile).
     games(id) {
-      return id === profiles.active ? TT.store.games : cleanData(read(dataKey(id))).games;
+      return id === profiles.active ? TT.store.games : other(id).games;
     },
 
     create(name) {
@@ -179,6 +199,7 @@ window.TT = window.TT || {};
       try {
         localStorage.removeItem(dataKey(id));
       } catch {}
+      others.delete(id);
       if (TT.rounds) TT.rounds.clearProfile(id);
       return true;
     },
@@ -187,6 +208,7 @@ window.TT = window.TT || {};
       if (id === profiles.active || !profiles.list.some((p) => p.id === id)) return false;
       TT.save();
       profiles.active = id;
+      others.delete(id); // (it's read from TT.store from now on)
       saveProfiles();
       Object.assign(TT.store, cleanData(read(dataKey(id))));
       return true;

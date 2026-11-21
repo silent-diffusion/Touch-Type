@@ -13,9 +13,25 @@
     for (let i = h.length - 1, age = 0; i >= 0; i--, age++) fn(h[i], weightForAge(age));
   }
 
+  // keyRates and weakWords each walk the whole history (up to 2000 rounds), and one screen, or the
+  // start of one round, asks for them several times. What they found is kept until the history
+  // changes: it only ever gains a round at its end (losing its oldest at the cap), or is replaced
+  // outright (another profile, a reset). Nothing changes a round once it's saved.
+  let seen = { h: null, n: -1, first: null, last: null }, found = {};
+  function kept() {
+    const h = TT.store.history;
+    if (seen.h !== h || seen.n !== h.length || seen.first !== h[0] || seen.last !== h[h.length - 1]) {
+      seen = { h, n: h.length, first: h[0], last: h[h.length - 1] };
+      found = {};
+    }
+    return found;
+  }
+
   // letter -> { attempts, rate } where rate is the recency-weighted miss rate.
   function keyRates() {
-    const out = {};
+    const k = kept();
+    if (k.rates) return k.rates;
+    const out = (k.rates = {});
     eachWeighted((e, w) => {
       if (!e.keys) return;
       for (const [k, [expected, missed]] of Object.entries(e.keys)) {
@@ -39,15 +55,19 @@
 
   // [{ word, score, count }] where score is recency-weighted and count is raw misses in history.
   function weakWords(limit = 20) {
-    const out = {};
-    eachWeighted((e, w) => {
-      for (const word of e.missedWords || []) {
-        const o = (out[word] ||= { word, score: 0, count: 0 });
-        o.score += w;
-        o.count++;
-      }
-    });
-    return Object.values(out).sort((a, b) => b.score - a.score).slice(0, limit);
+    const k = kept();
+    if (!k.words) {
+      const out = {};
+      eachWeighted((e, w) => {
+        for (const word of e.missedWords || []) {
+          const o = (out[word] ||= { word, score: 0, count: 0 });
+          o.score += w;
+          o.count++;
+        }
+      });
+      k.words = Object.values(out).sort((a, b) => b.score - a.score);
+    }
+    return k.words.slice(0, limit);
   }
 
   // (a list's total is worked out once: the games pick from the same lists on every step)
