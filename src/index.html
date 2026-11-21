@@ -2,13 +2,18 @@
 <html lang="en" data-theme="sand">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Touch Type</title>
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-src 'none'">
   <link rel="stylesheet" href="fonts/fonts.css">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <!-- Takes the typing from a phone's on-screen keyboard, which only shows for a text field (keyboard.js).
+       It's never seen or tapped; its attributes stop the keyboard from correcting what's typed. -->
+  <input id="kb" class="kb-field" type="text" aria-label="Typing" tabindex="-1" inputmode="text" enterkeyhint="go"
+    autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false">
+
   <div id="app">
 
     <!-- Full screen has no title bar: this close button shows when the mouse reaches the top edge. -->
@@ -38,6 +43,7 @@
         <div id="targets" class="targets" hidden></div>
       </div>
       <div id="words-box" class="words-box"><div id="words" class="words"></div></div>
+      <p class="tap-hint caps-label" aria-hidden="true">TAP TO TYPE</p>
       <p id="typing-note" class="note"></p>
       <div id="capslock" class="capslock" hidden>CAPS LOCK IS ON</div>
     </main>
@@ -96,6 +102,8 @@
   </div>
 
   <script src="store.js"></script>
+  <script src="viewport.js"></script>
+  <script src="keyboard.js"></script>
   <script src="rounds.js"></script>
   <script src="words.js"></script>
   <script src="analysis.js"></script>

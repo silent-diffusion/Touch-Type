@@ -292,24 +292,30 @@
   // ---------- views ----------
 
   const HINTS = {
-    test: [["ARROWS", "MOVE", "noop"], ["TAB", "RESTART", "restart"], ["ESC", "MENU", "menu"]],
-    practice: [["ARROWS", "MOVE", "noop"], ["TAB", "NEW WORDS", "restart"], ["ESC", "MENU", "menu"]],
-    results: [["ARROWS", "MOVE", "noop"], ["TAB / ENTER", "NEXT TEST", "restart"], ["R", "REPLAY", "replay:last"], ["P", "PRACTICE WEAK KEYS", "practice"], ["ESC", "MENU", "menu"]],
+    test: [["ARROWS", "MOVE", "noop"], ["", "START", "kb:open", "primary touch nokb"], ["TAB", "RESTART", "restart"], ["ESC", "MENU", "menu", "keys"]],
+    practice: [["ARROWS", "MOVE", "noop"], ["", "START", "kb:open", "primary touch nokb"], ["TAB", "NEW WORDS", "restart"], ["ESC", "MENU", "menu", "keys"]],
+    results: [["ARROWS", "MOVE", "noop"], ["TAB / ENTER", "NEXT TEST", "restart", "primary"], ["R", "REPLAY", "replay:last"], ["P", "PRACTICE WEAK KEYS", "practice"], ["ESC", "MENU", "menu", "keys"]],
     game: [["TAB", "RESTART", "play"], ["ESC", "PAUSE", "pause"]],
     forest: [["SPACE / ENTER", "JUMP", "noop"], ["TAB", "RESTART", "fh:play"], ["ESC", "PAUSE", "pause"]],
-    "forest-select": [["ARROWS", "CHOOSE", "noop"], ["ENTER", "PLAY", "fh:play"], ["H", "HOW TO PLAY", "fh:guide"], ["M", "MUSIC", "fh:music"], ["E", "EFFECTS", "fh:sfx"], ["ESC", "CLOSE MENU", "close"]],
-    "forest-guide": [["ARROWS", "MOVE", "noop"], ["ENTER", "PLAY", "fh:play"], ["ESC", "BACK", "fh:select"]],
+    "forest-select": [["ARROWS", "CHOOSE", "noop"], ["ENTER", "PLAY", "fh:play", "primary"], ["H", "HOW TO PLAY", "fh:guide"], ["M", "MUSIC", "fh:music"], ["E", "EFFECTS", "fh:sfx"], ["ESC", "CLOSE MENU", "close", "keys"]],
+    "forest-guide": [["ARROWS", "MOVE", "noop"], ["ENTER", "PLAY", "fh:play", "primary"], ["ESC", "BACK", "fh:select"]],
     tiles: [["ENTER / SPACE", "HIT", "noop"], ["TAB", "RESTART", "tl:play"], ["ESC", "PAUSE", "pause"]],
-    "tiles-select": [["ARROWS", "MOVE", "noop"], ["[ ]", "DIFFICULTY", "tl:harder"], ["ENTER", "PLAY", "tl:play"], ["A", "ADD A SONG", "tl:import"], ["Q", "MODE", "tl:mode:toggle"], ["M", "MUSIC", "tl:music"], ["T", "METRONOME", "tl:metronome"], ["ESC", "CLOSE MENU", "close"]],
+    "tiles-select": [["ARROWS", "MOVE", "noop"], ["[ ]", "DIFFICULTY", "tl:harder"], ["ENTER", "PLAY", "tl:play", "primary"], ["A", "ADD A SONG", "tl:import"], ["Q", "MODE", "tl:mode:toggle"], ["M", "MUSIC", "tl:music"], ["T", "METRONOME", "tl:metronome"], ["ESC", "CLOSE MENU", "close", "keys"]],
     ghost: [["SPACE", "NEXT WORD", "noop"], ["TAB", "RESTART", "gr:play"], ["ESC", "PAUSE", "pause"]],
-    "ghost-select": [["ARROWS", "MOVE", "noop"], ["ENTER", "RACE", "gr:play"], ["M", "MUSIC", "gr:music"], ["E", "EFFECTS", "gr:sfx"], ["ESC", "CLOSE MENU", "close"]],
+    "ghost-select": [["ARROWS", "MOVE", "noop"], ["ENTER", "RACE", "gr:play", "primary"], ["M", "MUSIC", "gr:music"], ["E", "EFFECTS", "gr:sfx"], ["ESC", "CLOSE MENU", "close", "keys"]],
     worm: [["ENTER", "DIG IN", "noop"], ["ESC", "PAUSE", "pause"]],
-    "worm-select": [["ARROWS", "MOVE", "noop"], ["ENTER", "DIG", "wm:play"], ["M", "MUSIC", "wm:music"], ["E", "EFFECTS", "wm:sfx"], ["ESC", "CLOSE MENU", "close"]],
-    replay: [["SPACE", "PLAY / PAUSE", "rp:toggle"], ["← →", "SKIP 2S", "rp:skip:2000"], ["↑ ↓", "MOVE", "noop"], ["ESC", "BACK", "rp:back"]],
-    stats: [["ARROWS", "MOVE", "noop"], ["P", "PRACTICE WEAK KEYS", "practice"], ["ESC", "CLOSE MENU", "close"]],
-    leaderboard: [["ARROWS", "MOVE", "noop"], ["ESC", "CLOSE MENU", "close"]],
-    settings: [["ARROWS", "MOVE", "noop"], ["ESC", "CLOSE MENU", "close"]],
+    "worm-select": [["ARROWS", "MOVE", "noop"], ["ENTER", "DIG", "wm:play", "primary"], ["M", "MUSIC", "wm:music"], ["E", "EFFECTS", "wm:sfx"], ["ESC", "CLOSE MENU", "close", "keys"]],
+    replay: [["SPACE", "PLAY / PAUSE", "rp:toggle", "primary"], ["← →", "SKIP 2S", "rp:skip:2000"], ["↑ ↓", "MOVE", "noop"], ["ESC", "BACK", "rp:back"]],
+    stats: [["ARROWS", "MOVE", "noop"], ["P", "PRACTICE WEAK KEYS", "practice"], ["ESC", "CLOSE MENU", "close", "keys"]],
+    leaderboard: [["ARROWS", "MOVE", "noop"], ["ESC", "CLOSE MENU", "close", "keys"]],
+    settings: [["ARROWS", "MOVE", "noop"], ["ESC", "CLOSE MENU", "close", "keys"]],
   };
+  // On a touch screen the hints are the action bar (style.css, "Compact"), and a hint's fourth entry says
+  // how it shows there: "primary" is the screen's main action (first, and filled in), "keys" is for a
+  // keyboard only (as is anything that does nothing when pressed), "touch" for a touch screen only, and
+  // "kb" or "nokb" for when the on-screen keyboard is up or down. DONE, on every screen, puts it away.
+  const HINT_DONE = ["", "DONE", "kb:close", "touch kb"];
+  const hintClass = (act, flags = "") => `${flags}${act === "noop" ? " keys" : ""}`.split(" ").filter(Boolean).map((f) => `hint-${f}`).join(" ");
   const STATUS = {
     test: "Type to begin.",
     practice: "Practice ready.",
@@ -334,16 +340,19 @@
     let hints = HINTS[ui.view];
     // After practice, only Tab/Enter start the next round, so a stray "p" can't kick one off.
     if (ui.view === "results" && ui.lastTyping === "practice") {
-      hints = hints.filter(([, , act]) => act !== "practice").map(([key, label, act]) =>
-        [key, act === "restart" ? "PRACTICE AGAIN" : label, act]);
+      hints = hints.filter(([, , act]) => act !== "practice").map(([key, label, act, flags]) =>
+        [key, act === "restart" ? "PRACTICE AGAIN" : label, act, flags]);
     }
     // a Daily Dig that's already done can only be replayed
-    if (ui.view === "worm-select" && wormDigDone()) hints = hints.map((h) => (h[0] === "ENTER" ? ["R", "REPLAY", "wm:replay"] : h));
+    if (ui.view === "worm-select" && wormDigDone()) hints = hints.map((h) => (h[0] === "ENTER" ? ["R", "REPLAY", "wm:replay", "primary"] : h));
     // In full screen, Esc on a main screen leaves full screen.
     if (ui.fullscreen && ROOT_VIEWS.includes(ui.view)) {
-      hints = hints.map(([key, label, act]) => (key === "ESC" ? [key, "EXIT FULL SCREEN", "window:windowed"] : [key, label, act]));
+      hints = hints.map(([key, label, act, flags]) => (key === "ESC" ? [key, "EXIT FULL SCREEN", "window:windowed", flags] : [key, label, act, flags]));
     }
-    els.hints.innerHTML = hints.map(([key, label, act]) => `<button data-act="${act}"><kbd>${key}</kbd>${label}</button>`).join("");
+    els.hints.innerHTML = [...hints, HINT_DONE].map(([key, label, act, flags]) =>
+      `<button class="${hintClass(act, flags)}" data-act="${act}">${key ? `<kbd>${key}</kbd>` : ""}${label}</button>`).join("");
+    // a screen with nothing for a finger to press: its action bar is just the status line
+    els.hints.parentNode.classList.toggle("bare", hints.every(([, , act, flags]) => act === "noop" || /\bkeys\b/.test(flags || "")));
     els.statusLine.textContent = STATUS[ui.view];
   }
 
@@ -441,10 +450,22 @@
     }
   }
 
+  // A row of tabs wider than a small window scrolls sideways (style.css, "Compact"): the open tab is
+  // kept in view, with a little of the tab before or after it.
+  function revealTab(nav) {
+    if (!TT.viewport.compact && !TT.viewport.short) return;
+    const on = nav.querySelector(".ftab.on");
+    if (!on || nav.scrollWidth <= nav.clientWidth) return;
+    const left = on.offsetLeft - 32, right = on.offsetLeft + on.offsetWidth + 32;
+    if (left < nav.scrollLeft) nav.scrollLeft = left;
+    else if (right > nav.scrollLeft + nav.clientWidth) nav.scrollLeft = right - nav.clientWidth;
+  }
+
   function renderTabs(view) {
     const main = tabFor(view);
     els.tabs.innerHTML = MAIN_TABS.map(([id, label, act], i) => tabButton(id === main, act, `0${i + 1}`, label)).join("");
     shapeTabs(els.tabs);
+    revealTab(els.tabs);
     if (main === "games") setSubtabs(GAME_TABS, gameTabFor(view), main);
     else if (!FOLDER_VIEWS.includes(view)) setSubtabs(null);
   }
@@ -460,6 +481,7 @@
     const n = tabNum(main);
     els.subtabs.innerHTML = tabs.map(([id, label, act], i) => tabButton(id === current, act, `0${n}.${i + 1}`, label)).join("");
     shapeTabs(els.subtabs);
+    revealTab(els.subtabs);
   }
 
   // ---------- folder transition ----------
@@ -602,10 +624,18 @@
   // While a game is being played it takes the whole window: no header, tabs or footer (style.css,
   // html.playing). It starts with the round and ends when the round does, or on leaving the game.
   const PLAY_VIEWS = ["game", "forest", "tiles", "ghost", "worm"];
-  const setPlaying = (on) => document.documentElement.classList.toggle("playing", !!on);
+  const setPlaying = (on) => {
+    document.documentElement.classList.toggle("playing", !!on);
+    // On a touch screen a round's start raises the on-screen keyboard and its end puts it away.
+    if (on) TT.keyboard.open();
+    else if (PLAY_VIEWS.includes(ui.view)) TT.keyboard.close();
+    TT.viewport.update();
+  };
 
   function show(view) {
     if (!PLAY_VIEWS.includes(view)) setPlaying(false);
+    // the on-screen keyboard stays up only where there's typing to do
+    if (view !== "test" && view !== "practice" && !PLAY_VIEWS.includes(view)) TT.keyboard.close();
     // Changing tab plays the folder transition (decided here, before anything on screen changes).
     const main = tabFor(view);
     const sub = main === "games" ? gameTabFor(view) : null;
@@ -983,6 +1013,7 @@
   }
 
   async function startGhost() {
+    TT.keyboard.open(); // while this is still the tap that started it (see setPlaying)
     const s = S(), tr = TT.ghostCore.track(s.grTrack), pick = ghostChoice(tr.id);
     let spec = { kind: "pace", wpm: s.grPace, label: `${s.grPace} wpm pace` };
     if (pick.run) {
@@ -1445,6 +1476,7 @@
     const s = S();
     const song = TT.songs.get(s.tilesSong);
     if (!song) return;
+    TT.keyboard.open(); // while this is still the tap that started it (see setPlaying)
     // An added song's audio is loaded from disk the first time it's played.
     if (song.user && s.tilesMusic && !song.buffer) {
       els.statusLine.textContent = "Loading the song…";
@@ -2701,8 +2733,8 @@
   function togglePause() {
     const a = activeGame();
     if (!a) return;
-    if (a.g.isPaused()) a.g.resume();
-    else if (a.g.isRunning()) a.g.pause();
+    if (a.g.isPaused()) { TT.keyboard.open(); a.g.resume(); }
+    else if (a.g.isRunning()) { a.g.pause(); TT.keyboard.close(); }
     else act(a.quit);
   }
 
@@ -2740,7 +2772,19 @@
         break;
       case "pause": togglePause(); break;
       case "close":
-      case "restart": startTyping(ui.lastTyping); break;
+      case "restart":
+        // the next test from the results: its tap brings the on-screen keyboard back
+        if (type === "restart" && ui.view === "results") TT.keyboard.open();
+        startTyping(ui.lastTyping);
+        break;
+      case "kb":
+        // the touch action bar's START and DONE: the on-screen keyboard up, or down (a test under way starts over)
+        if (x === "open") TT.keyboard.open();
+        else {
+          TT.keyboard.close();
+          if (document.body.classList.contains("typing")) startTyping(ui.lastTyping);
+        }
+        break;
       case "practice": startTyping("practice"); break;
       case "play": startGame(); break;
       case "replay": {
@@ -2820,6 +2864,11 @@
     const el = e.target.closest("[data-act]");
     if (el) act(el.dataset.act);
   });
+
+  // On a touch screen, tapping the words brings up the on-screen keyboard.
+  els.typing.addEventListener("click", () => TT.keyboard.open());
+  // iOS only draws a button as pressed (:active) on a page that listens for touches.
+  document.addEventListener("touchstart", () => {}, { passive: true });
 
   // Clicking a button shouldn't move keyboard focus, so space/tab keep going to the test.
   document.addEventListener("mousedown", (e) => {
@@ -2966,8 +3015,9 @@
       return;
     }
     if (e.getModifierState) els.capslock.hidden = !e.getModifierState("CapsLock");
-    // Typing in a text field (like a profile name) shouldn't trigger shortcuts.
-    if (e.target.closest && e.target.closest("input, textarea, select")) {
+    // Typing in a text field (like a profile name) shouldn't trigger shortcuts. (The on-screen
+    // keyboard's own field, #kb, isn't one: its keys are the app's keys.)
+    if (e.target.closest && e.target.closest("input:not(#kb), textarea, select")) {
       // up and down leave a slider or a one-line text box (left and right still change it)
       if ((e.key === "ArrowUp" || e.key === "ArrowDown") && e.target.matches("input") && NAV_VIEWS.includes(ui.view)) {
         e.preventDefault();
@@ -3111,6 +3161,8 @@
   });
 
   window.addEventListener("resize", () => {
+    revealTab(els.tabs);
+    revealTab(els.subtabs);
     if (ui.view === "test" || ui.view === "practice") engine.relayout();
     if (ui.view === "replay" && rp.player && rp.player.relayout) rp.player.relayout();
     if (ui.view === "ghost") ghostRace.relayout();

@@ -1544,3 +1544,451 @@ strong.none { color: var(--muted); font-weight: 600; }
 .wipe-models input { margin-right: 6px; }
 .wipe-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
 .hint-text a, .note a { color: inherit; }
+
+/* =====================================================================================================
+   Compact: conventions
+
+   The same pages run in a big window (desktop, iPad) and on a phone. Everything above this line is the
+   big-window layout. Everything below adapts it to less room, and goes by the room there is, never by
+   the device:
+
+   - Compact width is @media (max-width: 600px): a phone held upright, or a narrow iPad window.
+   - Height is measured by viewport.js, because a phone's on-screen keyboard covers the page without
+     resizing it. It keeps on <html>:
+       --app-h        the height the app can use, in px (#app is sized from it, not from 100vh)
+       html.compact   the same as the media query, as a class, so it can be combined with the others
+       html.short     less than 560px of height: a phone on its side, or one with the keyboard up
+       html.kb-open   the on-screen keyboard is showing
+       html.task      nothing but the task: a keyboard is up or a round is being played (html.playing,
+                      from app.js) where there's no room for the tabs. The top line, both rows of tabs
+                      and the test settings are gone, and the screen's actions are a slim bar on top.
+     TT.viewport.setKeyboardInset(px) tells it the keyboard's height by hand (the app's shell, tests).
+   - --safe-t, --safe-r, --safe-b, --safe-l are the safe-area insets (--safe-b is 0 with the keyboard
+     up). <body> is padded by them, so #app is always inside the safe area; a background that should
+     reach the screen's edge is pulled out with a negative margin (see #tabs).
+   - --type-fit is the Text size setting as it's shown: --type-size in a big window, scaled down (and
+     never too tall for three lines) in a small one. Typing text uses it instead of --type-size.
+   - The footer's hints are the touch action bar. app.js builds both from HINTS: [key, label, act, flags],
+     where flags (optional) is any of "primary" (the screen's main action: first, and filled in), "keys"
+     (keyboard only; anything whose act is "noop" already is), "touch" (touch screens only), "kb" and
+     "nokb" (only with the on-screen keyboard up, or down). DONE is added to every screen.
+   - TT.keyboard.open() raises the on-screen keyboard and TT.keyboard.close() puts it away (keyboard.js).
+     open() only works from inside a tap or a key press, before anything is awaited. app.js already
+     calls them when a round starts and ends (setPlaying), pauses and resumes (togglePause), when a
+     screen with no typing opens (show), and for the next test from the results.
+   - On a touch screen (pointer: coarse) in a small window, every button is at least 44px each way:
+     that one rule is !important, so a smaller size set anywhere else doesn't apply there.
+   - Rules here start with :where(html.compact, html.short), which adds no weight, so a later section
+     can override them with a plain selector (a phone on its side alone is html.short:not(.compact)).
+     Rules for html.task do carry weight: start yours with html.task too. Each screen's own rules go
+     in its section below.
+   ===================================================================================================== */
+
+/* =====================================================================================================
+   Compact: foundation (the chrome on every screen; the test, practice and results)
+   ===================================================================================================== */
+
+/* ---------- every size: safe areas, the keyboard's field, touch ---------- */
+
+:root {
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-r: env(safe-area-inset-right, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-l: env(safe-area-inset-left, 0px);
+}
+html { --type-fit: var(--type-size); }
+/* the keyboard covers the bottom inset */
+html.kb-open { --safe-b: 0px; }
+
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+html, body { overscroll-behavior: none; }
+body { padding: var(--safe-t) var(--safe-r) var(--safe-b) var(--safe-l); }
+/* the app fills what the keyboard leaves, and stays on the part of the page that shows (--app-top) */
+#app, html.playing #app { height: calc(var(--app-h, 100vh) - var(--safe-t) - var(--safe-b)); top: var(--app-top, 0px); }
+
+/* The field that brings up the on-screen keyboard (keyboard.js). It has to be a real, focusable field,
+   so it's only see-through; at 16px iOS doesn't zoom in on it, and at the top of a page that never
+   scrolls, focusing it can only bring the page back to the top. */
+.kb-field {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 0;
+  width: 40px;
+  height: 24px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  border-radius: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  color: transparent;
+  caret-color: transparent;
+  font-size: 16px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* shown only in a small window on a touch screen (below) */
+.tap-hint, .hints .hint-touch { display: none; }
+
+@media (pointer: coarse) {
+  /* a long press doesn't select the page or call up a menu; text fields still work as usual */
+  #app { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  input, textarea, .mm-licence pre { -webkit-user-select: text; user-select: text; }
+  /* no grey flash on a tap: the button dims while it's pressed */
+  button:active { opacity: 0.55; }
+  /* the close button for the desktop app's full screen */
+  .fs-bar { display: none !important; }
+}
+
+/* ---------- a small window: the chrome ---------- */
+
+/* The typing size: the Text size setting, scaled to the window, and never too tall for the test's three
+   lines (--type-room is the height there is for them; three lines are about 5.7em), nor too small to read. */
+html:where(.compact, .short) {
+  --type-room: 2000px;
+  --type-fit: max(12px, min(calc(var(--type-size) * 0.72), calc(var(--type-room) / 5.7)));
+}
+/* with width to spare (a phone on its side, an iPad with its keyboard up) only the height limits it */
+html.short:not(.compact) { --type-fit: max(12px, min(var(--type-size), calc(var(--type-room) / 5.7))); }
+html.short:not(.compact, .task) { --type-room: calc(var(--app-h) - var(--safe-t) - var(--safe-b) - 240px); }
+html.short:not(.compact, .task):has(#typing-note:not(:empty)) { --type-room: calc(var(--app-h) - var(--safe-t) - var(--safe-b) - 272px); }
+html.task { --type-room: calc(var(--app-h) - var(--safe-t) - var(--safe-b) - 248px); }
+html.task.short:not(.compact) { --type-room: calc(var(--app-h) - var(--safe-t) - var(--safe-b) - 72px); }
+
+/* the folder is one panel: no parent folder around it */
+:where(html.compact, html.short) #app.has-sub .folder-stack { background: none; border: none; border-radius: 0; padding: 0; }
+:where(html.compact, html.short) #app.has-sub .folder { box-shadow: none; }
+:where(html.compact, html.short) .folder { padding: 12px 14px 14px; border-radius: 14px; }
+:where(html.compact, html.short) .folder .cols { gap: 24px; }
+:where(html.compact, html.short) :is(.view, .cols, .cols > *, #stats-body) { overscroll-behavior: contain; }
+/* each screen's own top margin */
+:where(html.compact, html.short) :is(#view-results, #view-game, #view-replay, #view-forest, #view-forest-select, #view-forest-guide,
+  #view-tiles, #view-tiles-select, #view-ghost, #view-ghost-select, #view-worm, #view-worm-select) { padding-top: 4px; }
+
+/* The second row of tabs: still folder tabs, in one row that scrolls sideways (app.js keeps the open
+   tab in view). They don't grow under a finger, and where there are more the row fades out. */
+:where(html.compact, html.short) .ftabs.sub {
+  margin: 0 0 -2px;
+  padding: 0 28px; /* clear of the panel's round corners */
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+}
+:where(html.compact, html.short) .ftabs.sub .ftab,
+:where(html.compact, html.short) .ftabs.sub .ftab:hover,
+:where(html.compact, html.short) .ftabs.sub .ftab:focus-visible {
+  flex: none;
+  height: 44px;
+  margin: 0 -10px 0 0;
+  padding: 0 22px;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  transition: none;
+}
+@property --fade-left { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@property --fade-right { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@keyframes scroll-fades-x {
+  0% { --fade-left: 0px; --fade-right: 36px; }
+  10% { --fade-left: 36px; }
+  90% { --fade-right: 36px; }
+  100% { --fade-left: 36px; --fade-right: 0px; }
+}
+@supports (animation-timeline: scroll()) {
+  :where(html.compact, html.short) :is(.ftabs, .footer .hints) {
+    mask-image: linear-gradient(to right, transparent, #000 var(--fade-left), #000 calc(100% - var(--fade-right)), transparent);
+    animation: scroll-fades-x linear both;
+    animation-timeline: scroll(self inline);
+  }
+}
+
+/* The main tabs: a bar of flat cells, each as wide as its name needs, the open one filled in. If
+   they can't all fit the bar scrolls sideways. */
+:where(html.compact, html.short) #tabs {
+  align-items: stretch;
+  padding: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+}
+:where(html.compact, html.short) #tabs .ftab,
+:where(html.compact, html.short) #tabs .ftab:hover,
+:where(html.compact, html.short) #tabs .ftab:focus-visible {
+  flex: 1 0 auto;
+  justify-content: center;
+  height: auto;
+  margin: 0;
+  padding: 0 4px;
+  font-size: clamp(11px, 2.95vw, 13px); /* all six names fit a 375px window, and grow with a wider one */
+  letter-spacing: 0;
+  transition: none;
+  transform: none !important; /* the folder transition lifts the open tab with its folder: not here */
+}
+:where(html.compact, html.short) #tabs .ftab .n,
+:where(html.compact, html.short) #tabs .tabshape { display: none; }
+:where(html.compact, html.short) #tabs .ftab::before {
+  display: none;
+  inset: 8px 1px;
+  background: var(--ink);
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  transform: none;
+}
+:where(html.compact, html.short) #tabs .ftab.on { color: var(--ground); }
+:where(html.compact, html.short) #tabs .ftab.on::before { display: block; }
+:where(html.compact, html.short) #tabs .ftab:focus-visible { outline: 3px solid var(--accent); outline-offset: -5px; }
+
+/* The footer: the touch action bar. One row of buttons (it scrolls sideways if it must), the screen's
+   main action first; the status line shows beside them only if there's room for all of it. */
+:where(html.compact, html.short) .footer {
+  position: relative; /* over a folder that's rising into place (the folder transition) */
+  z-index: 4;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  justify-content: flex-start;
+  gap: 0 12px;
+  height: 44px;
+  margin: 8px 0 0;
+  overflow: hidden;
+  background: var(--desk);
+}
+html.scope .footer { background: none; }
+:where(html.compact, html.short) .footer .hints { flex: 0 1 auto; flex-wrap: nowrap; max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; }
+/* a long name takes two lines rather than pushing the others off the row */
+:where(html.compact, html.short) .footer .hints { gap: 6px; }
+:where(html.compact, html.short) .footer .hints button { max-width: 134px; padding: 0 12px; line-height: 1.15; letter-spacing: 0.08em; text-align: center; text-wrap: balance; white-space: normal; }
+:where(html.compact, html.short) #status-line {
+  flex: 1 0 auto;
+  max-width: 100%;
+  font-size: 13px;
+  line-height: 44px;
+  text-align: right;
+  white-space: nowrap;
+  color: var(--muted);
+}
+/* a screen with nothing to press keeps just its status line */
+:where(html.compact, html.short) .footer.bare { height: 24px; margin-top: 6px; }
+:where(html.compact, html.short) .footer.bare #status-line { flex: 1 1 0; overflow: hidden; line-height: 24px; text-align: center; text-overflow: ellipsis; }
+
+/* the hints as buttons for a finger, here and on the games' own pause and end screens */
+:where(html.compact, html.short, html.task) .hints { gap: 8px; }
+:where(html.compact, html.short, html.task) .hints kbd,
+:where(html.compact, html.short, html.task) .hints .hint-keys { display: none; }
+:where(html.compact, html.short, html.task) .hints button {
+  flex: none;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  margin: 0;
+  padding: 0 14px;
+  border: var(--rule);
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+}
+:where(html.compact, html.short, html.task) .hints .hint-primary { order: -1; background: var(--ink); color: var(--ground); }
+@media (pointer: coarse) {
+  :where(html.compact, html.short, html.task) .hints .hint-touch { display: inline-flex; }
+}
+html.kb-open .hints .hint-nokb, html:not(.kb-open) .hints .hint-kb, html.playing .hints .hint-kb { display: none; }
+
+/* On a touch screen nothing to press is smaller than a fingertip, whatever its own rule says. A link in
+   a line of text keeps its line, and takes the touch for some way above and below it. */
+@media (pointer: coarse) {
+  :where(html.compact, html.short) :is(button, select, input[type="range"], .text-input) { min-height: 44px !important; }
+  :where(html.compact, html.short) button { min-width: 44px !important; }
+  :where(html.compact, html.short) :is(p, .note, .hint-text) a { display: inline-block; margin: -14px 0; padding: 14px 0; }
+}
+
+/* ---------- compact width: a phone held upright ---------- */
+
+@media (max-width: 600px) {
+  /* top to bottom: brand and profile, the panel (with its tabs), the actions, the main tabs */
+  #app { padding: 0; }
+  .topline { order: 0; min-height: 44px; padding: 0 12px 0 14px; }
+  .folder-stack { order: 1; margin: 0 12px; }
+  .footer { order: 2; margin-left: 12px; margin-right: 12px; }
+  #tabs { order: 3; }
+
+  .brand { font-size: 14px; letter-spacing: 0.16em; }
+  /* the chip is a full fingertip tall; its outline is drawn smaller, inside it */
+  .profile-chip { position: relative; max-width: 46vw; min-height: 44px; padding: 0 12px; border: none; font-size: 13px; }
+  .profile-chip::before { content: ""; position: absolute; inset: 7px 0; border: 2px dashed color-mix(in srgb, var(--ink) 55%, transparent); pointer-events: none; }
+
+  /* the bar of main tabs runs to the screen's edges and under the home indicator */
+  #tabs {
+    min-height: calc(50px + var(--safe-b));
+    margin: 8px calc(0px - var(--safe-r)) calc(0px - var(--safe-b)) calc(0px - var(--safe-l));
+    padding: 0 max(2px, var(--safe-r)) var(--safe-b) max(2px, var(--safe-l));
+    border-top: var(--rule);
+    background: var(--tab-back);
+  }
+}
+
+/* ---------- short and wide: a phone on its side ---------- */
+
+/* one row for the main tabs and the profile; then the panel; then a slim row of actions */
+:where(html.short:not(.compact)) #app { padding: 4px 12px 6px; }
+:where(html.short:not(.compact)) .topline { position: absolute; top: 4px; right: 12px; z-index: 4; padding: 0; }
+:where(html.short:not(.compact)) .brand { display: none; }
+:where(html.short:not(.compact)) .profile-chip { max-width: 130px; font-size: 13px; }
+:where(html.short:not(.compact)) #tabs { margin: 0 142px 6px 0; }
+:where(html.short:not(.compact)) #tabs .ftab,
+:where(html.short:not(.compact)) #tabs .ftab:hover,
+:where(html.short:not(.compact)) #tabs .ftab:focus-visible { flex: 0 0 auto; padding: 0 8px; font-size: 12px; letter-spacing: 0.06em; }
+:where(html.short:not(.compact)) #tabs .ftab::before { inset: 6px 1px; }
+:where(html.short:not(.compact)) .folder { padding: 8px 14px 10px; }
+:where(html.short:not(.compact)) .footer { margin-top: 6px; }
+
+/* ---------- html.task: nothing but the task ---------- */
+
+/* The tabs and the test's settings go; the actions are a slim bar on top; the panel loses its outline
+   and the whole app is its colour. A game being played takes every edge of it. */
+html.task:not(.scope) body { background: var(--ground); transition: none; }
+html.task .topline, html.task #tabs, html.task #subtabs, html.task .folder-head { display: none !important; }
+html.task #app { padding: 0; }
+html.task .folder-stack { order: 1; margin: 0 12px; }
+html.task #app .folder { border-color: transparent; }
+html.task.playing .folder-stack { margin: 0; }
+html.task.playing #app .folder { padding: 8px 12px 10px; }
+html.task .footer {
+  display: flex !important;
+  order: 0;
+  flex-wrap: nowrap;
+  height: 46px;
+  margin: 0;
+  padding: 0 4px;
+  border-bottom: var(--rule);
+  overflow: hidden;
+  background: none;
+}
+html.task .footer .hints { flex: 1 1 auto; flex-wrap: nowrap; gap: 0; max-width: 100%; overflow-x: auto; }
+html.task .footer .hints button { order: 0; max-width: none; padding: 0 12px; border: none; background: none; color: inherit; white-space: nowrap; }
+html.task .footer .hints .hint-kb { margin-left: auto; color: var(--accent); }
+html.task #status-line { display: none; }
+/* the bar's first and last words line up with what's under them */
+html.task:not(.playing) .footer { padding: 0 16px; }
+html.task:not(.playing) #app:has(#view-typing:not([hidden])) .footer { padding: 0 28px; }
+
+/* ---------- the test and practice ---------- */
+
+/* the test's settings: two segmented controls, at either end of one row */
+:where(html.compact, html.short) #test-config { flex: 1; flex-wrap: nowrap; gap: 0; font-size: 13px; }
+:where(html.compact, html.short) #test-config button { flex: none; min-width: 46px; margin-left: -2px; padding: 0 12px; border: var(--rule); letter-spacing: 0.08em; }
+:where(html.compact, html.short) #test-config button:first-child,
+:where(html.compact, html.short) #test-config .divider + button { margin-left: 0; }
+:where(html.compact, html.short) #test-config .divider { flex: 1; min-width: 8px; height: 0; margin: 0; background: none; }
+:where(html.compact, html.short) #test-config .seg-label { padding: 0; font-size: 12px; white-space: nowrap; }
+
+:where(html.compact, html.short) .typing-view { justify-content: safe center; max-width: none; padding: 0 12px; }
+:where(html.compact, html.short) .typing-top { gap: 10px 16px; margin-bottom: 14px; }
+:where(html.compact, html.short) .live { gap: 10px; }
+:where(html.compact, html.short) .live-num { font-size: 44px; }
+:where(html.compact, html.short) .live .caps-label { font-size: 12px; }
+:where(html.compact, html.short) .targets { flex-wrap: wrap; gap: 6px; }
+:where(html.compact, html.short) .targets .caps-label { font-size: 12px; }
+:where(html.compact, html.short) .targets .chip { width: 30px; height: 30px; font-size: 16px; }
+/* the three lines are never squeezed: if the screen is too short for everything, it scrolls */
+:where(html.compact, html.short) .words-box { flex: none; font-size: var(--type-fit); }
+:where(html.compact, html.short) .word.error span { text-underline-offset: 0.2em; }
+:where(html.compact, html.short) .note { margin-top: 18px; font-size: 14px; line-height: 1.4; }
+:where(html.compact, html.short) .note:empty { display: none; }
+:where(html.compact, html.short) .capslock { margin-top: 10px; font-size: 12px; }
+
+/* On a touch screen with the keyboard down, the words are framed like an empty field: tap to type. */
+@media (pointer: coarse) {
+  html:where(.compact, .short):not(.kb-open) .typing-top { margin-bottom: 20px; }
+  html:where(.compact, .short):not(.kb-open) .words-box { outline: 2px dashed color-mix(in srgb, var(--ink) 40%, transparent); outline-offset: 8px; }
+  html:where(.compact, .short):not(.kb-open) .tap-hint { display: block; margin: 22px 0 0; text-align: center; font-size: 12px; color: var(--ink); }
+}
+
+/* on its side everything is a size smaller, and the frame alone says "tap" */
+html.short:not(.compact) .typing-top { margin-bottom: 12px; }
+:where(html.short:not(.compact)) .live-num { font-size: 30px; }
+:where(html.short:not(.compact)) .note { overflow: hidden; margin-top: 14px; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+html.short:not(.compact) .tap-hint { display: none; }
+
+/* on its side with the keyboard up there's room for the words and little else: the count moves up into the bar */
+html.task.short:not(.compact) .typing-top {
+  position: fixed;
+  top: var(--safe-t);
+  left: 0;
+  right: 0;
+  z-index: 5;
+  height: 46px;
+  margin: 0;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+html.task.short:not(.compact) .live-num { font-size: 26px; }
+html.task.short:not(.compact) :is(.targets, .note, .capslock) { display: none; }
+
+/* ---------- results (and the headings, rules and lists every screen shares with them) ---------- */
+
+:where(html.compact, html.short) .title-row { padding: 10px 0; }
+:where(html.compact, html.short) .title-row h1 { font-size: 24px; }
+:where(html.compact, html.short) .title-meta { font-size: 13px; }
+:where(html.compact, html.short) .kind-line { padding-top: 8px; font-size: 12px; }
+:where(html.compact, html.short) .rule-head { padding: 10px 0; font-size: 15px; }
+:where(html.compact, html.short) .rule-box { padding: 10px 0; font-size: 15px; line-height: 1.35; }
+:where(html.compact, html.short) .status { font-size: 15px; }
+:where(html.compact, html.short) .status div { padding: 7px 0; }
+:where(html.compact, html.short) .side-label { padding: 12px 0 10px; font-size: 15px; }
+:where(html.compact, html.short) .result-hero { flex: none; gap: 14px 40px; padding: 20px 0; }
+:where(html.compact, html.short) .hero-num { font-size: 104px; }
+:where(html.compact, html.short) .caps-label.lg { margin-top: 8px; font-size: 13px; }
+:where(html.compact, html.short) .side-num { font-size: 40px; margin-bottom: 4px; }
+:where(html.compact, html.short) .side-num.sm { font-size: 28px; }
+:where(html.compact, html.short) .hero-side .caps-label { font-size: 12px; }
+
+:where(html.compact, html.short) .keygrid { grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 6px; max-width: 400px; }
+:where(html.compact, html.short) .keygrid > div { font-size: 18px; }
+:where(html.short:not(.compact)) .result-hero { padding: 10px 0; }
+:where(html.short:not(.compact)) .hero-num { font-size: 72px; }
+
+@media (max-width: 600px) {
+  /* the words sit in the middle of the panel, not of what's left under the settings */
+  html:not(.task) .typing-view { padding-bottom: 56px; }
+  #view-results { padding-top: 10px; }
+  /* one column: the result, then its details */
+  .folder .cols > * { flex: 1 1 100%; max-width: none; }
+  /* accuracy and raw speed side by side under the big number */
+  .hero-side { flex-direction: row; align-items: flex-end; justify-content: center; gap: 36px; width: 100%; text-align: center; }
+}
+
+/* =====================================================================================================
+   Compact: Leaderboard, Stats, Settings, Replay
+   ===================================================================================================== */
+
+/* =====================================================================================================
+   end of Compact: Leaderboard, Stats, Settings, Replay
+   ===================================================================================================== */
+
+/* =====================================================================================================
+   Compact: Forest Hop, Path Runner
+   ===================================================================================================== */
+
+/* =====================================================================================================
+   end of Compact: Forest Hop, Path Runner
+   ===================================================================================================== */
+
+/* =====================================================================================================
+   Compact: Tiles
+   ===================================================================================================== */
+
+/* =====================================================================================================
+   end of Compact: Tiles
+   ===================================================================================================== */
+
+/* =====================================================================================================
+   Compact: Ghost Race, Wormhole
+   ===================================================================================================== */
+
+/* =====================================================================================================
+   end of Compact: Ghost Race, Wormhole
+   ===================================================================================================== */
