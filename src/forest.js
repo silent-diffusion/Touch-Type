@@ -1123,9 +1123,15 @@
       <p class="visually-hidden" data-f="sr" aria-live="polite"></p>
     </div>`;
 
-  // counts fonts arriving, since a late one changes how wide the typed word is (see placeTyped)
-  let fontsLoaded = 0;
-  if (document.fonts && document.fonts.addEventListener) document.fonts.addEventListener("loadingdone", () => { fontsLoaded++; });
+  // counts fonts arriving, since a late one changes how wide the typed word is (see placeTyped),
+  // and has the game on screen drawn again if it's waiting for its first key (see newGame)
+  let fontsLoaded = 0, fontsCame = null;
+  if (document.fonts && document.fonts.addEventListener) {
+    document.fonts.addEventListener("loadingdone", () => {
+      fontsLoaded++;
+      if (fontsCame) fontsCame();
+    });
+  }
 
   TT.createForest = ({ root, onStart, onEnd, replayOnly = false }) => {
     root.innerHTML = TEMPLATE;
@@ -1330,8 +1336,10 @@
       el.over.hidden = true;
       render();
       snd.music();
-      raf = requestAnimationFrame(frame);
+      // Nothing in the forest moves until the first letter, so no frames are drawn until then
+      // (start): the picture is only drawn again if its size changes or a font arrives late.
     }
+    if (!replayOnly) fontsCame = () => { if (live && live.state === "ready") draw(); };
 
     function frame() {
       if (!live || live.state === "stopped" || live.state === "paused") return;
@@ -1348,6 +1356,7 @@
       live.state = "running";
       live.startedAt = performance.now();
       onStart && onStart();
+      raf = requestAnimationFrame(frame);
     }
 
     // Pausing stops the clock: on resume the start time moves on by however long the pause was,

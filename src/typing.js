@@ -252,6 +252,9 @@
     function start() {
       startedAt = performance.now();
       onStart();
+      // Only a timed test needs the clock: a test of so many words shows how many are done, which
+      // each key already brings up to date (handleKey), so it has no timer waking ten times a second.
+      if (c.mode !== "time") return;
       timer = setInterval(() => {
         tick();
         if (c.mode === "time" && elapsedMs() >= c.amount * 1000) finish();
