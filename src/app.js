@@ -522,8 +522,6 @@
   function scrollersShown() {
     return [...$("folder").querySelectorAll(SCROLLERS)].filter((e) => !e.closest("[hidden]"));
   }
-  document.addEventListener("scroll", (e) => {
-    const el = e.target;
   // The redraw watcher below runs on every change inside the folder, which in a game or a test is
   // every key and frame. It only has work to do on a page that has been scrolled, or that shows a
   // list of choices, so those are noted here and every other change is skipped cheaply. (A game
@@ -535,6 +533,8 @@
     for (const el of colLists) if (el.matches(SCROLLERS) && !el.closest("[hidden]")) return true;
     return false;
   };
+  document.addEventListener("scroll", (e) => {
+    const el = e.target;
     if (!(el instanceof Element) || !el.matches(SCROLLERS) || !$("folder").contains(el)) return;
     const page = scrollPage();
     scrollSaved.set(`${page}|${scrollersShown().indexOf(el)}`, el.scrollTop);
@@ -542,9 +542,9 @@
   }, true);
   new MutationObserver(() => {
     const page = scrollPage();
+    if (!scrolledPages.has(page) && !listShown()) return;
     scrollersShown().forEach((el, i) => {
       const top = scrollSaved.get(`${page}|${i}`);
-    if (!scrolledPages.has(page) && !listShown()) return;
       if (top && !el.scrollTop) el.scrollTop = top;
       const on = el.matches(".col-list") && el.querySelector(".on");
       if (!on) return;
@@ -894,8 +894,11 @@
     const d = fhData();
     const pick = ui.fhPick || d.animal;
     if (!d.unlocked.includes(pick)) return;
-    d.animal = pick;
-    TT.save();
+    // (saved only when the animal changes: this runs on every restart)
+    if (d.animal !== pick) {
+      d.animal = pick;
+      TT.save();
+    }
     engine.stop();
     runner.stop();
     document.body.classList.remove("typing");
@@ -915,7 +918,7 @@
       // music and sound effects, muted separately
       const key = x === "music" ? "fhMusic" : "fhSfx";
       S()[key] = !S()[key];
-      TT.save();
+      TT.saveSettings();
       TT.forestSound.setLevels();
       if (ui.view === "forest-select") renderForestSelect();
     }
@@ -1071,7 +1074,7 @@
       s[key] = !s[key];
       TT.forestSound.setLevels();
     } else return;
-    TT.save();
+    TT.saveSettings();
     if (ui.view === "ghost-select") renderGhostSelect();
   }
 
@@ -1261,7 +1264,7 @@
       s[key] = !s[key];
       TT.forestSound.setLevels();
     } else return;
-    TT.save();
+    TT.saveSettings();
     if (ui.view === "worm-select") renderWormSelect();
   }
 
@@ -1742,7 +1745,7 @@
         refresh();
       });
       S().tilesSong = id;
-      TT.save();
+      TT.saveSettings();
       const song = TT.songs.get(id);
       const found = TT.lyrics.words(song.lyrics).length;
       ui.tlNote = `Added "${song.title}". Its beat is about ${Math.round(song.bpm)} BPM.` +
@@ -1858,7 +1861,7 @@
     if (!confirm(`Remove "${song.title}" from Tiles? Its scores stay in your history.`)) return;
     await TT.music.remove(song.id);
     S().tilesSong = TT.songs.list[0].id;
-    TT.save();
+    TT.saveSettings();
     ui.tlNote = `Removed "${song.title}".`;
     renderTilesSelect();
   }
@@ -1898,7 +1901,7 @@
     else if (x === "words" && ["mix", "lyrics", "practice"].includes(y)) { s.tilesWords = y; s.tilesLyrics = y !== "practice"; }
     else if (x === "mode") s.tilesQueue = y === "toggle" ? !s.tilesQueue : y === "queue";
     else return;
-    TT.save();
+    TT.saveSettings();
     if (ui.view === "tiles-select") renderTilesSelect();
   }
 
@@ -2818,7 +2821,7 @@
     if (key === "second" || key === "autoUpdate") s[key] = raw === "true";
     else if (key === "mix" || key === "practiceAmount") s[key] = Number(raw);
     else s[key] = raw;
-    TT.save();
+    TT.saveSettings();
     if (key === "autoUpdate" && window.touchType) window.touchType.update.setAuto(s.autoUpdate);
     applySettings();
     renderSettings();
@@ -2862,14 +2865,14 @@
     const s = S();
     switch (type) {
       case "mode":
-        if (s.mode !== x) { s.mode = x; s.amount = x === "time" ? 30 : 25; TT.save(); }
+        if (s.mode !== x) { s.mode = x; s.amount = x === "time" ? 30 : 25; TT.saveSettings(); }
         startTyping("test");
         break;
       case "amount":
-        s.amount = Number(x); TT.save(); startTyping("test");
+        s.amount = Number(x); TT.saveSettings(); startTyping("test");
         break;
       case "pamount":
-        s.practiceAmount = Number(x); TT.save(); startTyping("practice");
+        s.practiceAmount = Number(x); TT.saveSettings(); startTyping("practice");
         break;
       case "nav":
         if (x === "test" || x === "practice") startTyping(x);
@@ -3286,8 +3289,11 @@
   async function refreshSpeedScale() {
     const recs = await TT.rounds.recent(60);
     const found = TT.review.speedScale(recs);
-    TT.store.games.speed = found || { scale: TT.wordInput.DEFAULT_SCALE, tests: 0 };
-    TT.save();
+    // (saved only when it has changed: this runs at every start-up, and the save writes the whole profile)
+    const was = TT.store.games.speed;
+    const now = found || { scale: TT.wordInput.DEFAULT_SCALE, tests: 0 };
+    TT.store.games.speed = now;
+    if (!was || JSON.stringify(was) !== JSON.stringify(now)) TT.save();
   }
 
   // ---------- start ----------

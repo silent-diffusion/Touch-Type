@@ -101,10 +101,14 @@ window.TT = window.TT || {};
     ...cleanData(read(dataKey(profiles.active)) || global),
   };
 
+  // Just the settings, for when a setting is all that changed: the profile's data (its history can
+  // be a megabyte) isn't written out again for it.
+  TT.saveSettings = () => write(GLOBAL_KEY, { version: 3, settings: TT.store.settings });
+
   TT.save = () => {
     const s = TT.store;
     if (s.history.length > MAX_HISTORY) s.history.splice(0, s.history.length - MAX_HISTORY);
-    write(GLOBAL_KEY, { version: 3, settings: s.settings });
+    TT.saveSettings();
     write(dataKey(profiles.active), { history: s.history, keyStats: s.keyStats, weakWords: s.weakWords, games: s.games });
   };
 
