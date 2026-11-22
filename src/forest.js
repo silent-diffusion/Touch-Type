@@ -1133,7 +1133,8 @@
     });
   }
 
-  TT.createForest = ({ root, onStart, onEnd, replayOnly = false }) => {
+  // onEnding: called as a run ends, before its death plays (then onEnd, with the end screen)
+  TT.createForest = ({ root, onStart, onEnd, onEnding, replayOnly = false }) => {
     root.innerHTML = TEMPLATE;
     const el = Object.fromEntries([...root.querySelectorAll("[data-f]")].map((x) => [x.dataset.f, x]));
     const fh = root.querySelector(".fh");
@@ -1484,6 +1485,7 @@
       hudSig = "";
       renderHud();
       renderSr();
+      onEnding && onEnding();
       const me = live;
       playDeath(() => {
         if (live !== me || me.state !== "dying") return;

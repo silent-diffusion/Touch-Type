@@ -364,6 +364,10 @@
     if (ui.view === "worm-select" && wormDigDone()) hints = hints.map((h) => (h[0] === "ENTER" ? ["R", "REPLAY", "wm:replay", "primary"] : h));
     // a round that's over has buttons of its own: on a touch screen they're the only ones
     if (ui.gameOver === ui.view) hints = hints.map(([key, label, act, flags]) => [key, label, act, `${flags || ""} keys`]);
+    // Before a round runs (and while its end plays) Esc goes back rather than pausing, and so does the
+    // button: it's named for where it goes, as Tiles' SONGS is. (Each game's start and end draw it again.)
+    const a = activeGame();
+    if (a && !a.g.isRunning() && !a.g.isPaused() && !a.g.isOver()) hints = hints.map((h) => (h[2] === "pause" ? [h[0], a.back, a.quit, h[3]] : h));
     // Tiles' touch action bar follows what the screen is doing
     if (TILES_VIEWS.includes(ui.view)) hints = tilesHints(hints);
     // In full screen, Esc on a main screen leaves full screen.
@@ -763,6 +767,7 @@
   const runner = TT.createPathRunner({
     root: $("view-game"),
     onStart() {
+      renderHints(); // (the action bar's PAUSE, now there's a round to pause)
       els.statusLine.textContent = "Keep moving.";
     },
     onEnd(id) {
@@ -789,6 +794,7 @@
     setPlaying(true);
     renderBar();
     runner.newGame();
+    renderHints(); // (the action bar's way back, until the round runs)
   }
 
   // ---------- forest hop ----------
@@ -819,6 +825,7 @@
   const forest = TT.createForest({
     root: $("view-forest"),
     onStart() {
+      renderHints(); // (the action bar's PAUSE, now there's a round to pause)
       els.statusLine.textContent = "Keep moving forward.";
     },
     onEnd(id) {
@@ -827,6 +834,10 @@
       ui.gameOver = "forest";
       renderHints();
       els.statusLine.textContent = `Run saved. ${say("Press R to replay it.", "Tap REPLAY to watch it.")}`;
+    },
+    // (the action bar's way back while the death plays; the status line isn't shown during a round)
+    onEnding() {
+      if (ui.view === "forest") renderHints();
     },
   });
   tapToType($("view-forest"), forest);
@@ -955,6 +966,7 @@
     setPlaying(true);
     renderBar();
     forest.newGame(pick);
+    renderHints(); // (the action bar's way back, until the round runs)
   }
 
   function forestAct(x, y) {
@@ -999,6 +1011,7 @@
   const ghostRace = TT.createGhostRace({
     root: $("view-ghost"),
     onStart() {
+      renderHints(); // (the action bar's PAUSE, now there's a race to pause)
       els.statusLine.textContent = "Go! Space moves on once a word is right.";
     },
     onEnd(id) {
@@ -1007,6 +1020,10 @@
       ui.gameOver = "ghost";
       renderHints();
       els.statusLine.textContent = `Race saved. ${say("Press R to replay it.", "Tap REPLAY to watch it.")}`;
+    },
+    // (the action bar's way back while the finish plays; the status line isn't shown during a race)
+    onEnding() {
+      if (ui.view === "ghost") renderHints();
     },
   });
 
@@ -1113,6 +1130,7 @@
     setPlaying(true);
     renderBar();
     ghostRace.newRace(tr.id, spec);
+    renderHints(); // (the action bar's way back, until the race runs)
   }
 
   function ghostAct(x, y) {
@@ -1300,6 +1318,7 @@
     setPlaying(true);
     renderBar();
     wormhole.newRound(spec);
+    renderHints(); // (the action bar's PAUSE: a dig runs from the start)
   }
 
   function wormAct(x, y) {
@@ -2932,13 +2951,13 @@
 
   // ---------- pausing games ----------
 
-  // The game on screen, with where Q (quit) takes you from it.
+  // The game on screen, with where Q (quit) takes you from it, and that way back's name.
   function activeGame() {
-    if (ui.view === "forest") return { g: forest, quit: "fh:select" };
-    if (ui.view === "tiles") return { g: tiles, quit: "tl:select" };
-    if (ui.view === "ghost") return { g: ghostRace, quit: "gr:select" };
-    if (ui.view === "worm") return { g: wormhole, quit: "wm:select" };
-    if (ui.view === "game") return { g: runner, quit: "menu" };
+    if (ui.view === "forest") return { g: forest, quit: "fh:select", back: "ANIMALS" };
+    if (ui.view === "tiles") return { g: tiles, quit: "tl:select", back: "SONGS" };
+    if (ui.view === "ghost") return { g: ghostRace, quit: "gr:select", back: "TRACKS" };
+    if (ui.view === "worm") return { g: wormhole, quit: "wm:select", back: "BACK" };
+    if (ui.view === "game") return { g: runner, quit: "menu", back: "MENU" };
     return null;
   }
 
@@ -2951,8 +2970,8 @@
   };
 
   // Esc: pauses a running game and resumes a paused one. Before a round starts or after it ends
-  // it goes back, as it always did. A Tiles round resumed but still waiting for its audio is paused
-  // (tiles.isPaused), so it stays.
+  // it goes back, as it always did. (The action bar's button says so then: renderHints.) A Tiles
+  // round resumed but still waiting for its audio is paused (tiles.isPaused), so it stays.
   function togglePause() {
     const a = activeGame();
     if (!a) return;

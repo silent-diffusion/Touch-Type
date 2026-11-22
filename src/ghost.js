@@ -400,7 +400,8 @@
       <p class="visually-hidden" data-g="sr" aria-live="polite"></p>
     </div>`;
 
-  TT.createGhostRace = ({ root, onStart, onEnd }) => {
+  // onEnding: called as you finish, before the finish plays (then onEnd, with the results)
+  TT.createGhostRace = ({ root, onStart, onEnd, onEnding }) => {
     root.innerHTML = TEMPLATE;
     const el = Object.fromEntries([...root.querySelectorAll("[data-g]")].map((x) => [x.dataset.g, x]));
     const canvas = root.querySelector(".gr-canvas");
@@ -779,6 +780,7 @@
       snd.play(live.won ? "win" : "lose");
       if (live.won) snd.play("cheer");
       save();
+      onEnding && onEnding();
     }
 
     // The run is saved as it finishes; the results come up once the finish has played.
