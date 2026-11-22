@@ -1084,12 +1084,13 @@
   async function startGhost() {
     TT.keyboard.open(); // while this is still the tap that started it (see setPlaying)
     const s = S(), tr = TT.ghostCore.track(s.grTrack), pick = ghostChoice(tr.id);
-    ui.gameOver = null;
     let spec = { kind: "pace", wpm: s.grPace, label: `${s.grPace} wpm pace` };
     if (pick.run) {
       const rec = await TT.rounds.get(pick.run.id);
       if (rec && rec.keys) spec = { kind: "run", rec, label: pick.id === "best" ? "Your best" : pick.id === "last" ? "Your last" : pick.label };
     }
+    // (after the wait: a race restarted as it finished ends meanwhile, and its end says it's over)
+    ui.gameOver = null;
     engine.stop();
     runner.stop();
     forest.stop();
