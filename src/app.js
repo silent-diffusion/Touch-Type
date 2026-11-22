@@ -1598,12 +1598,16 @@
     const song = TT.songs.get(s.tilesSong);
     if (!song) return;
     TT.keyboard.open(); // while this is still the tap that started it (see setPlaying)
+    // While it loads, keys typed on that keyboard aren't the song screen's shortcuts, and PLAY again
+    // doesn't load it a second time.
+    ui.tlStarting = true;
     // An added song's audio is loaded from disk the first time it's played.
     if (song.user && s.tilesMusic && !song.buffer) {
       els.statusLine.textContent = "Loading the song…";
       try {
         await TT.music.buffer(song.id);
       } catch (err) {
+        ui.tlStarting = false;
         ui.tlNote = err.message;
         openTilesSelect();
         return;
@@ -1617,6 +1621,7 @@
         song.stems = null;
       }
     }
+    ui.tlStarting = false;
     engine.stop();
     runner.stop();
     forest.stop();
@@ -1913,7 +1918,7 @@
     const ids = [...TT.songs.list, ...TT.music.list()].map((z) => z.id);
     const diffs = tilesDiffIds();
     if (x === "select") { tiles.stop(); openTilesSelect(); return; }
-    if (x === "play") { if (!ui.tap) startTiles(); return; }
+    if (x === "play") { if (!ui.tap && !ui.tlStarting) startTiles(); return; }
     if (x === "import") { if (!ui.tlBusy) fileInput.click(); return; }
     if (x === "tap") { startTap(); return; }
     if (x === "lyricsedit") { ui.lyricsEdit = true; ui.tlNote = ""; renderTilesSelect(); const t = $("tl-lyrics"); if (t) t.focus(); return; }
@@ -3250,7 +3255,7 @@
         else if (e.key === "Enter") { e.preventDefault(); act("tl:tapsave"); }
         else if (e.key === "Backspace") { e.preventDefault(); act("tl:tapundo"); }
         else if (e.key === "Escape") { e.preventDefault(); act("tl:tapcancel"); }
-      } else {
+      } else if (!ui.tlStarting) {
         const keys = { "]": "tl:harder", "[": "tl:easier", Enter: "tl:play", a: "tl:import", q: "tl:mode:toggle", m: "tl:music", t: "tl:metronome", Escape: "close" };
         if (keys[e.key] && !e.ctrlKey && !e.altKey && !e.metaKey) { e.preventDefault(); act(keys[e.key]); }
       }
