@@ -1600,8 +1600,6 @@ html { --type-fit: var(--type-size); }
 /* the keyboard covers the bottom inset */
 html.kb-open { --safe-b: 0px; }
 
-html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
-html, body { overscroll-behavior: none; }
 body { padding: var(--safe-t) var(--safe-r) var(--safe-b) var(--safe-l); }
 /* the app fills what the keyboard leaves, and stays on the part of the page that shows (--app-top) */
 #app, html.playing #app { height: calc(var(--app-h, 100vh) - var(--safe-t) - var(--safe-b)); top: var(--app-top, 0px); }
@@ -1634,9 +1632,22 @@ body { padding: var(--safe-t) var(--safe-r) var(--safe-b) var(--safe-l); }
 /* shown only in a small window on a touch screen (below) */
 .tap-hint, .hints .hint-touch { display: none; }
 
-/* A small window on a touch screen. A full-size one (an iPad's) keeps its text selection, link menus
-   and buttons as they've always been. */
+/* A small window: a double tap doesn't zoom, the page doesn't bounce, and on its side the text isn't
+   made bigger. A full-size window (an iPad's, a desktop's) zooms and bounces as it always has. */
+:where(html.compact, html.short, html.task) { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; touch-action: manipulation; }
+:where(html.compact, html.short, html.task), :where(html.compact, html.short, html.task) body { overscroll-behavior: none; }
+/* (the same by the window's size alone, for a phone's first paint, which can come before viewport.js
+   has set those classes) */
+@media (max-width: 600px), (max-height: 559.98px) {
+  html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; touch-action: manipulation; }
+  html, body { overscroll-behavior: none; }
+}
+
+/* A small window on a touch screen. A full-size one (an iPad's) keeps its text selection, link menus,
+   the system's highlight on a tapped button, and its buttons as they've always been. */
 @media (pointer: coarse) {
+  /* the system's grey highlight on a tapped button gives way to the dim below */
+  :where(html.compact, html.short, html.task) { -webkit-tap-highlight-color: transparent; }
   /* a long press doesn't select the page or call up a menu; text fields still work as usual */
   :where(html.compact, html.short, html.task) #app { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
   :where(html.compact, html.short, html.task) input,
