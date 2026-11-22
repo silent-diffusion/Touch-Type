@@ -2075,6 +2075,8 @@ html.task.short:not(.compact) :is(.targets, .note, .capslock) { display: none; }
 :where(html.short:not(.compact)) .lb-filters { flex-direction: row; gap: 10px; margin: 2px 0 10px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; }
 :where(html.short:not(.compact)) .lb-filters .seg { flex: none; flex-wrap: nowrap; font-size: 13px; }
 :where(html.short:not(.compact)) .lb-filters .seg button { flex: none; padding: 0 12px; letter-spacing: 0.08em; }
+/* (the row cuts off what's outside it, so the arrow keys' ring is drawn just inside a button's edge) */
+:where(html.short:not(.compact)) .lb-filters .seg button:focus-visible { outline-offset: -5px; }
 :where(html.short:not(.compact)) .lb-filters :is(.lb-songs, .seg[aria-label="Prompts from"]) { order: 1; }
 :where(html.short:not(.compact)) .lb-filters :is(.lb-songs, .seg[aria-label="Prompts from"]) > .on { order: -1; }
 /* a rule between one choice and the next */

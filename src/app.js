@@ -3175,9 +3175,15 @@
     const inArea = list.filter((el) => el.closest(area));
     return inArea.find((el) => el.classList.contains("on")) || inArea[0];
   }
-  // a control in a scrolling column is brought into view within its column only
+  // a control in a scrolling column is brought into view within its column only; in a row that scrolls
+  // sideways (a small window's tabs, the leaderboard's filters on its side), clear of the row's fades
   function navReveal(el) {
     for (let box = el.parentElement; box && box !== document.body; box = box.parentElement) {
+      if (box.scrollWidth > box.clientWidth && getComputedStyle(box).overflowY === "hidden" && getComputedStyle(box).overflowX === "auto") {
+        const b = box.getBoundingClientRect(), r = el.getBoundingClientRect();
+        if (r.left < b.left + 36) box.scrollLeft -= b.left + 36 - r.left;
+        else if (r.right > b.right - 36) box.scrollLeft += r.right - b.right + 36;
+      }
       if (!box.matches(SCROLLERS) || box.scrollHeight <= box.clientHeight) continue;
       const b = box.getBoundingClientRect(), r = el.getBoundingClientRect();
       if (r.top < b.top + 8) box.scrollTop -= b.top - r.top + 24;
