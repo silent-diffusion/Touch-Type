@@ -2952,10 +2952,12 @@ html.task.short:not(.compact) :is(#view-ghost, #view-worm) .fh-hud-r { right: ca
 html.task.short:not(.compact) :is(#view-ghost, #view-worm) .fh-hud .fh-chip { padding: 0; border: 0; background: none; white-space: nowrap; }
 html.task.short:not(.compact) :is(#view-ghost, #view-worm) .fh-hud .fh-chip.low { padding: 2px 6px; background: var(--ink); }
 html.task.short:not(.compact) :is(#view-ghost, #view-worm) .fh-score span:first-child { font-size: 24px; }
-html.task.short:not(.compact) #view-ghost .gr-hud-l { flex-direction: row; align-items: baseline; }
+/* the clock and the speed share a baseline, and that line sits in the middle of the bar, as its buttons do
+   (a line of baseline-aligned items is only centred as a wrapping line: otherwise it keeps to the top) */
+html.task.short:not(.compact) #view-ghost .gr-hud-l { flex-direction: row; flex-wrap: wrap; align-items: baseline; align-content: center; }
 html.task.short:not(.compact) #view-ghost .fh-hud-r { max-width: calc(100vw - var(--safe-l) - var(--safe-r) - 184px - 224px); }
 html.task.short:not(.compact) #view-ghost .fh-hud-r [data-g="vs"] { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-html.task.short:not(.compact) #view-worm .wm-hud-l { flex-direction: column; align-items: flex-start; gap: 0; }
+html.task.short:not(.compact) #view-worm .wm-hud-l { flex-direction: column; align-items: flex-start; justify-content: center; gap: 0; }
 html.task.short:not(.compact) #view-ghost { --bar-used: 184px; }
 html.task.short:not(.compact) #view-worm { --bar-used: 96px; }
 html.task.short:not(.compact) :is(#view-ghost, #view-worm) .gr-count {
