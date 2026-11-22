@@ -377,7 +377,7 @@
 
       const line = g.n > prevBest && prevBest > 0
         ? `<strong class="hl">New best!</strong> Previous best was ${prevBest}.`
-        : `Best: ${rec.best} steps · ${Math.round(wpm)} wpm · ${Math.round(acc)}% accuracy`;
+        : `Best: ${rec.best} ${rec.best === 1 ? "step" : "steps"} · ${Math.round(wpm)} wpm · ${Math.round(acc)}% accuracy`;
       el.over.innerHTML = `
         <h2>OUT OF TIME</h2>
         <div class="pr-over-score">${g.n}</div>

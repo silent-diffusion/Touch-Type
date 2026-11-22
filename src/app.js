@@ -259,7 +259,7 @@
     kind === "game" && game === "tiles" ? `tiles, ${(title || "song").toLowerCase()} (${mode}${queue ? ", queue" : ""})`
       : kind === "game" && game === "ghost" ? `ghost race, ${(title || mode).toLowerCase()}`
       : kind === "game" && game === "worm" ? (mode === "daily" ? `wormhole, ${(title || "daily dig").toLowerCase()}` : `wormhole blitz, ${(title || "").toLowerCase()}`)
-      : kind === "game" ? `${game === "forest" ? "forest hop" : "path runner"}, ${amount} steps` : `${kind === "practice" ? "practice" : mode} ${amount}`;
+      : kind === "game" ? `${game === "forest" ? "forest hop" : "path runner"}, ${amount} ${amount === 1 ? "step" : "steps"}` : `${kind === "practice" ? "practice" : mode} ${amount}`;
 
   function statusRows(rows) {
     return rows.map(([label, value, ruled, cls]) =>
@@ -869,7 +869,7 @@
           <dl class="status">${statusRows([
             ["Collects:", `<span class="fh-inline">${TT.sprites.svg(th.treat, 22)}${th.treats[1]}</span>`],
             ["Watch out for:", `<span class="fh-inline">${TT.sprites.svg(th.predator, 22)}${th.name.toLowerCase()}</span>`],
-            ["Best:", open && d.bestBy[pick.kind] ? `${esc(d.bestBy[pick.kind])} steps` : "—"],
+            ["Best:", open && d.bestBy[pick.kind] ? `${esc(d.bestBy[pick.kind])} ${d.bestBy[pick.kind] === 1 ? "step" : "steps"}` : "—"],
             ["Runs:", open ? esc(d.runsBy[pick.kind] || 0) : "—", true],
           ])}</dl>
           ${action}
@@ -2339,7 +2339,7 @@
       return `<div class="cols">
         <section class="col-main stack">
           <div>
-            <div class="rule-head"><span>WPM, LAST ${recent.length} TESTS</span><span>${delta > 0 ? "+" : ""}${delta}</span></div>
+            <div class="rule-head"><span>WPM, LAST ${recent.length} ${recent.length === 1 ? "TEST" : "TESTS"}</span><span>${delta > 0 ? "+" : ""}${delta}</span></div>
             ${recent.length ? wpmChart(tests) : `<p class="note">Finish a speed test to see your WPM over time.</p>`}
           </div>
           <div>
