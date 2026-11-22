@@ -1378,8 +1378,8 @@
     practice: "Only practice words for your weak keys, whatever the song.",
   };
   const MODE_HINT = {
-    timed: "Press Enter as each tile crosses the line. Timing counts.",
-    queue: "Lock in the next tile's word with Enter and type on. Each tile takes its word at the line, so only typing counts, and tiles come twice as often.",
+    get timed() { return `${say("Press Enter", "Tap return")} as each tile crosses the line. Timing counts.`; },
+    get queue() { return `Lock in the next tile's word with ${say("Enter", "return")} and type on. Each tile takes its word at the line, so only typing counts, and tiles come twice as often.`; },
   };
   // a song's best at a difficulty, in timed or queue mode
   const bestKey = (id, diff, queue) => `${id}:${diff}${queue ? ":queue" : ""}`;
