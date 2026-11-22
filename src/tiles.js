@@ -1308,8 +1308,11 @@
 
     function draw(tap, area, shrink, calm, beat, dt, now) {
       const dpr = window.devicePixelRatio || 1;
-      // the canvas covers the folder (×2) or the window (×3); the area is in window coordinates
-      const box = canvas.classList.contains("in-folder") ? canvas.parentNode.getBoundingClientRect() : { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
+      // the canvas covers the folder (×2) or the window (×3), or with an on-screen keyboard up the part
+      // of the window above it (style.css, "Compact: Tiles"); the area is in window coordinates
+      const box = canvas.classList.contains("in-folder") ? canvas.parentNode.getBoundingClientRect()
+        : document.documentElement.classList.contains("kb-open") ? canvas.getBoundingClientRect()
+        : { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
       const W = box.width, H = box.height;
       if (canvas.width !== Math.round(W * dpr) || canvas.height !== Math.round(H * dpr)) {
         canvas.width = Math.round(W * dpr);
@@ -1512,7 +1515,8 @@
       <div class="visually-hidden" aria-live="polite" data-t="sr"></div>
     </div>`;
 
-  TT.createTiles = ({ root, onStart, onEnd, replayOnly = false }) => {
+  // onState: called whenever a round is ready, starts, pauses, resumes or ends
+  TT.createTiles = ({ root, onStart, onEnd, onState, replayOnly = false }) => {
     root.innerHTML = TEMPLATE;
     const el = Object.fromEntries([...root.querySelectorAll("[data-t]")].map((x) => [x.dataset.t, x]));
     let g = null;
@@ -1535,10 +1539,40 @@
       return { left: Math.min(a.left, b.left), top: a.top, right: Math.max(a.right, b.right), bottom: Math.max(a.bottom, b.bottom) };
     };
 
+    // In a small window the stylesheet fits the field to the room there is (style.css, "Compact:
+    // Tiles"): shorter tiles, the line lower down, less room around each word. It says so with custom
+    // properties on the field, and the tiles then fall to wherever it has drawn the line. Without
+    // them it's the usual sizes.
+    let tileH = TILE_H, hitB = HIT_BOTTOM;
+    let wordRoom = 24, wordMax = 21; // px a word's card takes besides its letters, and its largest type
+    let fitted = false;
+    function layout() {
+      const cs = getComputedStyle(el.hw);
+      const num = (name, or) => {
+        const v = parseFloat(cs.getPropertyValue(name));
+        return Number.isFinite(v) ? v : or;
+      };
+      fitted = num("--tl-fit", 0) > 0;
+      // Five or six columns too narrow to hold their words: the words go in two rows under the line,
+      // each as wide as it needs (see spreadWords). --tl-stagger is how narrow, in px.
+      el.hw.classList.toggle("stagger", fitted && !!g && colCount() >= 5 && el.hw.clientWidth / colCount() < num("--tl-stagger", 0));
+      wordRoom = fitted ? num("--tl-word-room", 24) : 24;
+      wordMax = fitted ? num("--tl-word-max", 21) : 21;
+      tileH = TILE_H;
+      hitB = HIT_BOTTOM;
+      // the line is the band's middle, and a tile is as tall as the band is inside
+      const box = el.hw.getBoundingClientRect(), band = el.band.getBoundingClientRect();
+      if (fitted && band.height > 0) {
+        tileH = band.height - (el.band.offsetHeight - el.band.clientHeight);
+        hitB = box.bottom - (el.hw.offsetHeight - el.hw.clientHeight) / 2 - (band.top + band.height / 2);
+      }
+      H = el.track.clientHeight;
+    }
+
     // The tiles fall down a track tilted back in 3D, like a Guitar Hero highway. It pivots on the
     // line, so a tile at the line sits exactly on its word.
     const measure = () => {
-      H = el.track.clientHeight;
+      layout();
       render();
     };
     new ResizeObserver(measure).observe(el.track);
@@ -1619,7 +1653,7 @@
     }
 
     function renderTiles() {
-      const hitY = H - HIT_BOTTOM;
+      const hitY = H - hitB;
       const tg = target(g);
       const seen = new Set();
       for (const t of g.tiles) {
@@ -1635,7 +1669,7 @@
           tileEls.set(t.i, e);
         }
         seen.add(t.i);
-        const y = hitY - ((g.hits[t.i] - viewT) / g.fall) * (hitY + TILE_H / 2) - TILE_H / 2;
+        const y = hitY - ((g.hits[t.i] - viewT) / g.fall) * (hitY + tileH / 2) - tileH / 2;
         e.style.transform = `translateY(${y.toFixed(1)}px)`;
         const typed = W.good(g);
         const sig = t.q ? `q${t.q.ok}${t.q.w}` : t === tg ? `1${typed}` : "0";
@@ -1647,6 +1681,8 @@
           e.classList.toggle("sloppy", !!t.q && !t.q.ok);
           // from v4 the tiles are blank; the words are under the columns
           e.innerHTML = t.q ? `<span>${esc(t.q.w)}</span>` : g.v >= 4 ? "" : t === tg ? `<span><b>${esc(typed)}</b>${esc(t.w.slice(typed.length))}</span>` : `<span>${esc(t.w)}</span>`;
+          // in a small window a locked-in word is as large as its tile has room for
+          if (fitted) e.style.fontSize = t.q ? `${Math.max(11, Math.min(wordMax, Math.floor((el.hw.clientWidth / colCount() - 12 - wordRoom) / (t.q.w.length * 0.62))))}px` : "";
         }
       }
       for (const [i, e] of tileEls) {
@@ -1669,19 +1705,44 @@
       const up = g.queue ? nextUp(g) : null;
       const nextCol = up ? up.l : -1;
       const width = el.hw.clientWidth;
-      const sig = [g.words.join(" "), c, typed, g.bad, nextCol, width].join("|");
+      const two = el.hw.classList.contains("stagger");
+      const sig = [g.words.join(" "), c, typed, g.bad, nextCol, width, two, wordRoom, wordMax].join("|");
       if (el.words.sig === sig) return;
       el.words.sig = sig;
       // the words shrink to fit their columns (more columns and longer words on Expert and Ludicrous)
       const longest = Math.max(...g.words.map((w) => w.length));
-      const fit = Math.floor((width / colCount() - 24) / (longest * 0.62));
-      el.words.style.setProperty("--wfs", `${Math.max(11, Math.min(21, fit))}px`);
+      let fit = Math.floor((width / colCount() - wordRoom) / (longest * 0.62));
+      // in two rows, every other column's words share the field's whole width
+      if (two) fit = Math.min(...[0, 1].map((r) => g.words.filter((_, i) => i % 2 === r)).map((ws) => Math.floor((width - ws.length * wordRoom) / (ws.join("").length * 0.62))));
+      el.words.style.setProperty("--wfs", `${Math.max(11, Math.min(wordMax, fit))}px`);
       el.words.innerHTML = g.words.map((w, i) => {
         const on = i === c;
         const n = on ? typed.length : 0;
-        const cls = ["tl-word", on ? "on" : "", on && W.ready(g, w) ? "ready" : "", i === nextCol && !on ? "next" : "", !on && (typed || (g.queue && i !== nextCol)) ? "dim" : ""].filter(Boolean).join(" ");
+        const cls = ["tl-word", on ? "on" : "", on && W.ready(g, w) ? "ready" : "", i === nextCol && !on ? "next" : "", !on && (typed || (g.queue && i !== nextCol)) ? "dim" : "", two && i % 2 ? "low" : ""].filter(Boolean).join(" ");
         return `<div class="${cls}" style="left: ${colLeft(i)}; width: ${100 / colCount()}%; --col: ${colVar(i)}"><span><b>${esc(w.slice(0, n))}</b>${esc(w.slice(n))}</span></div>`;
       }).join("");
+      if (two) spreadWords(width);
+    }
+
+    // Words in two rows (see layout): each sits under its own column where there's room, and moves
+    // along just far enough to clear its neighbours and the field's edges where there isn't.
+    function spreadWords(width) {
+      const GAP = 3;
+      const cards = [...el.words.children].map((card, i) => ({ span: card.firstChild, w: card.firstChild.offsetWidth, mid: ((i + 0.5) * width) / colCount(), row: i % 2 }));
+      for (const r of [0, 1]) {
+        const row = cards.filter((x) => x.row === r);
+        let edge = 0;
+        for (const x of row) {
+          x.left = Math.max(edge, x.mid - x.w / 2);
+          edge = x.left + x.w + GAP;
+        }
+        edge = width;
+        for (const x of row.reverse()) {
+          x.left = Math.max(0, Math.min(x.left, edge - x.w));
+          edge = x.left - GAP;
+          x.span.style.setProperty("--dx", `${(x.left + x.w / 2 - x.mid).toFixed(1)}px`);
+        }
+      }
     }
 
     // Queue mode: the locked-in words in a line above the typing box, in their columns' colours,
@@ -1864,11 +1925,11 @@
         return;
       }
       if (on && !bubbleInk) bubbleInk = getComputedStyle(el.hw).getPropertyValue("--ink").trim() || "#3f3c33";
-      const n = colCount(), cw = Wt / n, hitY = H - HIT_BOTTOM;
+      const n = colCount(), cw = Wt / n, hitY = H - hitB;
       if (on && dt > 0) {
         for (const t of g.tiles) {
           const x0 = t.l * cw + 6 - 4, w = cw - 12 + 8;
-          const y0 = hitY - ((g.hits[t.i] - viewT) / g.fall) * (hitY + TILE_H / 2) - TILE_H / 2 - 4, h = TILE_H + 8;
+          const y0 = hitY - ((g.hits[t.i] - viewT) / g.fall) * (hitY + tileH / 2) - tileH / 2 - 4, h = tileH + 8;
           // about one bubble every 35 ms per tile, round its top and sides (the tile falls away from
           // them, so they trail behind it rather than inside it), drifting outward
           for (let k = Math.random() < (dt % 35) / 35 ? 1 : 0, m = Math.floor(dt / 35) + k; m > 0; m--) {
@@ -1880,7 +1941,7 @@
           }
         }
       }
-      const cut = hitY - TILE_H / 2 - 8;
+      const cut = hitY - tileH / 2 - 8;
       c.setTransform(dpr, 0, 0, dpr, 0, 0);
       c.clearRect(0, 0, Wt, H);
       c.strokeStyle = c.fillStyle = bubbleInk;
@@ -1959,16 +2020,32 @@
       hudSig = "";
       clearTiles();
       setHead(song.title.toUpperCase(), `${song.composer.toUpperCase()} · ${D.name}${queue ? " · QUEUE" : ""}`);
+      // (a title can come from a file's name, so it's escaped; the button is for a touch screen, where
+      // the stylesheet shows it in place of the key's hint)
+      el.over.dataset.shows = "ready";
       el.over.innerHTML = `
-        <h2>${song.title.toUpperCase()}</h2>
-        <p class="tl-over-sub">${song.composer} · ${D.name.toLowerCase()}${queue ? " · queue mode" : ""} · ${Math.round(song.duration)} seconds</p>
+        <h2>${esc(song.title.toUpperCase())}</h2>
+        <p class="tl-over-sub">${esc(song.composer)} · ${D.name.toLowerCase()}${queue ? " · queue mode" : ""} · ${Math.round(song.duration)} seconds</p>
         <p>${queue
           ? "Type the word under the next tile's column and press <strong>Enter</strong> or <strong>Space</strong> to lock it in, then type the next. Each tile takes its word as it crosses the line."
           : "Type the word under a column, then press <strong>Enter</strong> or <strong>Space</strong> as that column's tile crosses the line."}</p>
-        <div class="tl-start"><kbd>ENTER</kbd>START</div>`;
+        <div class="tl-start"><kbd>ENTER</kbd>START</div>
+        <button class="fh-play tl-go" type="button" data-tl="start">START</button>`;
       el.over.hidden = false;
+      layout();
       render();
+      onState && onState();
     }
+
+    // START on a touch screen. The tap also brings the on-screen keyboard back, if it was put away,
+    // as does a tap on the round while it's being played.
+    root.addEventListener("click", (e) => {
+      if (!live || !TT.keyboard) return;
+      if (live.state === "running" && !TT.keyboard.isOpen()) TT.keyboard.open();
+      if (live.state !== "ready" || !e.target.closest("[data-tl=start]")) return;
+      TT.keyboard.open();
+      start();
+    });
 
     // The round starts once the audio is running, so the music is in step from the first note.
     async function start() {
@@ -1983,6 +2060,7 @@
       round.player.pump();
       el.over.hidden = true;
       onStart && onStart();
+      onState && onState();
       raf = requestAnimationFrame(frame);
     }
 
@@ -2013,8 +2091,10 @@
       cancelAnimationFrame(raf);
       if (live.player) live.player.stop();
       live.player = null;
+      el.over.dataset.shows = "paused";
       el.over.innerHTML = TT.pausedHtml("tl:play", "tl:select", "SONGS");
       el.over.hidden = false;
+      onState && onState();
     }
 
     async function resume() {
@@ -2029,6 +2109,7 @@
       live.player = createPlayer({ song, startPerf: live.startedAt + live.offset, ...live.sound });
       live.player.pump();
       el.over.hidden = true;
+      onState && onState();
       raf = requestAnimationFrame(frame);
     }
 
@@ -2110,6 +2191,7 @@
         ? `<strong class="hl">New best!</strong> Previous best was ${prev.score.toLocaleString()}.`
         : prev ? `Best ${prev.score.toLocaleString()}` : `First time on this song and difficulty${live.queue ? " in queue mode" : ""}.`;
       const c = g.counts;
+      el.over.dataset.shows = "result";
       el.over.innerHTML = `
         <h2>${cleared ? "SONG COMPLETE" : "OUT OF HEALTH"}</h2>
         <div class="tl-over-grade">${grade}</div>
@@ -2130,6 +2212,7 @@
       hudSig = "";
       render();
       onEnd && onEnd(id);
+      onState && onState();
     }
 
     function stop() {
@@ -2164,6 +2247,7 @@
       clearTiles();
       setHead((rec.title || "Tiles").toUpperCase(), (DIFFS[rec.diff] || DIFFS.medium).name + (rec.queue ? " · QUEUE" : ""));
       el.over.hidden = true;
+      layout();
       render();
     }
 
@@ -2192,6 +2276,7 @@
       newGame, stop, handleKey, loadReplay, replayTo,
       relayout: () => { hudSig = ""; measure(); },
       isOver: () => !!live && live.state === "over",
+      isReady: () => !!live && live.state === "ready",
       isRunning: () => !!live && live.state === "running",
       isPaused: () => !!live && live.state === "paused",
       pause, resume,

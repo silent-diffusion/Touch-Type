@@ -300,7 +300,7 @@
     "forest-select": [["ARROWS", "CHOOSE", "noop"], ["ENTER", "PLAY", "fh:play", "primary"], ["H", "HOW TO PLAY", "fh:guide"], ["M", "MUSIC", "fh:music"], ["E", "EFFECTS", "fh:sfx"], ["ESC", "CLOSE MENU", "close", "keys"]],
     "forest-guide": [["ARROWS", "MOVE", "noop"], ["ENTER", "PLAY", "fh:play", "primary"], ["ESC", "BACK", "fh:select"]],
     tiles: [["ENTER / SPACE", "HIT", "noop"], ["TAB", "RESTART", "tl:play"], ["ESC", "PAUSE", "pause"]],
-    "tiles-select": [["ARROWS", "MOVE", "noop"], ["[ ]", "DIFFICULTY", "tl:harder"], ["ENTER", "PLAY", "tl:play", "primary"], ["A", "ADD A SONG", "tl:import"], ["Q", "MODE", "tl:mode:toggle"], ["M", "MUSIC", "tl:music"], ["T", "METRONOME", "tl:metronome"], ["ESC", "CLOSE MENU", "close", "keys"]],
+    "tiles-select": [["ARROWS", "MOVE", "noop"], ["[ ]", "DIFFICULTY", "tl:harder", "keys"], ["ENTER", "PLAY", "tl:play", "primary"], ["A", "ADD A SONG", "tl:import"], ["Q", "MODE", "tl:mode:toggle", "keys"], ["M", "MUSIC", "tl:music", "keys"], ["T", "METRONOME", "tl:metronome", "keys"], ["ESC", "CLOSE MENU", "close", "keys"]],
     ghost: [["SPACE", "NEXT WORD", "noop"], ["TAB", "RESTART", "gr:play"], ["ESC", "PAUSE", "pause"]],
     "ghost-select": [["ARROWS", "MOVE", "noop"], ["ENTER", "RACE", "gr:play", "primary"], ["M", "MUSIC", "gr:music"], ["E", "EFFECTS", "gr:sfx"], ["ESC", "CLOSE MENU", "close", "keys"]],
     worm: [["ENTER", "DIG IN", "noop"], ["ESC", "PAUSE", "pause"]],
@@ -345,6 +345,8 @@
     }
     // a Daily Dig that's already done can only be replayed
     if (ui.view === "worm-select" && wormDigDone()) hints = hints.map((h) => (h[0] === "ENTER" ? ["R", "REPLAY", "wm:replay", "primary"] : h));
+    // Tiles' touch action bar follows what the screen is doing
+    if (TILES_VIEWS.includes(ui.view)) hints = tilesHints(hints);
     // In full screen, Esc on a main screen leaves full screen.
     if (ui.fullscreen && ROOT_VIEWS.includes(ui.view)) {
       hints = hints.map(([key, label, act, flags]) => (key === "ESC" ? [key, "EXIT FULL SCREEN", "window:windowed", flags] : [key, label, act, flags]));
@@ -1259,7 +1261,36 @@
       ui.lastTilesId = id;
       els.statusLine.textContent = `Round saved. ${say("Press R to replay it.", "Tap REPLAY to watch it.")}`;
     },
+    onState() {
+      if (ui.view === "tiles") tilesBar();
+    },
   });
+  // the touch action bar follows what Tiles is doing (tilesHints); what the status line says stays
+  const tilesBar = () => {
+    const said = els.statusLine.textContent;
+    renderHints();
+    els.statusLine.textContent = said;
+  };
+
+  // In a small window the action bar follows what Tiles is doing (style.css, "Compact: Tiles"). Before a
+  // round starts there's only the way back (Esc would leave, so there's no PAUSE); a paused round is
+  // resumed where PAUSE was, and a finished one played again or replayed; with the lyrics editor open,
+  // or while tapping along, it saves or cancels that. The keys do what they always did, so their hints
+  // stay for a big window, which shows only them.
+  function tilesHints(hints) {
+    const keysOnly = () => hints.map(([key, label, act, flags = ""]) => [key, label, act, /\bkeys\b/.test(flags) ? flags : `${flags} keys`.trim()]);
+    const bar = (...list) => [...keysOnly(), ...list.map(([label, act, flags = ""]) => ["", label, act, `touch ${flags}`.trim()])];
+    if (ui.view === "tiles-select") {
+      const song = TT.songs.get(S().tilesSong);
+      if (ui.tap) return bar(["SAVE", "tl:tapsave", "primary"], ...(ui.tap.mode === "lyrics" ? [["UNDO", "tl:tapundo"]] : []), ["CANCEL", "tl:tapcancel"]);
+      if (ui.lyricsEdit && song && song.user) return bar(["SAVE", "tl:lyricssave", "primary"], ["OPEN .LRC FILE", "tl:lyricsfile", "nokb"], ["CANCEL", "tl:lyricscancel"]);
+      return hints;
+    }
+    if (tiles.isOver()) return bar(["PLAY AGAIN", "tl:play", "primary"], ["REPLAY", "replay:last"], ["SONGS", "tl:select"]);
+    if (tiles.isPaused()) return bar(["RESTART", "tl:play"], ["RESUME", "pause"]);
+    if (tiles.isReady()) return bar(["SONGS", "tl:select"]);
+    return hints;
+  }
 
   const DIFF_HINT = {
     easy: "Three columns and words up to 6 letters, with a tile every few bars, falling slowest.",
@@ -1308,6 +1339,7 @@
     document.body.classList.remove("typing");
     show("tiles-select");
     renderBar();
+    ui.tlOpen = null; // (the bar is drawn for whatever's open)
     renderTilesSelect();
     if (checkLudicrous()) ludicrousReveal();
   }
@@ -1374,6 +1406,10 @@
     });
     rows[rows.length - 1][2] = true;
     const toggle = (label, on, act) => `<button class="opt ${on ? "on" : ""}" aria-pressed="${on}" data-act="${act}">${label} ${on ? "ON" : "OFF"}</button>`;
+    // Words for a keyboard, and what a small touch screen says in their place (the stylesheet shows one of the two).
+    const keysOrTouch = (keys, touch) => `<span class="tl-for-keys">${keys}</span><span class="tl-for-touch">${touch}</span>`;
+    // Tapping along without a Space bar: a pad to tap (shown in a small window; see the pointerdown below).
+    const tapPad = ui.tap ? `<button class="tl-tap-pad" type="button"${ui.tap.src ? "" : " disabled"}>TAP<span class="caps-label">${ui.tap.mode === "lyrics" ? "AS EACH WORD STARTS" : "ON EVERY BEAT"}</span></button>` : "";
 
     const lyricTap = ui.tap && ui.tap.mode === "lyrics" && (() => {
       const tap = ui.tap, i = tap.taps.length, w = tap.words;
@@ -1381,8 +1417,9 @@
       return `
         <section class="col-main">
           <div class="title-row"><h1>TIME THE LYRICS</h1><span class="title-meta">${esc(song.title.toUpperCase())}</span></div>
-          <p class="tl-blurb">Press <strong>Space</strong> or <strong>T</strong> as each word starts to be sung. <strong>Backspace</strong> takes back the last tap. You can save part way and the rest stay untimed.</p>
+          <p class="tl-blurb">${keysOrTouch("Press <strong>Space</strong> or <strong>T</strong>", "Tap the pad")} as each word starts to be sung. ${keysOrTouch("<strong>Backspace</strong>", "<strong>UNDO</strong>")} takes back the last tap. You can save part way and the rest stay untimed.</p>
           <div class="tl-lyric-run" aria-live="polite">${span(i - 2, "done")}${span(i - 1, "done")}${i < w.length ? span(i, "now") : `<span class="now">ALL TIMED</span>`}${[1, 2, 3, 4, 5, 6].map((d) => span(i + d, "next")).join("")}</div>
+          ${tapPad}
           <div class="tl-tapcount"><span>${i}</span><span class="caps-label">OF ${w.length} WORDS TIMED</span></div>
           ${tlMsg()}
           <div class="tl-own">
@@ -1395,7 +1432,8 @@
     const tapPanel = lyricTap || ui.tap && `
         <section class="col-main">
           <div class="title-row"><h1>TAP THE BEAT</h1><span class="title-meta">${esc(song.title.toUpperCase())}</span></div>
-          <p class="tl-blurb">Tap <strong>Space</strong> or <strong>T</strong> on every beat while the song plays. Start on a strong beat, the "one" of a bar, and keep going for at least 8 taps. More taps make it more exact.</p>
+          <p class="tl-blurb">Tap ${keysOrTouch("<strong>Space</strong> or <strong>T</strong>", "the pad")} on every beat while the song plays. Start on a strong beat, the "one" of a bar, and keep going for at least 8 taps. More taps make it more exact.</p>
+          ${tapPad}
           <div class="tl-tapcount"><span>${ui.tap.taps.length}</span><span class="caps-label">TAPS${ui.tap.bpm ? ` · ABOUT ${ui.tap.bpm} BPM` : ""}</span></div>
           ${tlMsg()}
           <div class="tl-own">
@@ -1406,7 +1444,7 @@
     const lyricsPanel = ui.lyricsEdit && song.user && `
         <section class="col-main">
           <div class="title-row"><h1>LYRICS</h1><span class="title-meta">${esc(song.title.toUpperCase())}</span></div>
-          <p class="tl-blurb">Paste the song's lyrics. Tiles takes most of its words from them, the ones that fit the difficulty. LRC lyrics, with times like <span class="mono">[01:23.45]</span>, are timed straight away. They stay on this computer.</p>
+          <p class="tl-blurb">Paste the song's lyrics. Tiles takes most of its words from them, the ones that fit the difficulty. LRC lyrics, with times like <span class="mono">[01:23.45]</span>, are timed straight away. They stay on this ${keysOrTouch("computer", "device")}.</p>
           <label class="visually-hidden" for="tl-lyrics">Lyrics</label>
           <textarea id="tl-lyrics" class="tl-lyrics" rows="12" spellcheck="false">${esc(song.lyrics || "")}</textarea>
           <div class="tl-own">
@@ -1469,7 +1507,19 @@
           </ol>
         </aside>
       </div>`;
+    // the action bar changes with what's open here: the song, its lyrics, or tapping along (tilesHints)
+    const open = ui.tap ? `tap ${ui.tap.mode}` : lyricsPanel ? "lyrics" : "song";
+    if (ui.tlOpen && ui.tlOpen !== open && ui.view === "tiles-select") tilesBar();
+    ui.tlOpen = open;
   }
+
+  // Tapping along on a touch screen: the pad counts when the finger lands on it, as a key does when
+  // it goes down (a click would only come once the finger lifts).
+  $("view-tiles-select").addEventListener("pointerdown", (e) => {
+    if (!e.target.closest(".tl-tap-pad")) return;
+    e.preventDefault();
+    tapBeat(e.timeStamp || performance.now());
+  });
 
   async function saveLyrics() {
     const s = S();
