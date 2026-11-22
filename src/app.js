@@ -305,7 +305,7 @@
     "ghost-select": [["ARROWS", "MOVE", "noop"], ["ENTER", "RACE", "gr:play", "primary"], ["M", "MUSIC", "gr:music"], ["E", "EFFECTS", "gr:sfx"], ["ESC", "CLOSE MENU", "close", "keys"]],
     worm: [["ENTER", "DIG IN", "noop"], ["ESC", "PAUSE", "pause"]],
     "worm-select": [["ARROWS", "MOVE", "noop"], ["ENTER", "DIG", "wm:play", "primary"], ["M", "MUSIC", "wm:music"], ["E", "EFFECTS", "wm:sfx"], ["ESC", "CLOSE MENU", "close", "keys"]],
-    replay: [["SPACE", "PLAY / PAUSE", "rp:toggle", "primary"], ["← →", "SKIP 2S", "rp:skip:2000"], ["↑ ↓", "MOVE", "noop"], ["ESC", "BACK", "rp:back"]],
+    replay: [["SPACE", "PLAY / PAUSE", "rp:toggle", "primary"], ["← →", "SKIP 2S", "rp:skip:2000", "keys"], ["", "−2S", "rp:skip:-2000", "touch"], ["", "+2S", "rp:skip:2000", "touch"], ["↑ ↓", "MOVE", "noop"], ["ESC", "BACK", "rp:back"]],
     stats: [["ARROWS", "MOVE", "noop"], ["P", "PRACTICE WEAK KEYS", "practice"], ["ESC", "CLOSE MENU", "close", "keys"]],
     leaderboard: [["ARROWS", "MOVE", "noop"], ["ESC", "CLOSE MENU", "close", "keys"]],
     settings: [["ARROWS", "MOVE", "noop"], ["ESC", "CLOSE MENU", "close", "keys"]],
@@ -330,9 +330,9 @@
     "ghost-select": "Pick a track and who to race.",
     worm: "Type an answer and press Enter. Rarer answers dig deeper.",
     "worm-select": "Play today's dig, or a Blitz round.",
-    replay: "Click a moment to jump to it.",
+    get replay() { return say("Click a moment to jump to it.", "Tap a moment to jump to it."); },
     stats: "Select a view.",
-    leaderboard: "Everyone on this computer, ranked.",
+    get leaderboard() { return say("Everyone on this computer, ranked.", "Everyone on this device, ranked."); },
     settings: "Changes save automatically.",
   };
 
@@ -1838,6 +1838,13 @@
 
   // ---------- replay ----------
 
+  // Words for a phone: a touch screen in a small window has no mouse to click or keys to press, and
+  // isn't a computer. A big window keeps the desktop's words, whatever it's on.
+  function say(desktop, touch) {
+    const small = TT.viewport.compact || TT.viewport.short;
+    return small && window.matchMedia && window.matchMedia("(pointer: coarse)").matches ? touch : desktop;
+  }
+
   const rp = { rec: null, a: null, T: 0, playing: false, speed: 1, raf: 0, last: 0, returnTo: "results", player: null };
   const SPEEDS = [0.5, 1, 2, 4];
   const fmtSec = (ms) => `${(ms / 1000).toFixed(1)}s`;
@@ -2029,20 +2036,25 @@
     return `${Math.round(sec)}s`;
   }
 
+  // On a phone the chart is drawn half as wide, so it shows taller and its labels stay readable
+  // (drawn again if the window changes between the two: see the resize listener under Stats).
+  let chartNarrow = null;
   function wpmChart(history) {
     const pts = history.slice(-30).map((h) => h.wpm);
     let lo = Math.floor(Math.min(...pts) / 10) * 10;
     let hi = Math.ceil(Math.max(...pts) / 10) * 10;
     if (hi - lo < 20) hi = lo + 20;
-    const X0 = 44, W = 716, Y0 = 20, H = 160;
+    chartNarrow = TT.viewport.compact;
+    const VW = chartNarrow ? 360 : 760;
+    const X0 = 44, W = VW - X0 - (chartNarrow ? 8 : 0), Y0 = 20, H = 160;
     const x = (i) => X0 + (pts.length === 1 ? W : (i * W) / (pts.length - 1));
     const y = (v) => Y0 + H - ((v - lo) / (hi - lo)) * H;
     const mid = (lo + hi) / 2;
     const coords = pts.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
     const last = pts.length - 1;
     const grid = [hi, mid, lo].map((v) =>
-      `<line x1="${X0}" x2="760" y1="${y(v)}" y2="${y(v)}" stroke="var(--ink)" stroke-opacity="0.25"/><text x="0" y="${y(v) + 4}">${Math.round(v)}</text>`).join("");
-    return `<svg class="chart" viewBox="0 0 760 200" role="img" aria-label="Words per minute over your last ${pts.length} tests">
+      `<line x1="${X0}" x2="${VW}" y1="${y(v)}" y2="${y(v)}" stroke="var(--ink)" stroke-opacity="0.25"/><text x="0" y="${y(v) + 4}">${Math.round(v)}</text>`).join("");
+    return `<svg class="chart" viewBox="0 0 ${VW} 200" role="img" aria-label="Words per minute over your last ${pts.length} tests">
       ${grid}
       <polyline points="${coords}" fill="none" stroke="var(--ink)" stroke-width="3" stroke-linejoin="round"/>
       <circle cx="${x(last)}" cy="${y(pts[last])}" r="6" fill="var(--accent)"/>
@@ -2056,11 +2068,12 @@
       const p = o && max ? Math.round((o.rate / max) * 85) : 0;
       const style = p ? `background: color-mix(in srgb, var(--accent) ${p + 15}%, transparent);${p > 45 ? " color: var(--on-accent);" : ""}` : "";
       const label = o ? `${k}: ${(o.rate * 100).toFixed(1)}% missed recently` : `${k}: no data`;
-      return `<div class="k" style="${style}" title="${label}">${k}</div>`;
+      // a touch screen can't show the title, so a small window shows each key's figure on the key
+      return `<div class="k" style="${style}" title="${label}">${k}${o ? `<span class="k-rate">${(o.rate * 100).toFixed(1)}</span>` : ""}</div>`;
     }).join("")}</div>`;
     return `<div class="keyboard" role="img" aria-label="Keyboard heatmap of missed keys">
       ${row("qwertyuiop")}<div style="padding-left: 28px">${row("asdfghjkl")}</div><div style="padding-left: 56px">${row("zxcvbnm")}</div>
-    </div>`;
+    </div><p class="caps-label k-note">THE FIGURES ARE % MISSED RECENTLY</p>`;
   }
 
   const legend = `<span class="legend">LESS<span></span>
@@ -2169,9 +2182,10 @@
     rows = rows.filter(Boolean).sort((a, b) => b.best - a.best);
     const mine = rows.findIndex((r) => r.p.you);
 
+    // data-h: a small window lays each row out as a card, its figures labelled from it (style.css)
     const table = rows.length
       ? `<table class="table lb-table"><thead><tr><th>#</th><th>PLAYER</th>${head.map((h) => `<th class="num">${h}</th>`).join("")}</tr></thead><tbody>${rows.map((r, i) =>
-          `<tr class="${r.p.you ? "lb-you" : ""}"><td class="num">${i + 1}</td><td>${esc(r.p.name)}${r.p.you ? ` <span class="tag">YOU</span>` : ""}</td>${r.cells.map((c) => `<td class="num">${esc(c)}</td>`).join("")}</tr>`).join("")}</tbody></table>`
+          `<tr class="${r.p.you ? "lb-you" : ""}"><td class="num">${i + 1}</td><td>${esc(r.p.name)}${r.p.you ? ` <span class="tag">YOU</span>` : ""}</td>${r.cells.map((c, j) => `<td class="num" data-h="${head[j]}">${esc(c)}</td>`).join("")}</tr>`).join("")}</tbody></table>`
       : `<p class="muted">Nobody has played this yet.</p>`;
 
     $("view-leaderboard").innerHTML = subtabs(LB_GAMES, tab, "lb:tab") + `
@@ -2186,11 +2200,11 @@
           <dl class="status">${statusRows([
             ["Player:", TT.profiles.active().name],
             ["Rank:", mine >= 0 ? `${mine + 1} of ${rows.length}` : "Not ranked yet"],
-            ["Players on this computer:", players.length, true],
+            [say("Players on this computer:", "Players on this device:"), players.length, true],
           ])}</dl>
           <p class="note">${players.length < 2
-            ? "Only one profile so far. Add more in Settings → Profiles, and everyone who plays on this computer is ranked here."
-            : "Everyone who plays on this computer is ranked here by their best. The game pages show only your own."}</p>
+            ? `Only one profile so far. Add more in Settings → Profiles, and everyone who plays on this ${say("computer", "device")} is ranked here.`
+            : `Everyone who plays on this ${say("computer", "device")} is ranked here by their best. The game pages show only your own.`}</p>
         </aside>
       </div>`;
   }
@@ -2242,7 +2256,7 @@
         <thead><tr><th>KEY</th><th>RECENT MISS RATE</th><th class="num">ATTEMPTS</th><th class="num">ALL-TIME MISSES</th></tr></thead>
         <tbody>${rows.map(([k, o]) => `<tr>
           <td class="mono">${k}${targets.has(k) ? `<span class="tag">TARGET</span>` : ""}</td>
-          <td><span class="bar-cell"><i style="width: ${Math.round((o.rate / max) * 160)}px"></i>${(o.rate * 100).toFixed(1)}%</span></td>
+          <td><span class="bar-cell"><i style="width: ${Math.round((o.rate / max) * 160)}px; --w: ${(o.rate / max).toFixed(3)}"></i>${(o.rate * 100).toFixed(1)}%</span></td>
           <td class="num">${o.attempts}</td>
           <td class="num">${life[k] ? life[k].missed : 0}</td>
         </tr>`).join("")}</tbody>
@@ -2258,7 +2272,7 @@
         <thead><tr><th>WORD</th><th>RECENT WEIGHT</th><th class="num">TIMES MISSED</th><th class="num">ALL TIME</th></tr></thead>
         <tbody>${words.map((w) => `<tr>
           <td class="mono">${esc(w.word)}</td>
-          <td><span class="bar-cell"><i style="width: ${Math.round((w.score / max) * 160)}px"></i></span></td>
+          <td><span class="bar-cell"><i style="width: ${Math.round((w.score / max) * 160)}px; --w: ${(w.score / max).toFixed(3)}"></i></span></td>
           <td class="num">${w.count}</td>
           <td class="num">${TT.store.weakWords[w.word] || w.count}</td>
         </tr>`).join("")}</tbody>
@@ -2268,14 +2282,15 @@
     history() {
       const rows = TT.store.history.slice(-50).reverse();
       const fmt = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+      // data-h: a small window lays each row out as a card, its figures labelled from it (style.css)
       return `<table class="table">
         <thead><tr><th>DATE</th><th>TEST</th><th class="num">WPM</th><th class="num">ACCURACY</th><th class="num">RAW</th><th class="num">REPLAY</th></tr></thead>
         <tbody>${rows.map((h) => `<tr>
           <td>${fmt.format(new Date(h.date))}</td>
           <td>${esc(testName(h.kind || "test", h.mode, h.amount, h.game, h.title, h.queue))}</td>
-          <td class="num"><strong>${Math.round(h.wpm)}</strong></td>
-          <td class="num">${Math.round(h.acc)}%</td>
-          <td class="num">${Math.round(h.raw)}</td>
+          <td class="num" data-h="WPM"><strong>${Math.round(h.wpm)}</strong></td>
+          <td class="num" data-h="ACCURACY">${Math.round(h.acc)}%</td>
+          <td class="num" data-h="RAW">${Math.round(h.raw)}</td>
           <td class="num">${h.id ? `<button class="opt outline sm" data-act="replay:${h.id}" aria-label="Replay this round">▶</button>` : `<span class="muted">—</span>`}</td>
         </tr>`).join("")}</tbody>
       </table>
@@ -2353,6 +2368,10 @@
     $("view-stats").innerHTML = subtabs(tabs, ui.statsTab, "stab") + `<div id="stats-body">${body}</div>`;
     if (TT.store.history.length && ui.statsTab === "keystrokes") renderKeystrokes();
   }
+  // the chart is drawn for a phone or a bigger window (wpmChart): again if the window turns into the other
+  window.addEventListener("resize", () => {
+    if (ui.view === "stats" && ui.statsTab === "overview" && chartNarrow !== null && chartNarrow !== TT.viewport.compact) renderStats();
+  });
 
   // ---------- settings ----------
 
@@ -2383,7 +2402,7 @@
   // bring the data straight back); until its bridge has that, it doesn't offer it.
   const nativeWipe = () => !!(window.touchType && window.touchType.data && window.touchType.data.wipeDevice);
   function wipePanel() {
-    const device = APPLE ? "device" : "computer";
+    const device = APPLE ? "device" : say("computer", "device");
     if (ui.wipe === "busy") return `<span class="hint-text" role="status">Deleting everything on this ${device}…</span>`;
     if (!ui.wipe) {
       return `<button class="opt danger" data-act="wipe:ask">DELETE ALL DATA ON THIS ${device.toUpperCase()}</button>` +
@@ -2450,7 +2469,7 @@
           ${APPLE && !nativeWipe() ? "" : srow("This device", wipePanel())}
           ${srow("Privacy", `<span class="hint-text">No account, no analytics, nothing sent to the developer. <a href="${PRIVACY_URL}" target="_blank" rel="noopener">Read the privacy policy</a></span>`)}
         </div>
-        <p class="note">Everything is stored on this computer. Nothing is uploaded.</p>
+        <p class="note">Everything is stored on this ${say("computer", "device")}. Nothing is uploaded.</p>
         </section>
       </div>`;
     },
@@ -2563,6 +2582,21 @@
       if (newId && TT.profiles.switchTo(newId)) onProfileChanged();
     }
   });
+
+  // A phone's keyboard covers the bottom of the page, so a name being typed is scrolled into sight
+  // above it, and clear of the page's fading edges (the keyboard coming up sends a "resize": viewport.js).
+  function revealField() {
+    const el = document.activeElement;
+    if (!TT.viewport.kbOpen || !el || !el.matches(".text-input") || !$("view-settings").contains(el)) return;
+    for (let box = el.parentElement; box && box !== document.body; box = box.parentElement) {
+      if (box.scrollHeight <= box.clientHeight + 1 || !/(auto|scroll)/.test(getComputedStyle(box).overflowY)) continue;
+      const b = box.getBoundingClientRect(), r = el.getBoundingClientRect();
+      if (r.top < b.top + 16) box.scrollTop -= b.top + 16 - r.top;
+      else if (r.bottom > b.bottom - 56) box.scrollTop += r.bottom - (b.bottom - 56);
+    }
+  }
+  window.addEventListener("resize", revealField);
+  document.addEventListener("focusin", () => requestAnimationFrame(revealField));
 
   const UPDATE_TEXT = {
     idle: () => "Not checked yet.",

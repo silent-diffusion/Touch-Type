@@ -1965,6 +1965,283 @@ html.task.short:not(.compact) :is(.targets, .note, .capslock) { display: none; }
    Compact: Leaderboard, Stats, Settings, Replay
    ===================================================================================================== */
 
+/* ---------- every size ---------- */
+
+/* the heatmap's figures on the keys, and the line that says what they are: a small window only (below) */
+.keyboard .k-rate, .k-note { display: none; }
+
+/* ---------- a small window: what the four screens share ---------- */
+
+/* a long heading's details wrap under it rather than running off the side */
+:where(html.compact, html.short) :is(#view-leaderboard, #view-replay) .title-meta { white-space: normal; text-wrap: balance; }
+/* the foundation keeps every note to one line on its side (for the test's): these screens' notes are read in full */
+:where(html.compact, html.short) :is(#view-leaderboard, #view-stats, #view-settings, #view-replay) .note {
+  overflow: visible;
+  white-space: normal;
+  text-overflow: clip;
+}
+:where(html.compact, html.short) :is(#view-leaderboard, #view-stats, #view-settings) .side-label { padding: 12px 0 8px; }
+:where(html.compact, html.short) #view-stats .empty { padding: 28px 0; font-size: 16px; line-height: 1.4; }
+:where(html.compact, html.short) #view-stats .empty h2 { font-size: 24px; }
+
+/* Choices, at compact width: a row of joined segments (as the test's settings are), as wide as the page.
+   Their borders overlap by the width of one; the box's padding makes room for the first's. */
+@media (max-width: 600px) {
+  .lb-filters .seg,
+  .settings-rows .controls:has(> .opt[aria-pressed]) { gap: 0; padding: 2px 0 0 2px; }
+  .lb-filters .seg button,
+  .settings-rows .controls > .opt[aria-pressed] {
+    flex: 1 1 0;
+    min-width: 0;
+    margin: -2px 0 0 -2px;
+    padding: 4px 8px;
+    border: var(--rule);
+    font-size: 13px;
+    line-height: 1.15;
+    letter-spacing: 0.06em;
+    text-wrap: balance;
+  }
+}
+
+/* ---------- Leaderboard ---------- */
+
+@media (max-width: 600px) {
+  /* The filters: one row each; a long list (songs, tracks, packs) two to a row, the odd one out
+     across both. */
+  .lb-filters { gap: 10px; margin: 12px 0 16px; }
+  .lb-filters .seg { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
+  .lb-filters .seg:has(> :nth-child(5)) { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .lb-filters .seg:has(> :nth-child(5)) > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+
+  /* The table: each player a card. Rank, name and the figure they're ranked by on top (the name
+     leaves room for the figure, so nothing else joins them); the rest under the name, as many to a
+     line as fit, each with its column's heading over it (data-h, app.js). */
+  .lb-table, .lb-table tbody { display: block; }
+  .lb-table thead { display: none; }
+  .lb-table tr {
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: 18px;
+    padding: 10px 8px 12px 38px;
+    border-bottom: 1px solid var(--sub);
+  }
+  .lb-table td, .lb-table td.num { padding: 0; border: none; background: none; text-align: left; }
+  .lb-table td:nth-child(1) { position: absolute; top: 22px; left: 8px; font-size: 16px; font-weight: 700; line-height: 20px; }
+  .lb-table td:nth-child(2) { flex: 1 1 calc(100% - 151px); min-width: 0; font-size: 17px; line-height: 1.2; }
+  .lb-table td:nth-child(2) .tag { margin-left: 4px; vertical-align: 2px; }
+  .lb-table td.num:nth-child(3) { flex: 0 0 133px; text-align: right; font-size: 24px; font-weight: 800; line-height: 1.1; }
+  .lb-table td:nth-child(n + 4) { flex: 0 1 auto; align-self: flex-start; min-width: 0; margin-top: 10px; font-size: 15px; line-height: 1.25; overflow-wrap: anywhere; }
+  .lb-table td[data-h]::before {
+    content: attr(data-h);
+    display: block;
+    margin-bottom: 3px;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+  }
+  .lb-table .lb-you { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+}
+
+/* ---------- Stats ---------- */
+
+/* on its side the chart is drawn wide (wpmChart): its labels a size up, to stay readable */
+:where(html.short:not(.compact)) .chart text { font-size: 16px; }
+
+@media (max-width: 600px) {
+  /* The heatmap fills the width: ten keys to a row (sized from the box, a container), each with its
+     figure under the letter in place of the title a mouse would show. */
+  .keyboard { container-type: inline-size; gap: 5px; margin-top: 14px; }
+  .keyboard .krow { gap: 4px; }
+  .keyboard > div:nth-child(2) { padding-left: calc((100cqw - 36px) / 20 + 2px) !important; }
+  .keyboard > div:nth-child(3) { padding-left: calc((100cqw - 36px) / 10 + 4px) !important; }
+  .keyboard .k {
+    flex: none;
+    flex-direction: column;
+    gap: 3px;
+    width: calc((100cqw - 36px) / 10);
+    height: calc((100cqw - 36px) / 7.5);
+    font-size: 17px;
+    line-height: 1;
+  }
+  .keyboard .k-rate { display: block; font-family: var(--ui-font); font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .k-note { display: block; margin: 10px 0 0; font-size: 11px; }
+  .legend { gap: 4px; font-size: 11px; letter-spacing: 0.1em; }
+  .legend span { width: 14px; height: 14px; }
+
+  /* the tables fit the width: smaller type, headings that wrap, shorter bars, a key's TARGET under it */
+  #stats-body .table { font-size: 15px; }
+  #stats-body .table th { padding: 8px 8px 8px 0; font-size: 11px; line-height: 1.25; letter-spacing: 0.08em; vertical-align: bottom; }
+  #stats-body .table td { padding: 8px 8px 8px 0; }
+  #stats-body .table :is(th, td):last-child { padding-right: 0; }
+  #stats-body .table td .tag { display: block; width: fit-content; margin: 4px 0 0; padding: 1px 4px; font-size: 11px; letter-spacing: 0.08em; }
+  #stats-body .bar-cell { gap: 8px; }
+  #stats-body .bar-cell i { width: calc(var(--w, 1) * 60px) !important; height: 8px; }
+  #stats-body .two-col { gap: 20px; }
+
+  /* History: each round a card. What it was, when, then its figures (labelled from data-h), with its
+     replay button at the side. */
+  #stats-body .table:has(td[data-h]), #stats-body .table:has(td[data-h]) tbody { display: block; }
+  #stats-body .table:has(td[data-h]) thead { display: none; }
+  #stats-body .table:has(td[data-h]) tr {
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    column-gap: 12px;
+    padding: 10px 56px 10px 0;
+    border-bottom: 1px solid var(--sub);
+  }
+  #stats-body .table:has(td[data-h]) :is(td, td.num) { padding: 0; border: none; text-align: left; }
+  #stats-body .table:has(td[data-h]) td:nth-child(1) { order: 1; flex: 1 1 100%; margin: 2px 0 6px; font-size: 13px; color: var(--muted); }
+  #stats-body .table:has(td[data-h]) td:nth-child(2) { flex: 1 1 100%; font-weight: 700; line-height: 1.25; }
+  #stats-body .table:has(td[data-h]) td:nth-child(2)::first-letter { text-transform: uppercase; }
+  #stats-body .table:has(td[data-h]) td[data-h] { order: 2; white-space: nowrap; }
+  #stats-body .table:has(td[data-h]) td[data-h]::after { content: attr(data-h); margin-left: 5px; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; color: var(--muted); }
+  #stats-body .table:has(td[data-h]) td.num:nth-child(6) { position: absolute; top: 50%; right: 0; translate: 0 -50%; }
+}
+
+/* ---------- Replay ---------- */
+
+/* the action bar has PLAY / PAUSE */
+:where(html.compact, html.short) #rp-play { display: none; }
+:where(html.compact, html.short) .rp-stage { min-height: 0; padding: 14px 0 8px; }
+:where(html.compact, html.short) .rp-stage .live { margin-bottom: 12px; }
+/* A game's stage is as tall as the panel leaves it, so the controls under it are in view; a game
+   that needs more (Tiles' boxes and lanes) takes what it needs, and the page scrolls. */
+:where(html.compact, html.short) :is(.rp-stage.rp-forest, .rp-stage.rp-tiles, .rp-stage.rp-worm) {
+  height: auto;
+  min-height: clamp(240px, calc(var(--app-h, 100vh) - var(--safe-t) - var(--safe-b) - 380px), 520px);
+  padding: 10px 0 8px;
+}
+:where(html.short:not(.compact)) :is(.rp-stage.rp-forest, .rp-stage.rp-tiles, .rp-stage.rp-worm) {
+  min-height: clamp(160px, calc(var(--app-h, 100vh) - var(--safe-t) - var(--safe-b) - 200px), 300px);
+}
+/* Forest Hop's field (forest.js lays it out for a small window): its score, best and treats are a strip
+   over it rather than boxes in its corners, so they cover none of the lanes ahead (while it's played
+   they're in the action bar; here that's the replay's). The animal shows on the field. */
+:where(html.compact, html.short) #view-replay .rp-forest .fh-stage { --hud: 40px; background: var(--ground); }
+:where(html.compact, html.short) #view-replay .rp-forest .fh-canvas { top: var(--hud); height: calc(100% - var(--hud)); border-top: var(--rule); }
+:where(html.compact, html.short) #view-replay .rp-forest .fh-typed { margin-top: calc(var(--hud) + 2px); }
+:where(html.compact, html.short) #view-replay .rp-forest .fh-hud { top: 0; display: flex; height: var(--hud); }
+:where(html.compact, html.short) #view-replay .rp-forest .fh-hud-l { left: 10px; align-items: baseline; gap: 10px; padding: 8px 0 0; border: none; background: none; }
+:where(html.compact, html.short) #view-replay .rp-forest .fh-score { gap: 6px; }
+:where(html.compact, html.short) #view-replay .rp-forest .fh-score span:first-child { font-size: 24px; font-variant-numeric: tabular-nums; }
+:where(html.compact, html.short) #view-replay .rp-forest .fh-hud-l .caps-label { font-size: 11px; letter-spacing: 0.1em; }
+:where(html.compact, html.short) #view-replay .rp-forest .fh-hud-r { right: 8px; flex-direction: row; align-items: center; gap: 6px; }
+:where(html.compact, html.short) #view-replay .rp-forest .fh-chip { gap: 5px; padding: 2px 8px; font-size: 13px; }
+:where(html.compact, html.short) #view-replay .rp-forest .fh-chip svg { width: auto; height: 18px; }
+:where(html.compact, html.short) #view-replay .rp-forest .fh-chip[data-f="animal"] { display: none; }
+
+/* Path Runner's timer bar gives way to the step count */
+:where(html.compact, html.short) #view-replay .pr-timer { flex: 0 1 260px; min-width: 100px; }
+:where(html.compact, html.short) #view-replay .pr-bar { align-self: stretch; width: auto; }
+
+/* the controls: the slider across the page, then the time and the speeds */
+:where(html.compact, html.short) .rp-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px 12px;
+  padding-top: 8px;
+}
+:where(html.compact, html.short) .rp-controls #rp-scrub { grid-column: 1 / -1; }
+:where(html.compact, html.short) .rp-time { min-width: 0; font-size: 15px; }
+:where(html.compact, html.short) .rp-controls .seg { flex-wrap: nowrap; gap: 0; padding-left: 2px; font-size: 13px; }
+:where(html.compact, html.short) .rp-controls .seg button { min-width: 50px; margin-left: -2px; padding: 0 8px; border: var(--rule); letter-spacing: 0.06em; }
+
+/* a slider for a finger: a big thumb on a plain track */
+:where(html.compact, html.short) #rp-scrub {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 44px;
+  margin: 0;
+  background: transparent;
+}
+:where(html.compact, html.short) #rp-scrub::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--ink) 30%, transparent);
+}
+:where(html.compact, html.short) #rp-scrub::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 28px;
+  height: 28px;
+  margin-top: -11px;
+  border: 3px solid var(--ground);
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent);
+}
+:where(html.compact, html.short) #rp-scrub:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+/* the moments are part of the page, not a box that scrolls inside it */
+:where(html.compact, html.short) .moments { max-height: none; overflow: visible; }
+:where(html.compact, html.short) .moments button { align-items: baseline; padding: 10px 4px; line-height: 1.3; }
+
+/* ---------- Settings ---------- */
+
+:where(html.compact, html.short) .srow { gap: 8px 16px; padding: 10px 0; }
+:where(html.compact, html.short) .hint-text { font-size: 14px; }
+@media (pointer: coarse) {
+  /* the foundation's tall link, for this smaller text */
+  :where(html.compact, html.short) #view-settings .hint-text a { margin: -15px 0; padding: 15px 0; }
+}
+/* a field being typed in: its own border turns the accent (an outline would be cut off at the page's sides) */
+:where(html.compact, html.short) #view-settings .text-input:focus { outline: none; border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+:where(html.compact, html.short) .preview-text { margin: 12px 0 18px; font-size: var(--type-fit); }
+:where(html.compact, html.short) .preview-live { padding-top: 16px; }
+
+@media (max-width: 600px) {
+  /* a setting's name over its choices; a plain value (a name, a count, a version) beside it */
+  .srow > .slabel { flex: 1 0 auto; font-size: 16px; }
+  .srow > .controls { flex: 1 1 100%; }
+  .srow > .controls:has(> strong:only-child) { flex: 0 1 auto; }
+  .srow > .controls > .hint-text { flex: 1 1 100%; margin: 6px 0 0; }
+  .srow > .controls > .opt[data-act^="set:typingFont"] { flex-basis: 50%; }
+  .srow > .controls > .swatch-mini { flex: none; margin-left: 12px; }
+  .swatches { gap: 12px; padding: 0 2px; }
+
+  /* profiles: the actions two to a row, each a button with an outline; a name being typed takes the width */
+  .profile-row { gap: 10px; padding: 12px 0; }
+  .profile-name { font-size: 19px; }
+  .profile-row .controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; width: 100%; }
+  .profile-row .controls .opt { min-width: 0; padding: 0 8px; border: var(--rule); font-size: 13px; }
+  .profile-row .controls .opt.danger { border-color: var(--accent); }
+  .profile-form { flex: 1 1 100%; }
+  .profile-form .text-input, .new-profile .text-input { flex: 1 1 0; width: auto; }
+  .profile-form .text-input { flex-basis: 100%; }
+  .profile-form .opt { flex: 1 1 0; }
+  .new-profile label { flex: 1 1 100%; margin: 0; font-size: 16px; }
+
+  /* models */
+  .mm-row .hint-text { flex: 1 1 100%; margin: 4px 0 0; }
+  .mm-head h3 { font-size: 18px; }
+
+  /* deleting everything: its buttons one under the other */
+  .wipe-confirm { padding: 12px; }
+  .wipe-buttons { flex-direction: column; }
+}
+
+/* A licence over the page: inside the safe area, its long lines wrapped */
+:where(html.compact, html.short) .mm-licence {
+  inset: calc(var(--safe-t) + 10px) calc(var(--safe-r) + 10px) calc(var(--safe-b) + 10px) calc(var(--safe-l) + 10px);
+  gap: 8px;
+  padding: 12px 14px 14px;
+  border-radius: 14px;
+}
+:where(html.compact, html.short) .mm-licence-head { gap: 12px; font-size: 14px; line-height: 1.25; }
+:where(html.compact, html.short) .mm-licence-head .opt { flex: none; }
+:where(html.compact, html.short) .mm-licence pre { font-size: 12px; overflow-wrap: anywhere; }
+@media (pointer: coarse) {
+  :where(html.compact, html.short) .mm-licence-head kbd { display: none; }
+}
+
 /* =====================================================================================================
    end of Compact: Leaderboard, Stats, Settings, Replay
    ===================================================================================================== */
