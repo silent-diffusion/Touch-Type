@@ -1607,6 +1607,15 @@
     renderTilesSelect();
   }
 
+  // A song's audio being loaded (by PLAY, or TAP THE BEAT), which PLAY lets finish first (startTiles).
+  // It's waited for TL_WAIT at most, in case it never ends, and it holds nothing once it has: the audio
+  // is the song's to keep or let go (music.js).
+  const TL_WAIT = 20000;
+  function tlLoading(load) {
+    const turn = (ui.tlLoad = Promise.race([load.then(() => {}, () => {}), new Promise((r) => setTimeout(r, TL_WAIT))])
+      .then(() => { if (ui.tlLoad === turn) ui.tlLoad = null; }));
+  }
+
   async function startTiles() {
     const s = S();
     const song = TT.songs.get(s.tilesSong);
@@ -1627,7 +1636,8 @@
     };
     // Only the latest song is kept decoded, so another song's load that's still going is let finish
     // first: ending after this one's, it would take this song's audio away.
-    if (song.user && s.tilesMusic) {
+    if (song.user && s.tilesMusic && ui.tlLoad) {
+      els.statusLine.textContent = "Loading the song…";
       await ui.tlLoad;
       if (dropped()) return;
     }
@@ -1637,7 +1647,7 @@
     if (song.user && s.tilesMusic && !song.buffer) {
       els.statusLine.textContent = "Loading the song…";
       const load = TT.music.buffer(song.id);
-      ui.tlLoad = load.catch(() => {});
+      tlLoading(load);
       try {
         audio = await load;
       } catch (err) {
@@ -1868,7 +1878,10 @@
     renderTilesSelect();
     let buffer;
     try {
-      buffer = await TT.music.buffer(song.id);
+      // (PLAY lets it finish first, as it does another song's PLAY: see startTiles)
+      const load = TT.music.buffer(song.id);
+      tlLoading(load);
+      buffer = await load;
     } catch (err) {
       ui.tap = null;
       ui.tlNote = err.message;
