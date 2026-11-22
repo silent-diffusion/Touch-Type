@@ -2716,8 +2716,9 @@ html.short:not(.compact) #view-tiles-select .col-main:has(> .tl-tap-pad) > .tl-b
 :where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl-scope { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; margin: 0; border: none; }
 
 :where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl-head { gap: 4px; margin-bottom: 6px; }
-:where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl-song { display: none; gap: 10px; font-size: 13px; line-height: 16px; white-space: nowrap; }
-/* the song's name gives way to what's after it only once that's down to a few letters */
+:where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl-song { display: none; flex-wrap: wrap; gap: 0 10px; font-size: 13px; line-height: 16px; white-space: nowrap; }
+/* What's after the song's name (who it's by, the difficulty, QUEUE) takes a line of its own when the two
+   don't fit side by side; either is cut short only if it's too long for a line by itself. */
 :where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl-song span { flex: 0 1 auto; min-width: 4em; overflow: hidden; text-overflow: ellipsis; }
 :where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl-song .caps-label { flex-shrink: 100; font-size: 11px; }
 :where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl-prog-row { gap: 8px; }
