@@ -10,8 +10,9 @@
 </head>
 <body>
   <!-- Takes the typing from a phone's on-screen keyboard, which only shows for a text field (keyboard.js).
-       It's never seen or tapped; its attributes stop the keyboard from correcting what's typed. -->
-  <input id="kb" class="kb-field" type="text" aria-label="Typing" tabindex="-1" inputmode="text" enterkeyhint="go"
+       It's never seen or tapped; its attributes stop the keyboard from correcting what's typed, and
+       leave its Enter key labelled "return" on an iPhone, the word the games' instructions use. -->
+  <input id="kb" class="kb-field" type="text" aria-label="Typing" tabindex="-1" inputmode="text" enterkeyhint="enter"
     autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false">
 
   <div id="app">
