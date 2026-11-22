@@ -62,7 +62,12 @@
   const isObject = (x) => !!x && typeof x === "object" && !Array.isArray(x);
   const isNum = (x) => typeof x === "number";
   const isStr = (x) => typeof x === "string";
-  const listOf = (x, ok) => Array.isArray(x) && x.every(ok);
+  // A list is checked by what it holds: its length alone can claim billions of empty places, which
+  // every() would visit one by one (and so would whatever reads it next), so one with gaps is out.
+  const listOf = (x, ok) => {
+    const v = Array.isArray(x) && Object.values(x);
+    return !!v && v.length === x.length && v.every(ok);
+  };
   const NUMBERS = ["duration", "lead", "seed", "v", "wpmScale", "offset", "fall", "endT", "cols"];
   // The words: Forest Hop's come as a set for the four directions, and Tiles' may have a gap (it
   // deals "word" there). A set holds those four words and nothing else: a speed test's start-up
@@ -76,7 +81,7 @@
   const eventOk = ([t, type, data]) => isNum(t) && (type === "key" ? isStr(data) : type === "prompt" ? isNum(data)
     : type === "submit" ? isObject(data) && answerOk(data.r) : type === "timeout" ? isObject(data) : true);
   const pickOk = (p) => !(p && p.name) || isNum(p.pts);
-  const wormOk = ({ spec, ev }) => isObject(spec) && Array.isArray(spec.prompts) && (spec.date == null || isStr(spec.date)) &&
+  const wormOk = ({ spec, ev }) => isObject(spec) && listOf(spec.prompts, isStr) && (spec.date == null || isStr(spec.date)) &&
     (spec.resume == null || (isObject(spec.resume) && (spec.resume.picks == null || listOf(spec.resume.picks, pickOk)))) &&
     listOf(ev, (e) => Array.isArray(e) && eventOk(e));
 
