@@ -3082,6 +3082,11 @@ html.task.short:not(.compact) #view-worm .wm-reveal p { margin-top: 4px; font-si
 
 /* a race's result has the whole game to itself: the passage is done with */
 :where(html.short:not(.compact)) #view-ghost[data-over="result"] .gr .gr-text { display: none; }
+/* Paused, the pause card has the track's room too: with the keyboard put away a large Text size's
+   passage left it too little (at XL, 85px of the 144 it needs). The passage folds away, with the gap
+   above it, but stays laid out inside, so the caret and the ghost's mark are where they were when the
+   race resumes. */
+:where(html.short:not(.compact)) #view-ghost[data-over="paused"] .gr .gr-text { height: 0; margin-top: -8px; overflow: hidden; visibility: hidden; }
 
 /* ---------- Ghost Race: the track screen ---------- */
 
