@@ -1634,14 +1634,16 @@ body { padding: var(--safe-t) var(--safe-r) var(--safe-b) var(--safe-l); }
 /* shown only in a small window on a touch screen (below) */
 .tap-hint, .hints .hint-touch { display: none; }
 
+/* A small window on a touch screen. A full-size one (an iPad's) keeps its text selection, link menus
+   and buttons as they've always been. */
 @media (pointer: coarse) {
   /* a long press doesn't select the page or call up a menu; text fields still work as usual */
-  #app { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
-  input, textarea, .mm-licence pre { -webkit-user-select: text; user-select: text; }
+  :where(html.compact, html.short, html.task) #app { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  :where(html.compact, html.short, html.task) input,
+  :where(html.compact, html.short, html.task) textarea,
+  :where(html.compact, html.short, html.task) .mm-licence pre { -webkit-user-select: text; user-select: text; }
   /* no grey flash on a tap: the button dims while it's pressed */
-  button:active { opacity: 0.55; }
-  /* the close button for the desktop app's full screen */
-  .fs-bar { display: none !important; }
+  :where(html.compact, html.short, html.task) button:active { opacity: 0.55; }
 }
 
 /* ---------- a small window: the chrome ---------- */
