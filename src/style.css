@@ -2992,6 +2992,16 @@ html.compact :is(#view-ghost, #view-worm) .gr-count.long { font-size: clamp(14px
 /* a heading too long for one line breaks into even lines, so a dig's date isn't split with its month alone */
 :where(html.compact, html.short) :is(#view-ghost, #view-worm, #view-replay .rp-worm) .fh-over h2 { text-wrap: balance; }
 
+/* Upright, a race over a picture as short as the SE leaves it at the largest Text size has a size smaller
+   too, as on its side (below): a new best's three lines and a three-figure speed left REPLAY and TRACKS
+   half under the card's edge there. */
+@container (max-height: 330px) {
+  html.compact #view-ghost .fh-over { padding: 8px 14px; }
+  html.compact #view-ghost .fh-over h2 { margin-bottom: 2px; font-size: 20px; }
+  html.compact #view-ghost .fh-over-score { font-size: 60px; }
+  html.compact #view-ghost .fh-over p { margin: 6px 0 10px; font-size: 14px; }
+}
+
 /* On its side there's less height: a size smaller, as in Forest Hop and Path Runner, so a race's end and
    its buttons fit without the bar. */
 html.short:not(.compact) :is(#view-ghost, #view-worm) .fh-over { padding: 8px 16px; }
