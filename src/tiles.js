@@ -2045,14 +2045,14 @@
       onState && onState();
     }
 
-    // START on a touch screen. The tap also brings the on-screen keyboard back, if it was put away,
-    // as does a tap on the round while it's being played.
+    // START on a touch screen. A tap on the round, before it starts or while it's being played, also
+    // brings the on-screen keyboard back if it was put away: a full-size window shows no START, so
+    // that tap is the way to it. (open() also knows a field that kept the focus with its keyboard down.)
     root.addEventListener("click", (e) => {
       if (!live || !TT.keyboard) return;
-      if (live.state === "running" && !TT.keyboard.isOpen()) TT.keyboard.open();
-      if (live.state !== "ready" || !e.target.closest("[data-tl=start]")) return;
+      if (live.state !== "ready" && live.state !== "running") return;
       TT.keyboard.open();
-      start();
+      if (live.state === "ready" && e.target.closest("[data-tl=start]")) start();
     });
 
     // The round starts once the audio is running, so the music is in step from the first note.
