@@ -1955,6 +1955,8 @@ html.task.short:not(.compact) :is(.targets, .note, .capslock) { display: none; }
 :where(html.compact, html.short) .keygrid > div { font-size: 18px; }
 :where(html.short:not(.compact)) .result-hero { padding: 10px 0; }
 :where(html.short:not(.compact)) .hero-num { font-size: 72px; }
+/* accuracy and raw speed side by side, so the three numbers and their names fit the first screenful */
+:where(html.short:not(.compact)) .hero-side { flex-direction: row; align-items: flex-end; gap: 36px; }
 
 @media (max-width: 600px) {
   /* the words sit in the middle of the panel, not of what's left under the settings */
@@ -2050,6 +2052,11 @@ html.task.short:not(.compact) :is(.targets, .note, .capslock) { display: none; }
   }
   .lb-table .lb-you { background: color-mix(in srgb, var(--accent) 12%, transparent); }
 }
+/* On its side the filters are a size smaller, so a row of them (the tracks, say) takes one line and the
+   table's first rows show under them. */
+:where(html.short:not(.compact)) .lb-filters { gap: 6px; margin: 2px 0 10px; }
+:where(html.short:not(.compact)) .lb-filters .seg { font-size: 13px; }
+:where(html.short:not(.compact)) .lb-filters .seg button { padding: 0 12px; letter-spacing: 0.08em; }
 
 /* ---------- Stats ---------- */
 
