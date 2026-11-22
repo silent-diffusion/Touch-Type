@@ -101,10 +101,11 @@
     // Added songs load a moment after start-up, so their ids are kept here.
     // (looked up in the list: getting the song would also work its notes out, which start-up doesn't need)
     if (!TT.songs.list.some((x) => x.id === s.tilesSong) && !TT.music.isUser(s.tilesSong)) s.tilesSong = TT.songs.list[0].id;
-    if (!Object.hasOwn(TT.tilesCore.DIFFS, s.tilesDiff)) s.tilesDiff = "medium";
+    if (!TT.tilesCore.DIFFS[s.tilesDiff]) s.tilesDiff = "medium";
     s.tilesMusic = s.tilesMusic !== false;
     s.tilesMetronome = !!s.tilesMetronome;
     s.tilesScope = s.tilesScope !== false;
+    if (!Object.hasOwn(TT.tilesCore.DIFFS, s.tilesDiff)) s.tilesDiff = "medium"; // (an own key, as above)
     // Tiles' words: mix, lyrics or practice (practice was "lyrics off"); tilesLyrics follows it
     if (!["mix", "lyrics", "practice"].includes(s.tilesWords)) s.tilesWords = s.tilesLyrics === false ? "practice" : "mix";
     s.tilesLyrics = s.tilesWords !== "practice";
