@@ -21,6 +21,10 @@
   const coarse = window.matchMedia ? window.matchMedia("(pointer: coarse)") : { matches: false };
   const SHORT = 560;     // px of height below which the window is short
   const KEYBOARD = 120;  // px: an on-screen keyboard takes more than this (a hardware keyboard's bar doesn't)
+  // px of height above an on-screen keyboard that also leaves room for the tabs: the test's three lines
+  // at the largest text size need this with them, under an iPad's status bar. A big iPad on its side
+  // keeps less above its keyboard (not short, but no room for the tabs); one held upright keeps more.
+  const ROOMY = 760;
 
   let inset = null;      // the keyboard's height as the app's own shell reports it, or null to measure
   let full = 0, fullWidth = 0; // the tallest the window has been at this width: its height with no keyboard
@@ -61,7 +65,7 @@
     const short = height < SHORT;
     const kbOpen = keyboard > KEYBOARD;
     const small = compact || short;
-    const task = (small && (kbOpen || root.classList.contains("playing"))) || (kbOpen && root.classList.contains("playing"));
+    const task = (small && (kbOpen || root.classList.contains("playing"))) || (kbOpen && (root.classList.contains("playing") || height < ROOMY));
     // iOS slides the page up under the keyboard: it's put back, and the app kept on the part that shows
     if (!zoomed() && (window.scrollX || window.scrollY)) window.scrollTo(0, 0);
     const top = vv && !zoomed() ? Math.max(0, vv.offsetTop) : 0;
