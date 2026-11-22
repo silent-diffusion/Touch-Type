@@ -698,13 +698,15 @@
     ui.view = view;
     // The screen on show (and that nothing on it is paused yet) is marked on the app for style.css,
     // whose rules read it there: looking through the page for what isn't hidden costs on every key.
-    els.app.dataset.view = view;
     els.app.classList.remove("paused");
     // Esc on the typing test (and quitting Path Runner) comes back to the games, to this game's screen
     if (SELECT_VIEWS.includes(view)) ui.lastGame = gameTabFor(view);
     if (SELECT_VIEWS.includes(view) || view === "game") ui.menuView = "games";
     els.config.hidden = !["test", "practice", "results"].includes(view);
     renderTabs(view);
+    // (the screen is marked once the tabs have measured themselves: marked before, measuring them would
+    // lay out the old screen at the new one's sizes, as Practice's words box on a short window, for nothing)
+    els.app.dataset.view = view;
     els.typing.hidden = view !== "test" && view !== "practice";
     els.results.hidden = view !== "results";
     $("view-game").hidden = view !== "game";
