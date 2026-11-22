@@ -1569,13 +1569,13 @@
           <div class="side-label">How to play:</div>
           <ol class="fh-rules">${s.tilesQueue ? `
             <li>Each column has a word at the bottom. Tiles fall down the columns in time with the music, higher notes further right.</li>
-            <li>Type the word under the next tile's column (it has a dashed outline) and press <strong>Enter</strong> or <strong>Space</strong> to lock it in. That tile shows the word, the column gets a new one, and you type the next tile's word.</li>
+            <li>Type the word under the next tile's column (it has a dashed outline) and ${say("press <strong>Enter</strong> or <strong>Space</strong>", "tap <strong>return</strong> or <strong>space</strong>")} to lock it in. That tile shows the word, the column gets a new one, and you type the next tile's word.</li>
             <li>Each tile takes its word as it crosses the line, so there's no timing to worry about. A tile that reaches the line with no word is a miss. You can lock in a word once its tile has appeared.</li>
-            <li>Typos cost health and have to be backspaced. Lock in a mistyped or unfinished word anyway and it's a <strong>sloppy</strong> hit, worth the fewest points.</li>` : `
+            <li>Typos cost health and have to be ${say("backspaced", "deleted")}. Lock in a mistyped or unfinished word anyway and it's a <strong>sloppy</strong> hit, worth the fewest points.</li>` : `
             <li>Each column has a word at the bottom. Tiles fall down the columns in time with the music, higher notes further right.</li>
-            <li>Type a column's word, then press <strong>Enter</strong> or <strong>Space</strong> as that column's tile crosses the line. Its word then changes.</li>
-            <li>Close to the line counts, and a little early gets more room than a little late. Enter on the wrong column counts as a mistake, but your typing stays. Misses and typos cost health, and a typo has to be backspaced before you can go on.</li>
-            <li>Mistyped or didn't finish the word, but you're in the right column? Press Enter on time anyway: it's a <strong>sloppy</strong> hit, worth the fewest points, and it won't cost health.</li>
+            <li>Type a column's word, then ${say("press <strong>Enter</strong> or <strong>Space</strong>", "tap <strong>return</strong> or <strong>space</strong>")} as that column's tile crosses the line. Its word then changes.</li>
+            <li>Close to the line counts, and a little early gets more room than a little late. ${say("Enter", "Tapping return")} on the wrong column counts as a mistake, but your typing stays. Misses and typos cost health, and a typo has to be ${say("backspaced", "deleted")} before you can go on.</li>
+            <li>Mistyped or didn't finish the word, but you're in the right column? ${say("Press Enter", "Tap return")} on time anyway: it's a <strong>sloppy</strong> hit, worth the fewest points, and it won't cost health.</li>
             <li>Seven <strong>perfect</strong> hits in a row start a perfect streak: every hit is worth 1.5 times the points, and fills the combo 1.5 times as fast, until one isn't perfect. While it lasts the colours fade, so only the columns tell the words apart.</li>`}
           </ol>
         </aside>

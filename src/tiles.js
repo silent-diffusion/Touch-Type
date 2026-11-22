@@ -1472,6 +1472,12 @@
   const HIT_BOTTOM = 42; // the line's center, in px from the bottom of the field: the words sit on it
   const PUSH_MS = 200;
   const BOUNCE_MS = 220; // how long the combo liquid's swell on a beat takes to settle   // how long a word card takes to push up into a tile it hit and settle back
+  // "Press Enter or Space", as it's said here. On a phone (a small window on a touch screen) they're the
+  // on-screen keyboard's return key and space bar, and they're tapped, as Forest Hop and Wormhole say.
+  const pressStrike = () => {
+    const touch = !!TT.viewport && (TT.viewport.compact || TT.viewport.short) && window.matchMedia("(pointer: coarse)").matches;
+    return touch ? "tap <strong>return</strong> or <strong>space</strong>" : "press <strong>Enter</strong> or <strong>Space</strong>";
+  };
 
   const TEMPLATE = `
     <div class="tl">
@@ -2035,8 +2041,8 @@
         <h2>${esc(song.title.toUpperCase())}</h2>
         <p class="tl-over-sub">${esc(song.composer)} · ${D.name.toLowerCase()}${queue ? " · queue mode" : ""} · ${Math.round(song.duration)} seconds</p>
         <p>${queue
-          ? "Type the word under the next tile's column and press <strong>Enter</strong> or <strong>Space</strong> to lock it in, then type the next. Each tile takes its word as it crosses the line."
-          : "Type the word under a column, then press <strong>Enter</strong> or <strong>Space</strong> as that column's tile crosses the line."}</p>
+          ? `Type the word under the next tile's column and ${pressStrike()} to lock it in, then type the next. Each tile takes its word as it crosses the line.`
+          : `Type the word under a column, then ${pressStrike()} as that column's tile crosses the line.`}</p>
         <div class="tl-start"><kbd>ENTER</kbd>START</div>
         <button class="fh-play tl-go" type="button" data-tl="start">START</button>`;
       el.over.hidden = false;
