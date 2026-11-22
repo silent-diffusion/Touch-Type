@@ -11,8 +11,12 @@ permissions:
   contents: write
 
 # The token that can write releases is given only to the steps that talk to GitHub (GH_TOKEN on
-# each), and checkouts don't keep it, so "npm ci" and anything it runs never see it. The actions are
-# pinned to a commit, with the version that commit is in a comment.
+# each), and checkouts don't keep it, so the install scripts "npm ci" runs don't get it. That's all
+# it keeps from them: what npm ci installed runs in the build step with the token (electron-builder
+# is one of those packages, and an install script can change any of them on disk), so a bad package
+# could still use it. Keeping it from them would take building without the token and uploading the
+# built files from a job of its own, the only one given the token. The actions are pinned to a
+# commit, with the version that commit is in a comment.
 env:
   GH_REPO: ${{ github.repository }}
 
