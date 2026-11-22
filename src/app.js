@@ -2903,9 +2903,11 @@
   }
 
   // Switching to another window pauses a running game, so a round isn't lost while you're away.
+  // The on-screen keyboard goes too, as with PAUSE: left up, it would cover the paused screen, and
+  // a Q typed on it would quit the round.
   const pauseIfRunning = () => {
     const a = activeGame();
-    if (a && a.g.isRunning()) a.g.pause();
+    if (a && a.g.isRunning()) { a.g.pause(); TT.keyboard.close(); }
     markPaused();
   };
   window.addEventListener("blur", pauseIfRunning);
