@@ -2071,7 +2071,8 @@ html.task.short:not(.compact) :is(.targets, .note, .capslock) { display: none; }
 /* On its side the filters are a size smaller, and all in one row that scrolls sideways (as the second
    row of tabs does), so the table's first rows show under them. The short choices come first (the
    difficulty and the mode, or which dig), then the long list (the songs, a Blitz's packs) with the one
-   that's chosen at its head: the row starts there each time it's drawn. */
+   that's chosen at its head: the row starts there each time it's drawn (scrolled on far enough, by
+   renderLeaderboard, that the chosen one is all in view). */
 :where(html.short:not(.compact)) .lb-filters { flex-direction: row; gap: 10px; margin: 2px 0 10px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; }
 :where(html.short:not(.compact)) .lb-filters .seg { flex: none; flex-wrap: nowrap; font-size: 13px; }
 :where(html.short:not(.compact)) .lb-filters .seg button { flex: none; padding: 0 12px; letter-spacing: 0.08em; }

@@ -2415,6 +2415,15 @@
             : `Everyone who plays on this ${say("computer", "device")} is ranked here by their best. The game pages show only your own.`}</p>
         </aside>
       </div>`;
+    // On its side the filters are one row that scrolls sideways (style.css), drawn from its start. If the
+    // song (or Blitz pack) that's chosen isn't all in view clear of the row's fade, the row is scrolled
+    // just far enough that it is: when the row can't show all three choices, the song comes first.
+    const row = $("view-leaderboard").querySelector(".lb-filters");
+    const on = row && row.querySelector(".lb-songs > .on, [aria-label='Prompts from'] > .on");
+    if (on && row.scrollWidth > row.clientWidth) {
+      const r = row.getBoundingClientRect(), b = on.getBoundingClientRect();
+      row.scrollLeft = Math.max(0, b.right + 36 - (r.left + row.clientWidth));
+    }
   }
 
   const STATS_VIEWS = {
