@@ -2699,31 +2699,31 @@ html.short:not(.compact) #view-tiles-select .col-main:has(> .tl-tap-pad) > .tl-b
 :where(html.compact, html.short) #view-tiles { container: tiles / size; }
 /* one column: the numbers that matter while typing in a strip on top, then the lanes with every
    pixel that's left, and what's been typed */
-:where(html.compact, html.short) #view-tiles .tl { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); gap: 6px; }
-:where(html.compact, html.short) #view-tiles .tl-right { display: none; }
-:where(html.compact, html.short) #view-tiles .tl-left { display: grid; grid-template-columns: 3fr 5fr 4fr 4fr; gap: 6px; }
-:where(html.compact, html.short) #view-tiles .tl-box { min-width: 0; padding: 3px 8px 4px; }
-:where(html.compact, html.short) #view-tiles .tl-box .caps-label { font-size: 11px; line-height: 13px; letter-spacing: 0.1em; white-space: nowrap; }
-:where(html.compact, html.short) #view-tiles .tl-big { gap: 5px; font-size: 20px; line-height: 22px; white-space: nowrap; }
-:where(html.compact, html.short) #view-tiles .tl-mult { font-size: 13px; }
-:where(html.compact, html.short) #view-tiles .tl-bar { height: 10px; margin-top: 7px; }
+:where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); gap: 6px; }
+:where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl-right { display: none; }
+:where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl-left { display: grid; grid-template-columns: 3fr 5fr 4fr 4fr; gap: 6px; }
+:where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl-box { min-width: 0; padding: 3px 8px 4px; }
+:where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl-box .caps-label { font-size: 11px; line-height: 13px; letter-spacing: 0.1em; white-space: nowrap; }
+:where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl-big { gap: 5px; font-size: 20px; line-height: 22px; white-space: nowrap; }
+:where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl-mult { font-size: 13px; }
+:where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl-bar { height: 10px; margin-top: 7px; }
 /* how far the scope has grown: a line along the bottom of the combo's box, so the box keeps its height */
-:where(html.compact, html.short) #view-tiles .tl-scope { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; margin: 0; border: none; }
+:where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl-scope { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; margin: 0; border: none; }
 
-:where(html.compact, html.short) #view-tiles .tl-head { gap: 4px; margin-bottom: 6px; }
-:where(html.compact, html.short) #view-tiles .tl-song { display: none; gap: 10px; font-size: 13px; line-height: 16px; white-space: nowrap; }
+:where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl-head { gap: 4px; margin-bottom: 6px; }
+:where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl-song { display: none; gap: 10px; font-size: 13px; line-height: 16px; white-space: nowrap; }
 /* the song's name gives way to what's after it only once that's down to a few letters */
-:where(html.compact, html.short) #view-tiles .tl-song span { flex: 0 1 auto; min-width: 4em; overflow: hidden; text-overflow: ellipsis; }
-:where(html.compact, html.short) #view-tiles .tl-song .caps-label { flex-shrink: 100; font-size: 11px; }
-:where(html.compact, html.short) #view-tiles .tl-prog-row { gap: 8px; }
-:where(html.compact, html.short) #view-tiles .tl-progress { height: 8px; }
-:where(html.compact, html.short) #view-tiles .tl-time { font-size: 12px; line-height: 12px; }
+:where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl-song span { flex: 0 1 auto; min-width: 4em; overflow: hidden; text-overflow: ellipsis; }
+:where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl-song .caps-label { flex-shrink: 100; font-size: 11px; }
+:where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl-prog-row { gap: 8px; }
+:where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl-progress { height: 8px; }
+:where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl-time { font-size: 12px; line-height: 12px; }
 
 /* The lanes. --tl-fit tells tiles.js the field is fitted to the room there is: a tile is as tall as
    the band is inside, and falls to the band's middle. --tl-base is the gap under a column's word;
    --tl-word-room and --tl-word-max are the px a word's card takes besides its letters and its largest
    type; under --tl-stagger px a column, five or six columns put their words in two rows. */
-:where(html.compact, html.short) #view-tiles .tl-hw {
+:where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl-hw {
   --tl-fit: 1;
   --tl-tile: clamp(26px, 11cqh, 52px);
   --tl-base: 9px;
@@ -2732,36 +2732,36 @@ html.short:not(.compact) #view-tiles-select .col-main:has(> .tl-tap-pad) > .tl-b
   --tl-stagger: 110;
   min-height: 0;
 }
-:where(html.compact, html.short) #view-tiles .tl-band { bottom: calc(var(--tl-base) - 3px); height: calc(var(--tl-tile) + 6px); border-width: 3px 0; }
-:where(html.compact, html.short) #view-tiles .tl-words { bottom: var(--tl-base); height: var(--tl-tile); }
-:where(html.compact, html.short) #view-tiles .tl-word { padding: 0 2px; }
-:where(html.compact, html.short) #view-tiles .tl-word span { border-width: 2px; font-size: var(--wfs, 16px); }
-:where(html.compact, html.short) #view-tiles .tl-word b { text-underline-offset: 3px; }
-:where(html.compact, html.short) #view-tiles .tl-track { top: -45%; transform-origin: 50% calc(100% - var(--tl-base) - var(--tl-tile) / 2); }
-:where(html.compact, html.short) #view-tiles .tl-tile { height: var(--tl-tile); }
-:where(html.compact, html.short) #view-tiles .tl-tile.blank { border-width: 3px; }
-:where(html.compact, html.short) #view-tiles .tl-flash { bottom: calc(var(--tl-base) + var(--tl-tile) / 2); height: 70%; }
-:where(html.compact, html.short) #view-tiles .tl-judge { bottom: calc(var(--tl-base) + var(--tl-tile) + 12px); font-size: 15px; }
-:where(html.compact, html.short) #view-tiles .tl-streak { top: 6px; font-size: 11px; }
+:where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl-band { bottom: calc(var(--tl-base) - 3px); height: calc(var(--tl-tile) + 6px); border-width: 3px 0; }
+:where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl-words { bottom: var(--tl-base); height: var(--tl-tile); }
+:where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl-word { padding: 0 2px; }
+:where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl-word span { border-width: 2px; font-size: var(--wfs, 16px); }
+:where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl-word b { text-underline-offset: 3px; }
+:where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl-track { top: -45%; transform-origin: 50% calc(100% - var(--tl-base) - var(--tl-tile) / 2); }
+:where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl-tile { height: var(--tl-tile); }
+:where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl-tile.blank { border-width: 3px; }
+:where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl-flash { bottom: calc(var(--tl-base) + var(--tl-tile) / 2); height: 70%; }
+:where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl-judge { bottom: calc(var(--tl-base) + var(--tl-tile) + 12px); font-size: 15px; }
+:where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl-streak { top: 6px; font-size: 11px; }
 
 /* Five or six columns on a narrow field: the tiles are bars that land in the band, and the words
    sit under it in two rows (every other column a row down), each word as wide as it needs and as
    near its own column as its neighbours allow (tiles.js, spreadWords). Its colour says whose it is. */
-:where(html.compact, html.short) #view-tiles .tl-hw.stagger { --tl-tile: 22px; --tl-base: 64px; --tl-word-room: 14; --tl-word-max: 15; }
-:where(html.compact, html.short) #view-tiles .tl-hw.stagger .tl-words { bottom: 5px; height: 55px; }
-:where(html.compact, html.short) #view-tiles .tl-hw.stagger .tl-word { bottom: auto; height: 26px; padding: 0; }
-:where(html.compact, html.short) #view-tiles .tl-hw.stagger .tl-word.low { top: 29px; }
-:where(html.compact, html.short) #view-tiles .tl-hw.stagger .tl-word span { position: absolute; top: 0; left: 50%; width: max-content; padding: 0 4px; transform: translateX(calc(-50% + var(--dx, 0px))); }
-:where(html.compact, html.short) #view-tiles .tl-hw.stagger .tl-tile span { display: none; }
+:where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl-hw.stagger { --tl-tile: 22px; --tl-base: 64px; --tl-word-room: 14; --tl-word-max: 15; }
+:where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl-hw.stagger .tl-words { bottom: 5px; height: 55px; }
+:where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl-hw.stagger .tl-word { bottom: auto; height: 26px; padding: 0; }
+:where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl-hw.stagger .tl-word.low { top: 29px; }
+:where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl-hw.stagger .tl-word span { position: absolute; top: 0; left: 50%; width: max-content; padding: 0 4px; transform: translateX(calc(-50% + var(--dx, 0px))); }
+:where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl-hw.stagger .tl-tile span { display: none; }
 
-:where(html.compact, html.short) #view-tiles .tl-queue { flex-basis: 26px; gap: 6px; height: 26px; margin-top: 6px; }
-:where(html.compact, html.short) #view-tiles .tl-queue.waiting::before { font-size: 11px; letter-spacing: 0.1em; }
-:where(html.compact, html.short) #view-tiles .tl-chip { padding: 0 8px; font-size: 14px; }
-:where(html.compact, html.short) #view-tiles .tl-chip.first { outline-width: 2px; outline-offset: 1px; }
-:where(html.compact, html.short) #view-tiles .tl-queue:not([hidden]) + .tl-typed-row { margin-top: 4px; }
-:where(html.compact, html.short) #view-tiles .tl-typed-row { min-height: 38px; margin-top: 6px; }
-:where(html.compact, html.short) #view-tiles .tl-typed { min-width: 64px; padding: 4px 14px; font-size: 22px; }
-:where(html.compact, html.short) #view-tiles .tl-typed.col { box-shadow: inset 0 -4px 0 var(--col); }
+:where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl-queue { flex-basis: 26px; gap: 6px; height: 26px; margin-top: 6px; }
+:where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl-queue.waiting::before { font-size: 11px; letter-spacing: 0.1em; }
+:where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl-chip { padding: 0 8px; font-size: 14px; }
+:where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl-chip.first { outline-width: 2px; outline-offset: 1px; }
+:where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl-queue:not([hidden]) + .tl-typed-row { margin-top: 4px; }
+:where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl-typed-row { min-height: 38px; margin-top: 6px; }
+:where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl-typed { min-width: 64px; padding: 4px 14px; font-size: 22px; }
+:where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl-typed.col { box-shadow: inset 0 -4px 0 var(--col); }
 
 /* less height than a keyboard leaves a small phone: the far end of the lanes still reaches the top */
 @container tiles (max-height: 371px) {
@@ -2814,14 +2814,26 @@ html.task.scope #app:has(#view-tiles:not([hidden])) .footer { background: color-
   #view-tiles .tl-judge { font-size: 12px; }
 }
 
+/* A round's replay (on Replay's stage) is laid out as it was played: the rules above take in
+   .rp-tiles too. The stage is as tall as what's on it, and the page scrolls on to the controls under
+   it, so the lanes are given a height of their own; the timing and the count of hits, which there's
+   no room for while typing, show under the typing box. */
+:where(html.compact, html.short) #view-replay .rp-tiles .tl { grid-template-rows: auto auto auto; }
+:where(html.compact, html.short) #view-replay .rp-tiles .tl-hw { flex: none; height: clamp(200px, calc(var(--app-h, 100vh) - 560px), 340px); }
+:where(html.compact, html.short) #view-replay .rp-tiles .tl-right { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+:where(html.compact, html.short) #view-replay .rp-tiles .tl-right .tl-box { padding: 5px 8px 6px; }
+:where(html.compact, html.short) #view-replay .rp-tiles .tl-meter { height: 22px; margin-top: 6px; }
+:where(html.compact, html.short) #view-replay .rp-tiles :is(.tl-meter-l, .tl-avg) { font-size: 11px; }
+:where(html.compact, html.short) #view-replay .rp-tiles .tl-counts div { padding: 1px 0; font-size: 12px; }
+
 /* ---------- before a round, paused, and the result ---------- */
 
-:where(html.compact, html.short) #view-tiles .tl-over { justify-content: safe center; padding: 12px; overflow-y: auto; overscroll-behavior: contain; }
-:where(html.compact, html.short) #view-tiles .tl-over h2 { margin: 0 0 6px; font-size: 24px; line-height: 1.1; overflow-wrap: anywhere; }
+:where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl-over { justify-content: safe center; padding: 12px; overflow-y: auto; overscroll-behavior: contain; }
+:where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl-over h2 { margin: 0 0 6px; font-size: 24px; line-height: 1.1; overflow-wrap: anywhere; }
 :where(html.compact, html.short) #view-tiles .tl-over p { margin: 6px 0; font-size: 15px; line-height: 1.35; }
 :where(html.compact, html.short) #view-tiles .tl-over-sub { font-size: 13px; }
-:where(html.compact, html.short) #view-tiles .tl-over-grade { font-size: 84px; }
-:where(html.compact, html.short) #view-tiles .tl-over .caps-label { font-size: 12px; }
+:where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl-over-grade { font-size: 84px; }
+:where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl-over .caps-label { font-size: 12px; }
 :where(html.compact, html.short) #view-tiles .tl-over-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px 6px; width: 100%; max-width: 400px; margin: 10px 0 0; }
 :where(html.compact, html.short) #view-tiles .tl-over-stats dt { font-size: 11px; letter-spacing: 0.06em; }
 :where(html.compact, html.short) #view-tiles .tl-over-stats dd { font-size: 22px; }
