@@ -1489,7 +1489,7 @@
       </div>
       <div class="tl-center">
         <div class="tl-head">
-          <div class="tl-song"><span data-t="title"></span><span class="caps-label" data-t="sub"></span></div>
+          <div class="tl-song"><span data-t="title"></span><span class="caps-label" data-t="sub"></span><span class="caps-label tl-how" data-t="how"></span></div>
           <div class="tl-prog-row"><div class="tl-progress" role="progressbar" aria-label="Song progress" data-t="progbar"><i data-t="prog"></i></div><span class="tl-time" data-t="time">0:00</span></div>
         </div>
         <div class="tl-hw" data-t="hw">
@@ -1977,9 +1977,12 @@
       cv.drawn = true;
     }
 
-    function setHead(title, sub) {
+    // how: the line's end without who the song is by, which a phone held upright shows in its place
+    // (style.css, "Compact: Tiles")
+    function setHead(title, sub, how = sub) {
       el.title.textContent = title;
       el.sub.textContent = sub;
+      el.how.textContent = how;
     }
 
     function clearTiles() {
@@ -2033,7 +2036,7 @@
       viewT = 0;
       hudSig = "";
       clearTiles();
-      setHead(song.title.toUpperCase(), `${song.composer.toUpperCase()} · ${D.name}${queue ? " · QUEUE" : ""}`);
+      setHead(song.title.toUpperCase(), `${song.composer.toUpperCase()} · ${D.name}${queue ? " · QUEUE" : ""}`, `${D.name}${queue ? " · QUEUE" : ""}`);
       // (a title can come from a file's name, so it's escaped; the button is for a touch screen, where
       // the stylesheet shows it in place of the key's hint)
       el.over.dataset.shows = "ready";

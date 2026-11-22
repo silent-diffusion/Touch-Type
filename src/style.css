@@ -2601,6 +2601,8 @@ html.task.kb-open.short:not(.compact) #view-game .pr-input { align-self: end; mi
 /* Only a small window shows these (below): START as a button, the pad for tapping along without a
    Space bar, and what the page says there in place of a key's name. */
 .tl-go, .tl-tap-pad, .tl-for-touch { display: none; }
+/* the song line's end without who it's by: a phone held upright shows it in place of the whole (below) */
+.tl-song .tl-how { display: none; }
 /* Scope mode's drawing stops at the on-screen keyboard, so the line the vocals draw shows above it */
 html.kb-open canvas.scope:not(.in-folder) { top: var(--app-top, 0px); bottom: auto; height: var(--app-h); }
 
@@ -2756,6 +2758,13 @@ html.short:not(.compact) #view-tiles-select .col-main:has(> .tl-tap-pad) > .tl-b
    don't fit side by side; either is cut short only if it's too long for a line by itself. */
 :where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl-song span { flex: 0 1 auto; min-width: 4em; overflow: hidden; text-overflow: ellipsis; }
 :where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl-song .caps-label { flex-shrink: 100; font-size: 11px; }
+/* Upright, the line is over the lanes, and a second line would be taken from them: it stays one line,
+   the song's name (cut short if it must be) and how it's played (the difficulty, QUEUE) in full. Who
+   the song is by is on the ready card. (Its cards cover the line, so it's the same under them, and the
+   lanes don't move when the round starts.) */
+html.compact #view-tiles .tl-song { flex-wrap: nowrap; }
+html.compact #view-tiles .tl-song [data-t="sub"] { display: none; }
+html.compact #view-tiles .tl-song .tl-how { display: block; flex-shrink: 0; }
 :where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl-prog-row { gap: 8px; }
 :where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl-progress { height: 8px; }
 :where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl-time { font-size: 12px; line-height: 12px; }
