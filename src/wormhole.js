@@ -730,9 +730,19 @@
     }
   }
 
+  // In a small window a name or depth on the ruler isn't drawn under the scores over the picture, where
+  // it would show in pieces between the chips: down the right it's under the chips, and a long name can
+  // reach the box on the left. text is right-aligned at w - 28, with its capitals' top at top.
+  function underScores(ctx, v, w, text, top) {
+    if (v.boxR && top < v.boxR.bottom && 28 < v.boxR.reach) return true;
+    return !!v.boxL && top < v.boxL.bottom && w - 28 - ctx.measureText(text).width < v.boxL.reach;
+  }
+
   // The whole scene at a moment. v: { w, h, t, P, pts (the worm's depth), moving, digs, finds,
   //   firstDig (when the worm first dug), happy (until when it's pleased), night,
-  //   under (in a small window, where the scores drawn over the picture end; 0 otherwise) }
+  //   under (in a small window, where the scores drawn over the picture end; 0 otherwise),
+  //   boxL, boxR (in a small window, the left-hand score box and the right-hand chips: where each ends,
+  //   and how far in from its side of the picture it reaches; null otherwise) }
   function drawScene(ctx, v) {
     const { w, h, t, P, pts } = v;
     const PX = h / 100; // screen pixels a point
@@ -886,8 +896,7 @@
     drawWorm(ctx, path, P, t, v.moving, { blink: t % 3400 < 130, happy: v.happy != null && t < v.happy });
 
     // A picture too short for both the scores over its top and a layer's caption under them (a Blitz on a
-    // small phone, its keyboard up) leaves the caption out, as the scores name the layer too, and any of
-    // the ruler's layer names the scores would cover.
+    // small phone, its keyboard up) leaves the caption out, as the scores name the layer too.
     const capFs = Math.max(15, Math.round(h * 0.045));
     const cramped = v.under > 0 && v.under + 4 + capFs * 1.1 > h - capFs * 1.4;
 
@@ -903,14 +912,19 @@
     const rulerFs = Math.max(10, Math.round(3.6 * P));
     ctx.font = `800 ${rulerFs}px Archivo, sans-serif`;
     ctx.textAlign = "right";
+    const cap = rulerFs * 0.75; // how far its capitals stand above the line
     for (const L of LAYERS) {
       const y = sy(L.p);
       if (y < 10 || y > h - 4) continue;
-      if (cramped && y + 14 - rulerFs < v.under) continue;
-      ctx.fillStyle = "rgba(242,238,226,0.85)";
-      ctx.fillText(L.name, w - 28, y + 14);
-      ctx.fillStyle = "rgba(242,238,226,0.55)";
-      ctx.fillText(fmtDepth(L.m), w - 28, y + 28);
+      if (!underScores(ctx, v, w, L.name, y + 14 - cap)) {
+        ctx.fillStyle = "rgba(242,238,226,0.85)";
+        ctx.fillText(L.name, w - 28, y + 14);
+      }
+      const depth = fmtDepth(L.m);
+      if (!underScores(ctx, v, w, depth, y + 28 - cap)) {
+        ctx.fillStyle = "rgba(242,238,226,0.55)";
+        ctx.fillText(depth, w - 28, y + 28);
+      }
     }
 
     // a new layer reached: its name and a fact, for a few seconds
@@ -1146,11 +1160,15 @@
     let cw = 0, ch = 0, inFrame = false;
     new ResizeObserver(() => { cw = canvas.clientWidth; ch = canvas.clientHeight; }).observe(canvas);
     // In a small window the scores take more of the picture's height (style.css, "Compact"): where they
-    // end (0 in a big window) is kept the same way, from when they last changed size.
-    let under = 0;
+    // end (0 in a big window) is kept the same way, from when they last changed size, and so is each
+    // one's box (null in a big window).
+    let under = 0, boxL = null, boxR = null;
     const hudSize = new ResizeObserver(() => {
       const small = document.documentElement.matches(".compact, .short");
       under = small ? Math.max(0, ...huds.filter((x) => x.offsetParent === stage).map((x) => x.offsetTop + x.offsetHeight)) : 0;
+      const [l, r] = huds, on = (x) => small && x.offsetParent === stage;
+      boxL = on(l) ? { bottom: l.offsetTop + l.offsetHeight, reach: l.offsetLeft + l.offsetWidth } : null;
+      boxR = on(r) ? { bottom: r.offsetTop + r.offsetHeight, reach: stage.clientWidth - r.offsetLeft } : null;
     });
     huds.forEach((x) => hudSize.observe(x));
     new ResizeObserver(() => { if (st) render(gameT()); }).observe(root.querySelector(".wm-stage"));
@@ -1191,7 +1209,7 @@
         w, h, t: T, P: Math.max(2, Math.round(h / 150)), pts, moving: digging(st, T),
         digs: st.digs, finds: st.finds, firstDig: st.digs.find((g) => g.d > 0)?.s ?? null,
         happy: happy != null ? happy + 1300 : null, entered: entered(T, pts),
-        night: document.documentElement.dataset.theme === "night", under,
+        night: document.documentElement.dataset.theme === "night", under, boxL, boxR,
       });
     }
 
