@@ -364,6 +364,8 @@
     d.history ||= [];
     // (damaged data: a day's dig needs a date for its key and its list of picks, or it's left out)
     for (const k of Object.keys(d.daily)) if (!/^\d{4}-\d\d-\d\d$/.test(k) || !d.daily[k] || !Array.isArray(d.daily[k].picks)) delete d.daily[k];
+    // (and a pick's points count only as a number: they're added up into the dig's score)
+    for (const e of Object.values(d.daily)) for (const p of e.picks) if (p && typeof p === "object" && typeof p.pts !== "number") p.pts = 0;
     return d;
   }
 
@@ -1610,7 +1612,7 @@
         html = `
           <h2>DAILY DIG · ${esc(dayLabel(st.spec.date).toUpperCase())}</h2>
           <div class="fh-over-score">${fmtDepth(m)}</div>
-          <div class="caps-label">${placeAt(pts)} · ${pts} POINTS</div>
+          <div class="caps-label">${placeAt(pts)} · ${esc(pts)} POINTS</div>
           <ol class="wm-picks">${rows}</ol>
           <p>${best ? `Rarest: <strong>${esc(best.name)}</strong>. ` : ""}${run ? `Day streak: <strong>${run}</strong>. ` : ""}${s.answers ? `${Math.round(s.wpm)} wpm.` : ""}</p>
           <div class="hints">
@@ -1625,7 +1627,7 @@
           : `Your best in ${esc(packName(st.spec.pack))} is ${esc(L.prevBest.score)}.`;
         html = `
           <h2>${esc(promptById(st.prompts[0]).q.toUpperCase())}</h2>
-          <div class="fh-over-score">${pts}</div>
+          <div class="fh-over-score">${esc(pts)}</div>
           <div class="caps-label">POINTS · ${s.answers} ${s.answers === 1 ? "ANSWER" : "ANSWERS"} · ${fmtDepth(m)} DEEP${st.bestStreak >= 2 ? ` · RARE RUN OF ${st.bestStreak}` : ""}</div>
           <p>${best}${s.answers ? ` ${Math.round(s.wpm)} wpm.` : ""}</p>
           ${missed.length ? `<div class="side-label">Deep cuts still down there:</div><p class="wm-cuts">${missed.map(esc).join(" · ")}</p>` : ""}
@@ -1714,7 +1716,7 @@
       replay.T = T;
       const over = st.phase === "over";
       el.over.hidden = !over;
-      if (over) el.over.innerHTML = `<h2>${st.mode === "daily" ? "DIG DONE" : "TIME'S UP"}</h2><div class="fh-over-score">${fmtDepth(metres(st.score))}</div><div class="caps-label">${st.score} POINTS · ${placeAt(st.score)}</div>`;
+      if (over) el.over.innerHTML = `<h2>${st.mode === "daily" ? "DIG DONE" : "TIME'S UP"}</h2><div class="fh-over-score">${fmtDepth(metres(st.score))}</div><div class="caps-label">${esc(st.score)} POINTS · ${placeAt(st.score)}</div>`;
       render(T);
       return st;
     }
