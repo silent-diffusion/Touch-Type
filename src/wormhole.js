@@ -1523,7 +1523,11 @@
       }
       const low = typed.toLowerCase();
       // (which of the answer's words each slip was in, when what was typed has as many words)
-      const words = form.trim().split(/\s+/), typedWords = typed.split(/\s+/);
+      let words = form.trim().split(/\s+/);
+      const typedWords = typed.split(/\s+/);
+      // A leading "the", "a" or "an" can be left out (key), and then it isn't one of the words typed:
+      // "incredibels" is The Incredibles' second word.
+      if (words.length === typedWords.length + 1 && /^(the|a|an)$/i.test(words[0]) && !/^(the|a|an)$/i.test(typedWords[0])) words = words.slice(1);
       const paired = words.length === typedWords.length;
       const wrong = new Set(paired ? words.flatMap((w, i) => (key(w) !== key(typedWords[i]) ? [i] : [])) : []);
       for (const { pos, ch } of live.removed) {
