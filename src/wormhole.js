@@ -885,6 +885,12 @@
     // the worm
     drawWorm(ctx, path, P, t, v.moving, { blink: t % 3400 < 130, happy: v.happy != null && t < v.happy });
 
+    // A picture too short for both the scores over its top and a layer's caption under them (a Blitz on a
+    // small phone, its keyboard up) leaves the caption out, as the scores name the layer too, and any of
+    // the ruler's layer names the scores would cover.
+    const capFs = Math.max(15, Math.round(h * 0.045));
+    const cramped = v.under > 0 && v.under + 4 + capFs * 1.1 > h - capFs * 1.4;
+
     // the depth ruler, with each layer marked
     ctx.textBaseline = "alphabetic";
     ctx.fillStyle = "rgba(242,238,226,0.5)";
@@ -894,11 +900,13 @@
       if (p < 0) continue;
       ctx.fillRect(w - (p % 50 ? 16 : 22), sy(p), p % 50 ? 6 : 12, 2);
     }
-    ctx.font = `800 ${Math.max(10, Math.round(3.6 * P))}px Archivo, sans-serif`;
+    const rulerFs = Math.max(10, Math.round(3.6 * P));
+    ctx.font = `800 ${rulerFs}px Archivo, sans-serif`;
     ctx.textAlign = "right";
     for (const L of LAYERS) {
       const y = sy(L.p);
       if (y < 10 || y > h - 4) continue;
+      if (cramped && y + 14 - rulerFs < v.under) continue;
       ctx.fillStyle = "rgba(242,238,226,0.85)";
       ctx.fillText(L.name, w - 28, y + 14);
       ctx.fillStyle = "rgba(242,238,226,0.55)";
@@ -906,11 +914,11 @@
     }
 
     // a new layer reached: its name and a fact, for a few seconds
-    if (v.entered && t - v.entered.t < 3200) {
+    if (v.entered && t - v.entered.t < 3200 && !cramped) {
       const E = v.entered.L;
       const a = Math.min(1, (t - v.entered.t) / 250) * Math.min(1, (3200 - (t - v.entered.t)) / 500);
       ctx.globalAlpha = Math.max(0, a);
-      const fs = Math.max(15, Math.round(h * 0.045));
+      const fs = capFs;
       ctx.font = `800 ${fs}px Archivo, sans-serif`;
       ctx.textAlign = "center";
       const name = E.name, note = E.note;
