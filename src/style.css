@@ -2999,16 +2999,18 @@ html.short:not(.compact) :is(#view-ghost, #view-worm) .fh-over h2 { margin-botto
 html.short:not(.compact) :is(#view-ghost, #view-worm) .fh-over-score { font-size: 60px; }
 html.short:not(.compact) :is(#view-ghost, #view-worm) .fh-over p:not(.note) { margin: 6px 0 10px; font-size: 14px; }
 /* A dig's end has more: the day's answers, or the deep cuts. As with Tiles' counts, they go beside the
-   score (and scroll by themselves if they're longer), and the buttons go under both, always in view. */
+   score (and scroll by themselves if they're longer), and the buttons go under both, always in view.
+   The score keeps to one line: a dig of 1,000 KM or more takes a few pixels more than half the card on
+   the smallest phone, and its side has them from the answers'. */
 html.short:not(.compact) #view-worm.wm-done .fh-over {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: minmax(min-content, 1fr) minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr) repeat(4, auto) minmax(0, 1fr) auto;
   justify-items: center;
   gap: 0 24px;
 }
 html.short:not(.compact) #view-worm.wm-done .fh-over > h2 { grid-area: 2 / 1; }
-html.short:not(.compact) #view-worm.wm-done .fh-over > .fh-over-score { grid-area: 3 / 1; }
+html.short:not(.compact) #view-worm.wm-done .fh-over > .fh-over-score { grid-area: 3 / 1; white-space: nowrap; }
 html.short:not(.compact) #view-worm.wm-done .fh-over > .caps-label { grid-area: 4 / 1; }
 html.short:not(.compact) #view-worm.wm-done .fh-over > p:not(.wm-cuts) { grid-area: 5 / 1; margin-bottom: 0; }
 html.short:not(.compact) #view-worm.wm-done .fh-over > .hints { grid-area: 7 / 1 / 8 / 3; margin-top: 10px; }
