@@ -65,9 +65,10 @@
   const listOf = (x, ok) => Array.isArray(x) && x.every(ok);
   const NUMBERS = ["duration", "lead", "seed", "v", "wpmScale", "offset", "fall", "endT", "cols"];
   // The words: Forest Hop's come as a set for the four directions, and Tiles' may have a gap (it
-  // deals "word" there).
+  // deals "word" there). A set holds those four words and nothing else: a speed test's start-up
+  // check and Ghost Race read any recording's words a letter at a time, whatever its game.
   const wordsOk = (rec) => listOf(rec.words,
-    rec.game === "forest" ? (set) => isObject(set) && ["up", "left", "right", "down"].every((d) => isStr(set[d]))
+    rec.game === "forest" ? (set) => isObject(set) && Object.keys(set).length === 4 && ["up", "left", "right", "down"].every((d) => isStr(set[d]))
       : rec.game === "tiles" ? (w) => w == null || isStr(w) : isStr);
   // Wormhole (wormhole.js): a key is a character, a prompt its number, and an answer that counted
   // has a name, points and a tier; a Daily picked up part way brings its earlier picks and their points.
