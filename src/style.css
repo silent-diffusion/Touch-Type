@@ -2947,6 +2947,39 @@ html.compact :is(#view-ghost, #view-worm) .gr-count.long { font-size: clamp(14px
 /* a heading too long for one line breaks into even lines, so a dig's date isn't split with its month alone */
 :where(html.compact, html.short) :is(#view-ghost, #view-worm, #view-replay .rp-worm) .fh-over h2 { text-wrap: balance; }
 
+/* On its side there's less height: a size smaller, as in Forest Hop and Path Runner, so a race's end and
+   its buttons fit without the bar. */
+html.short:not(.compact) :is(#view-ghost, #view-worm) .fh-over { padding: 8px 16px; }
+html.short:not(.compact) :is(#view-ghost, #view-worm) .fh-over h2 { margin-bottom: 2px; font-size: 20px; }
+html.short:not(.compact) :is(#view-ghost, #view-worm) .fh-over-score { font-size: 60px; }
+html.short:not(.compact) :is(#view-ghost, #view-worm) .fh-over p:not(.note) { margin: 6px 0 10px; font-size: 14px; }
+/* A dig's end has more: the day's answers, or the deep cuts. As with Tiles' counts, they go beside the
+   score (and scroll by themselves if they're longer), and the buttons go under both, always in view. */
+html.short:not(.compact) #view-worm.wm-done .fh-over {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) repeat(4, auto) minmax(0, 1fr) auto;
+  justify-items: center;
+  gap: 0 24px;
+}
+html.short:not(.compact) #view-worm.wm-done .fh-over > h2 { grid-area: 2 / 1; }
+html.short:not(.compact) #view-worm.wm-done .fh-over > .fh-over-score { grid-area: 3 / 1; }
+html.short:not(.compact) #view-worm.wm-done .fh-over > .caps-label { grid-area: 4 / 1; }
+html.short:not(.compact) #view-worm.wm-done .fh-over > p:not(.wm-cuts) { grid-area: 5 / 1; margin-bottom: 0; }
+html.short:not(.compact) #view-worm.wm-done .fh-over > .hints { grid-area: 7 / 1 / 8 / 3; margin-top: 10px; }
+html.short:not(.compact) #view-worm.wm-done .fh-over > .wm-picks { grid-area: 1 / 2 / 7 / 3; contain: size; align-self: stretch; justify-self: stretch; margin: 0; overflow-y: auto; overscroll-behavior: contain; }
+html.short:not(.compact) #view-worm.wm-done .fh-over > .side-label { grid-area: 1 / 2 / 4 / 3; align-self: end; padding: 0 0 4px; }
+html.short:not(.compact) #view-worm.wm-done .fh-over > .wm-cuts { grid-area: 4 / 2 / 7 / 3; align-self: start; max-height: 100%; margin: 0; overflow-y: auto; overscroll-behavior: contain; }
+/* (with the page's scroll fades, so a row cut at the edge reads as more to see) */
+@supports (animation-timeline: scroll()) {
+  html.short:not(.compact) #view-worm.wm-done .fh-over > .wm-picks,
+  html.short:not(.compact) #view-worm.wm-done .fh-over > .wm-cuts {
+    mask-image: linear-gradient(to bottom, transparent, #000 var(--fade-top), #000 calc(100% - var(--fade-bottom)), transparent);
+    animation: scroll-fades linear both;
+    animation-timeline: scroll(self);
+  }
+}
+
 /* ---------- Ghost Race: the race ---------- */
 
 /* The passage keeps its frame only while there's a race to type: paused or finished, a tap does nothing. */
