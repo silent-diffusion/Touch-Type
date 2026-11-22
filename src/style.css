@@ -2923,6 +2923,9 @@ html.compact :is(#view-ghost, #view-worm) .gr-count.long { font-size: clamp(14px
 :where(html.compact, html.short) :is(#view-ghost, #view-worm, #view-replay .rp-worm) .fh-over .hints button { padding: 0 10px; letter-spacing: 0.06em; }
 :where(html.compact, html.short) :is(#view-ghost, #view-worm, #view-replay .rp-worm) .fh-over .note { margin-top: 8px; font-size: 13px; }
 
+/* a heading too long for one line breaks into even lines, so a dig's date isn't split with its month alone */
+:where(html.compact, html.short) :is(#view-ghost, #view-worm, #view-replay .rp-worm) .fh-over h2 { text-wrap: balance; }
+
 /* ---------- Ghost Race: the race ---------- */
 
 /* The passage keeps its frame only while there's a race to type: paused or finished, a tap does nothing. */
