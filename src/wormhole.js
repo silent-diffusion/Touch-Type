@@ -1088,6 +1088,8 @@
     const touch = coarse.matches && document.documentElement.matches(".compact, .short");
     return `${touch ? (cap ? "Tap" : "tap") : cap ? "Press" : "press"} ${b(touch ? "return" : "Enter")}`;
   };
+  // What it's played on, the same way: a phone isn't a computer (as app.js's say() has it).
+  const thisDevice = () => `this ${coarse.matches && document.documentElement.matches(".compact, .short") ? "device" : "computer"}`;
 
   const TEMPLATE = `
     <div class="wm">
@@ -1271,7 +1273,7 @@
       const cuts = (r.cuts || []).map(esc).join(" · ");
       let body;
       if (rv.f) {
-        const others = r.others ? `${r.others === 1 ? "Someone else" : `${esc(r.others)} others`} on this computer said it too.` : "Nobody else on this computer has said it.";
+        const others = r.others ? `${r.others === 1 ? "Someone else" : `${esc(r.others)} others`} on ${thisDevice()} said it too.` : `Nobody else on ${thisDevice()} has said it.`;
         const before = r.before ? ` You've used it ${r.before === 1 ? "once" : `${esc(r.before)} times`} before.` : "";
         body = `
           ${tierTag(r.tier)}

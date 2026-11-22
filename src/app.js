@@ -1258,7 +1258,7 @@
           <div class="rule-head">SOUND</div>
           <div class="tl-toggles">${toggleBtn("MUSIC", s.wmMusic, "wm:music")}${toggleBtn("EFFECTS", s.wmSfx, "wm:sfx")}</div>
           <div class="side-label">How rare is rare?</div>
-          <p class="note wm-credit">Each answer's rarity started from a survey of people naming things in categories (Banks &amp; Connell, 2023, CC BY 4.0) and from how often words appear in books (Google Books Ngram, CC BY 3.0), tuned by hand. Then everyone who plays on this computer adds to it: answers people here keep giving become commoner, so even your own favourites score less each time you use them.</p>
+          <p class="note wm-credit">Each answer's rarity started from a survey of people naming things in categories (Banks &amp; Connell, 2023, CC BY 4.0) and from how often words appear in books (Google Books Ngram, CC BY 3.0), tuned by hand. Then everyone who plays on this ${say("computer", "device")} adds to it: answers people here keep giving become commoner, so even your own favourites score less each time you use them.</p>
         </aside>
       </div>`;
     renderHints();
