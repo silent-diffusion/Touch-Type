@@ -1473,7 +1473,7 @@
       }
       if (r.name) {
         W.done(live.g, typed);
-        countKeys(typed, r.form, r.name);
+        countKeys(typed, r.form);
         snd.play(`wmTier${r.tier}`);
         if (st.mode === "daily") keepDaily();
       } else {
@@ -1487,7 +1487,7 @@
 
     // Each letter of the answer's right spelling is one expected key: a slip in it, or a letter
     // typed and then backspaced for something else, is a miss there (for weak keys, like the other games).
-    function countKeys(typed, form, name) {
+    function countKeys(typed, form) {
       const bump = (ch, miss) => {
         if (!/^[a-z]$/.test(ch)) return;
         const k = (live.keys[ch] ||= [0, 0]);
@@ -1504,14 +1504,27 @@
         if (m) off.set(ch, m - 1);
       }
       const low = typed.toLowerCase();
+      // (which of the answer's words each slip was in, when what was typed has as many words)
+      const words = form.trim().split(/\s+/), typedWords = typed.split(/\s+/);
+      const paired = words.length === typedWords.length;
+      const wrong = new Set(paired ? words.flatMap((w, i) => (key(w) !== key(typedWords[i]) ? [i] : [])) : []);
       for (const { pos, ch } of live.removed) {
         if (low[pos] && low[pos] !== ch.toLowerCase()) {
           bump(low[pos], true);
           missed = true;
+          wrong.add(low.slice(0, pos).split(" ").length - 1);
         }
       }
       live.removed = [];
-      if (missed) live.missed.add(name);
+      // The missed words are dealt in Practice and the other games (analysis.js), where Space ends a
+      // word and only letters can be typed. So an answer goes on the list as its word, or as the words
+      // of it that were typed wrong ("bald eagxe" adds "eagle"), in lower case, and only a word of
+      // plain letters; a slip that can't be put in one of its words leaves it off.
+      if (!missed) return;
+      for (const i of words.length === 1 ? [0] : paired ? wrong : []) {
+        const w = words[i].toLowerCase();
+        if (/^[a-z]+$/.test(w)) live.missed.add(w);
+      }
     }
 
     function timeUp(t) {

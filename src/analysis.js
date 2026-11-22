@@ -54,12 +54,16 @@
   }
 
   // [{ word, score, count }] where score is recency-weighted and count is raw misses in history.
+  // They're dealt as words to type (Practice, and the games through practiceWords), where Space ends a
+  // word and Tiles has no capitals, so only words of plain lower-case letters count: Wormhole once saved
+  // a missed answer whole ("bald eagle", "Stilton").
   function weakWords(limit = 20) {
     const k = kept();
     if (!k.words) {
       const out = {};
       eachWeighted((e, w) => {
         for (const word of e.missedWords || []) {
+          if (!/^[a-z]+$/.test(word)) continue;
           const o = (out[word] ||= { word, score: 0, count: 0 });
           o.score += w;
           o.count++;
