@@ -2998,6 +2998,9 @@ html.short:not(.compact) :is(#view-ghost, #view-worm) .fh-over { padding: 8px 16
 html.short:not(.compact) :is(#view-ghost, #view-worm) .fh-over h2 { margin-bottom: 2px; font-size: 20px; }
 html.short:not(.compact) :is(#view-ghost, #view-worm) .fh-over-score { font-size: 60px; }
 html.short:not(.compact) :is(#view-ghost, #view-worm) .fh-over p:not(.note) { margin: 6px 0 10px; font-size: 14px; }
+/* (a Daily's pause screen keeps its note, which says what STOP DIGGING does: the foundation hides notes
+   on its side while a round is on, for the typing's room) */
+html.task.short:not(.compact) #view-worm .fh-over .note { display: block; }
 /* A dig's end has more: the day's answers, or the deep cuts. As with Tiles' counts, they go beside the
    score (and scroll by themselves if they're longer), and the buttons go under both, always in view.
    The score keeps to one line: a dig of 1,000 KM or more takes a few pixels more than half the card on
