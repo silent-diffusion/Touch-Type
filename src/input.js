@@ -101,7 +101,8 @@
   };
   const scale = () => (TT.store && TT.store.games && TT.store.games.speed ? TT.store.games.speed.scale : DEFAULT_SCALE);
   // Words per minute so far, scaled to match the speed test (g.wpmScale, saved with each round).
-  const wpm = (g) => (g.typeMs > 0 ? (g.typeChars / 5 / (g.typeMs / 60000)) * (g.wpmScale ?? 1) : 0);
+  // (a word can be dropped before any is finished: its time counts and there are no letters yet)
+  const wpm = (g) => (g.typeMs > 0 ? ((g.typeChars || 0) / 5 / (g.typeMs / 60000)) * (g.wpmScale ?? 1) : 0);
 
   TT.wordInput = { MAX_WRONG, MIN_GAP_MS, reset, clean, good, wrong, ready, letter, back, attribute, html, mark, done, drop, wpm, scale, DEFAULT_SCALE };
 
