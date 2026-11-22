@@ -3079,7 +3079,9 @@ html.task.short:not(.compact) :is(#view-ghost, #view-worm) .fh-score span:first-
    (a line of baseline-aligned items is only centred as a wrapping line: otherwise it keeps to the top) */
 html.task.short:not(.compact) #view-ghost .gr-hud-l { flex-direction: row; flex-wrap: wrap; align-items: baseline; align-content: center; }
 html.task.short:not(.compact) #view-ghost .fh-hud-r { max-width: calc(100vw - var(--safe-l) - var(--safe-r) - 184px - 224px); }
-html.task.short:not(.compact) #view-ghost .fh-hud-r [data-g="vs"] { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* who you're racing takes a second line where the bar's room is too short for one (a 667-wide phone), as
+   it does upright, so the ghost's time still shows; a name too long for both is cut short */
+html.task.short:not(.compact) #view-ghost .fh-hud-r [data-g="vs"] { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: normal; }
 html.task.short:not(.compact) #view-worm .wm-hud-l { flex-direction: column; align-items: flex-start; justify-content: center; gap: 0; }
 html.task.short:not(.compact) #view-ghost { --bar-used: 184px; }
 html.task.short:not(.compact) #view-worm { --bar-used: 96px; }
