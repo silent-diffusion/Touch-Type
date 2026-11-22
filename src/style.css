@@ -2068,11 +2068,25 @@ html.task.short:not(.compact) :is(.targets, .note, .capslock) { display: none; }
   }
   .lb-table .lb-you { background: color-mix(in srgb, var(--accent) 12%, transparent); }
 }
-/* On its side the filters are a size smaller, so a row of them (the tracks, say) takes one line and the
-   table's first rows show under them. */
-:where(html.short:not(.compact)) .lb-filters { gap: 6px; margin: 2px 0 10px; }
-:where(html.short:not(.compact)) .lb-filters .seg { font-size: 13px; }
-:where(html.short:not(.compact)) .lb-filters .seg button { padding: 0 12px; letter-spacing: 0.08em; }
+/* On its side the filters are a size smaller, and all in one row that scrolls sideways (as the second
+   row of tabs does), so the table's first rows show under them. The short choices come first (the
+   difficulty and the mode, or which dig), then the long list (the songs, a Blitz's packs) with the one
+   that's chosen at its head: the row starts there each time it's drawn. */
+:where(html.short:not(.compact)) .lb-filters { flex-direction: row; gap: 10px; margin: 2px 0 10px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; }
+:where(html.short:not(.compact)) .lb-filters .seg { flex: none; flex-wrap: nowrap; font-size: 13px; }
+:where(html.short:not(.compact)) .lb-filters .seg button { flex: none; padding: 0 12px; letter-spacing: 0.08em; }
+:where(html.short:not(.compact)) .lb-filters :is(.lb-songs, .seg[aria-label="Prompts from"]) { order: 1; }
+:where(html.short:not(.compact)) .lb-filters :is(.lb-songs, .seg[aria-label="Prompts from"]) > .on { order: -1; }
+/* a rule between one choice and the next */
+:where(html.short:not(.compact)) .lb-filters .seg::before { content: ""; flex: none; order: -2; width: 2px; height: 24px; margin-right: 6px; background: var(--ink); }
+:where(html.short:not(.compact)) .lb-filters > :is(.seg:first-child:not(.lb-songs), .lb-songs + .seg)::before { display: none; }
+@supports (animation-timeline: scroll()) {
+  :where(html.short:not(.compact)) .lb-filters {
+    mask-image: linear-gradient(to right, transparent, #000 var(--fade-left), #000 calc(100% - var(--fade-right)), transparent);
+    animation: scroll-fades-x linear both;
+    animation-timeline: scroll(self inline);
+  }
+}
 
 /* ---------- Stats ---------- */
 
