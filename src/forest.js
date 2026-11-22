@@ -699,8 +699,8 @@
       const toward = left ? 1 : -1;
       const recoil = d < 250 ? Math.sin(Math.PI * seg(d, 0, 250)) * T * 0.12 : 0;
       const hx = (left ? 8 : view.w - size - 8) - toward * recoil;
-      const hy = cy - size / 2;
-      const mx = left ? hx + size + 4 : hx - 4, my = cy - T * 0.05;
+      const hy = cy - size / 2 - view.lay.huntUp;
+      const mx = left ? hx + size + 4 : hx - 4, my = cy - T * 0.05 - view.lay.huntUp;
       const k = seg(d, 0, 110);
       ctx.save();
       ctx.strokeStyle = view.colors.accent;
@@ -744,13 +744,41 @@
     }
   }
 
-  // view: { viewT, cam, w, h, portrait, colors, shakeT, dieT }  dieT: ms since dying, once over
+  // How the field is laid out for its size: the tiles (T), the words' text (fs), the SPACE tab under a
+  // finished word, and where the animal's lane sits (baseY). In a big window the tiles are as big as
+  // fit and everything follows from them. A small window (a phone, mostly with its keyboard up) is
+  // laid out around the words, since they're what's typed: they keep a readable size whatever the
+  // tiles' size, the animal stays in the middle so the words beside it always have room, and the typed
+  // word keeps its place at the bottom edge. Where it's too short for anything under the tile behind
+  // the animal (a phone on its side), that tile's word and the typed word go beside it.
+  function fieldLayout(w, h, portrait, small) {
+    if (!small) {
+      const T = portrait
+        ? Math.floor(Math.min(w / 9.5, h / 9.5))
+        : Math.max(24, Math.floor(Math.min(64, w / (COLS + 3), h / 8.2)));
+      const fs = Math.max(13, Math.round(T * 0.34));
+      return { T, fs, baseY: h - T * 3.55 - 20, tab: Math.max(9, Math.round(fs * 0.5)), tabH: fs * 0.75, tabText: fs * 0.4, huntUp: 0 };
+    }
+    const beside = h < 244;
+    const T = beside
+      ? Math.max(22, Math.min(40, Math.floor((h - 4) / 4)))
+      : Math.max(26, Math.floor(Math.min(56, w / 9.5, (h - 90) / 5.5)));
+    const fs = beside ? 15 : Math.max(15, Math.min(19, Math.round(T * 0.44)));
+    const typedFs = fs + 2;
+    const typedH = Math.max(typedFs * 1.6, typedFs * 1.2 + 8); // the typed word's box (style.css, .word-box)
+    const tabH = fs * 0.8;
+    // under the animal: the tile behind it, then that tile's word, its SPACE tab and the typed word
+    const below = beside ? T + 2 : T + 3 + fs * 1.7 + tabH + 4 + typedH + 6;
+    // (the hunter stands a lane further up, clear of the word beside the animal)
+    return { T, fs, small: true, beside, baseY: h - below - T, tab: Math.max(11, Math.round(fs * 0.62)), tabH, tabText: tabH * 0.53, typedFs, typedH, huntUp: T };
+  }
+
+  // view: { viewT, cam, w, h, portrait, small, colors, shakeT, dieT }  dieT: ms since dying, once over
   // Returns where the typed word goes: under the animal, below the word for hopping back.
   function drawWorld(ctx, g, view) {
     const { viewT, cam, w, h, portrait, colors } = view;
-    const T = portrait
-      ? Math.floor(Math.min(w / 9.5, h / 9.5))
-      : Math.max(24, Math.floor(Math.min(64, w / (COLS + 3), h / 8.2)));
+    const lay = view.lay = fieldLayout(w, h, portrait, view.small);
+    const T = lay.T;
     const hopP = Math.min(1, Math.max(0, (viewT - g.hopT) / 130));
     const px = g.from.x + (g.x - g.from.x) * ease(hopP);
     const pl = g.from.lane + (g.lane - g.from.lane) * ease(hopP);
@@ -758,11 +786,11 @@
     else cam.lane += (pl - cam.lane) * 0.18;
 
     // top of the camera's lane, leaving room below for the back word and what you've typed
-    const baseY = h - T * 3.55 - 20;
+    const baseY = lay.baseY;
     const laneY = (k) => baseY - (k - cam.lane) * T;
     const worldW = COLS * T;
     let ox = (w - worldW) / 2;
-    if (worldW + T > w) ox = Math.min(T * 0.5, Math.max(w - worldW - T * 0.5, w / 2 - (px + 0.5) * T));
+    if (worldW + T > w) ox = lay.small ? w / 2 - (px + 0.5) * T : Math.min(T * 0.5, Math.max(w - worldW - T * 0.5, w / 2 - (px + 0.5) * T));
     const X = (c) => ox + c * T;
     const kMin = Math.floor(cam.lane - (h - baseY) / T) - 1;
     const kMax = Math.ceil(cam.lane + baseY / T) + 1;
@@ -920,16 +948,19 @@
       ctx.fillStyle = "rgba(20,19,16,0.35)";
       ctx.fillRect(0, 0, w, h);
     }
+    // in a small window what you've typed keeps its place: at the bottom edge, or left of the tile behind
+    if (lay.beside) return { right: pxs - 6, y: h - 2 - T + (T - lay.typedH) / 2, fs: lay.typedFs };
+    if (lay.small) return { x: pxs + T / 2, y: h - 6 - lay.typedH, fs: lay.typedFs };
     // what you've typed: under the animal, below the back word (and its SPACE tab)
-    const fs = Math.max(13, Math.round(T * 0.34));
+    const fs = lay.fs;
     return { x: pxs + T / 2, y: laneY(pl - 1) + T + 3 + fs * 2.45 + 4, fs: Math.max(16, Math.round(T * 0.42)) };
   }
 
   // The four words sit around the animal, each beside the tile it leads to.
   function drawWords(ctx, g, view, T, X, laneY, matches) {
     if (g.over || !g.words) return;
-    const { colors, viewT, shakeT } = view;
-    const fs = Math.max(13, Math.round(T * 0.34));
+    const { colors, viewT, shakeT, lay } = view;
+    const fs = lay.fs;
     // a short shake after a typo (only one that's already happened: a new round's clock starts again at 0)
     const since = viewT - shakeT;
     const shake = since >= 0 && since < 220 ? Math.sin(since / 18) * 5 : 0;
@@ -955,6 +986,10 @@
       else if (d === "down") { x = tx + T / 2 - bw / 2; y = ty + T + 3; }
       else if (d === "left") { x = tx - bw - 3; y = ty + T / 2 - bh / 2; }
       else { x = tx + T + 3; y = ty + T / 2 - bh / 2; }
+      // no room under the tile behind: its word goes to its right
+      const aside = lay.beside && d === "down";
+      if (aside) { x = tx + T + 3; y = ty + T / 2 - bh / 2; }
+      if (lay.small) { x = Math.max(4, Math.min(view.w - bw - 4, x)); y = Math.max(2, y); }
       x += shake;
 
       ctx.globalAlpha = dim ? 0.45 : 1;
@@ -986,14 +1021,14 @@
       if (ready) {
         // a small "space" tab under the word
         const label = "SPACE";
-        ctx.font = `800 ${Math.max(9, Math.round(fs * 0.5))}px Archivo, sans-serif`;
+        ctx.font = `800 ${lay.tab}px Archivo, sans-serif`;
         const lw = ctx.measureText(label).width + 10;
-        const lx = x + bw / 2 - lw / 2, ly = y + bh - 2;
+        const lx = aside ? x + bw - 2 : x + bw / 2 - lw / 2, ly = aside ? y + (bh - lay.tabH) / 2 : y + bh - 2;
         ctx.fillStyle = colors.accent;
-        ctx.fillRect(lx, ly, lw, fs * 0.75);
+        ctx.fillRect(lx, ly, lw, lay.tabH);
         ctx.fillStyle = colors.ground;
         ctx.textAlign = "center";
-        ctx.fillText(label, lx + lw / 2, ly + fs * 0.4);
+        ctx.fillText(label, lx + lw / 2, ly + lay.tabText);
         ctx.textAlign = "left";
         ctx.font = `500 ${fs}px ${colors.font}`;
       }
@@ -1034,14 +1069,14 @@
       const left = huntSide(cam, g, px);
       const slide = ease(Math.min(1, since / 600));
       const hx = left ? -size + slide * (size + 8) : w + 8 - slide * (size + 16);
-      const hy = cy - size / 2;
+      const hy = cy - size / 2 - view.lay.huntUp;
       if (p > 0.6 && Math.floor(viewT / 200) % 2 === 0) {
         ctx.save();
         ctx.strokeStyle = colors.accent;
         ctx.lineWidth = 2;
         ctx.setLineDash([8, 6]);
         ctx.beginPath();
-        ctx.moveTo(left ? hx + size : hx, cy - T * 0.05);
+        ctx.moveTo(left ? hx + size : hx, cy - T * 0.05 - view.lay.huntUp);
         ctx.lineTo(cx, cy);
         ctx.stroke();
         ctx.restore();
@@ -1177,7 +1212,9 @@
         canvas.height = Math.round(h * dpr);
       }
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      typedAt = drawWorld(ctx, g, { viewT, cam, w, h, portrait: fh.classList.contains("portrait"), colors, shakeT, dieT: g.over ? dieT ?? DEATH_MS : null });
+      // a small window (style.css, "Compact"): a phone, or any window with an on-screen keyboard taking most of it
+      const small = !!TT.viewport && (TT.viewport.compact || TT.viewport.short);
+      typedAt = drawWorld(ctx, g, { viewT, cam, w, h, portrait: fh.classList.contains("portrait"), small, colors, shakeT, dieT: g.over ? dieT ?? DEATH_MS : null });
       placeTyped();
     }
 
@@ -1187,7 +1224,8 @@
       const box = el.typed;
       box.style.fontSize = `${typedAt.fs}px`;
       const half = box.offsetWidth / 2;
-      box.style.left = `${Math.max(half + 8, Math.min(canvas.clientWidth - half - 8, typedAt.x))}px`;
+      const x = typedAt.right != null ? typedAt.right - half : typedAt.x;
+      box.style.left = `${Math.max(half + 8, Math.min(canvas.clientWidth - half - 8, x))}px`;
       box.style.top = `${typedAt.y}px`;
     }
 

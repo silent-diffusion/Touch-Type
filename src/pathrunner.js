@@ -137,6 +137,15 @@
 
     const record = () => ((TT.store.games.path ||= { best: 0, plays: 0, history: [] }));
 
+    // Where the round is (ready, running, paused, over, stopped). The page is told too, so a small
+    // window can show how it's played only before the first key (style.css, "Compact").
+    const setState = (state) => {
+      live.state = state;
+      root.dataset.state = state;
+    };
+    // On a phone's own keyboard a wrong key is deleted, not backspaced.
+    const touchKeys = () => !!TT.viewport && (TT.viewport.compact || TT.viewport.short) && window.matchMedia("(pointer: coarse)").matches;
+
     // ---------- rows (live play only) ----------
 
     function layout(k) {
@@ -281,6 +290,7 @@
       cancelAnimationFrame(raf);
       replay = null;
       live = { state: "ready", startedAt: 0, keys: "", times: [], recent: [], targets: A.weakKeys(), missed: A.weakWords(20) };
+      setState("ready");
       g = newCore({ 0: { cells: [], lane: 1 } });
       g.wpmScale = W.scale();
       g.rows[1] = layout(1);
@@ -291,12 +301,12 @@
       el.over.hidden = true;
       el.keys.innerHTML = TT.ui.keyTiles(live.targets.map((t) => t.key));
       el.caption.textContent = live.targets.length ? "WORDS USE YOUR TARGET KEYS" : "TAKE A FEW TESTS TO FIND THEM";
-      el.note.textContent = "Type a word to start. Finishing a word steps you onto that path. Wrong keys cost time and have to be backspaced.";
+      el.note.textContent = `Type a word to start. Finishing a word steps you onto that path. Wrong keys cost time and have to be ${touchKeys() ? "deleted" : "backspaced"}.`;
       render(false);
     }
 
     function start() {
-      live.state = "running";
+      setState("running");
       live.startedAt = performance.now();
       el.note.textContent = "Bonus paths add extra time.";
       onStart();
@@ -312,7 +322,7 @@
     }
 
     function end() {
-      live.state = "over";
+      setState("over");
       cancelAnimationFrame(raf);
       viewT = g.endT;
 
@@ -381,13 +391,13 @@
 
     function stop() {
       cancelAnimationFrame(raf);
-      if (live && live.state === "running") live.state = "stopped";
+      if (live && live.state === "running") setState("stopped");
     }
 
     // Pausing stops the clock; on resume the start time moves on by the length of the pause.
     function pause() {
       if (!live || live.state !== "running") return;
-      live.state = "paused";
+      setState("paused");
       live.pausedAt = performance.now();
       cancelAnimationFrame(raf);
       el.over.innerHTML = TT.pausedHtml("play", "menu", "MENU");
@@ -397,7 +407,7 @@
     function resume() {
       if (!live || live.state !== "paused") return;
       live.startedAt += performance.now() - live.pausedAt;
-      live.state = "running";
+      setState("running");
       el.over.hidden = true;
       raf = requestAnimationFrame(frame);
     }

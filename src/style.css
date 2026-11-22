@@ -1973,6 +1973,304 @@ html.task.short:not(.compact) :is(.targets, .note, .capslock) { display: none; }
    Compact: Forest Hop, Path Runner
    ===================================================================================================== */
 
+/* Every rule here names one of this section's screens: #view-forest (the field), #view-forest-select,
+   #view-forest-guide and #view-game (Path Runner). Other games borrow Forest Hop's class names (.fh-hud,
+   .fh-chip, .fh-over, .fh-play) and a replay draws Forest Hop's field too; those are left to their own
+   sections. */
+
+/* ---------- both games: the pause and end screens ---------- */
+
+/* Their buttons are the screen's actions on a phone: the main one (RESUME, PLAY AGAIN) filled in and
+   full width, the other two side by side under it. */
+:where(html.compact, html.short) :is(#view-forest .fh-over, #view-game .pr-over) { padding: 12px 16px; }
+:where(html.compact, html.short) :is(#view-forest .fh-over, #view-game .pr-over) h2 { margin: 0 0 8px; font-size: 26px; line-height: 1.05; text-wrap: balance; }
+:where(html.compact, html.short) :is(#view-forest .fh-over-score, #view-game .pr-over-score) { font-size: 96px; }
+:where(html.compact, html.short) :is(#view-forest .fh-over, #view-game .pr-over) .caps-label { margin-top: 4px; font-size: 12px; }
+:where(html.compact, html.short) :is(#view-forest .fh-over, #view-game .pr-over) p { max-width: 320px; margin: 10px 0 16px; font-size: 15px; line-height: 1.3; text-wrap: balance; }
+:where(html.compact, html.short) :is(#view-forest .fh-over, #view-game .pr-over) .hints { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: min(100%, 300px); }
+:where(html.compact, html.short) :is(#view-forest .fh-over, #view-game .pr-over) .hints button { min-height: 48px; }
+:where(html.compact, html.short) :is(#view-forest .fh-over, #view-game .pr-over) .hints button:first-child { grid-column: 1 / -1; background: var(--ink); color: var(--ground); }
+
+/* on its side there's less height: a size smaller, and the three buttons in one row */
+html.short:not(.compact) :is(#view-forest .fh-over, #view-game .pr-over) { padding: 8px 16px; }
+html.short:not(.compact) :is(#view-forest .fh-over, #view-game .pr-over) h2 { margin-bottom: 2px; font-size: 20px; }
+html.short:not(.compact) :is(#view-forest .fh-over-score, #view-game .pr-over-score) { font-size: 60px; }
+html.short:not(.compact) :is(#view-forest .fh-over, #view-game .pr-over) p { max-width: 480px; margin: 6px 0 10px; font-size: 14px; }
+html.short:not(.compact) :is(#view-forest .fh-over, #view-game .pr-over) .hints { grid-template-columns: repeat(3, 1fr); width: min(100%, 480px); }
+html.short:not(.compact) :is(#view-forest .fh-over, #view-game .pr-over) .hints button { min-height: 44px; }
+html.short:not(.compact) :is(#view-forest .fh-over, #view-game .pr-over) .hints button:first-child { grid-column: auto; }
+
+/* The action bar. Once a round is over it would still say RESTART and PAUSE under the game's own PLAY
+   AGAIN, REPLAY and the way back: it goes, and the end screen has its room. While a round is paused
+   the bar keeps the score and the clock but not its buttons: RESUME, RESTART and the way back are on
+   the pause screen. */
+html:where(.compact, .short):not(.playing) #app:has(:is(#view-forest, #view-game):not([hidden])) .footer { display: none; }
+html.task.playing:where(.compact, .short) #app:has(#view-forest:not([hidden]) .fh-over:not([hidden]), #view-game:not([hidden]) .pr-over:not([hidden])) #hints { visibility: hidden; }
+
+/* ---------- Forest Hop: choose your animal ---------- */
+
+/* PLAY is the action bar's. A locked animal can't be played: then PLAY leaves the bar, and the action
+   is the page's UNLOCK. */
+:where(html.compact, html.short) #view-forest-select .fh-play { display: none; }
+:where(html.compact, html.short) #app:has(#view-forest-select:not([hidden]) .fh-unlock) #hints [data-act="fh:play"] { display: none; }
+
+/* the eight animals, a size for a phone */
+:where(html.compact, html.short) #view-forest-select .fh-animals { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; padding-top: 8px; }
+:where(html.compact, html.short) #view-forest-select .fh-animal { gap: 3px; min-width: 0; padding: 8px 1px 6px; }
+:where(html.compact, html.short) #view-forest-select .fh-animal svg { width: auto; height: 40px; }
+/* the picked one's heavier outline is drawn inside it, so its name keeps its room */
+:where(html.compact, html.short) #view-forest-select .fh-animal.on { border-width: 2px; box-shadow: inset 0 0 0 2px var(--ink); }
+:where(html.compact, html.short) #view-forest-select .fh-animal-name { font-size: 11px; letter-spacing: 0.04em; }
+:where(html.compact, html.short) #view-forest-select .fh-animal .caps-label { font-size: 11px; line-height: 1.2; letter-spacing: 0.04em; }
+/* a locked one's price goes under LOCKED, without the dot between them */
+:where(html.compact, html.short) #view-forest-select .fh-dot { display: block; height: 0; overflow: hidden; }
+
+:where(html.compact, html.short) #view-forest-select .col-side > .rule-head { padding: 6px 0; font-size: 13px; }
+:where(html.compact, html.short) #view-forest-select .fh-pick-title { padding: 8px 0 2px; }
+:where(html.compact, html.short) #view-forest-select .fh-pick-title span:first-child { font-size: 22px; line-height: 1.1; }
+:where(html.compact, html.short) #view-forest-select .fh-pick-title .caps-label { font-size: 12px; }
+:where(html.compact, html.short) #view-forest-select .fh-blurb { margin: 0 0 4px; font-size: 14px; line-height: 1.3; }
+:where(html.compact, html.short) #view-forest-select .fh-unlock { justify-content: center; width: 100%; min-height: 48px; margin-top: 10px; }
+:where(html.compact, html.short) #view-forest-select .fh-unlock:not(:disabled) { background: var(--ink); color: var(--ground); }
+:where(html.compact, html.short) #view-forest-select .col-side > .note { margin: 6px 0 0; font-size: 13px; text-align: center; }
+:where(html.compact, html.short) #view-forest-select .tl-toggles { padding: 10px 0 4px; }
+:where(html.compact, html.short) #view-forest-select .tl-toggles .opt { flex: 1; font-size: 13px; }
+
+@media (max-width: 600px) {
+  /* MUSIC and EFFECTS are the two switches under SOUND, which also say whether they're on: with them
+     out of the action bar, the rest of it fits without scrolling sideways. */
+  #app:has(#view-forest-select:not([hidden])) #hints :is([data-act="fh:music"], [data-act="fh:sfx"]) { display: none; }
+
+  /* One column: the animal that's picked and what it takes to play it first (so a tap on a locked one
+     shows straight away what unlocking it costs), then all eight to choose from, then the picked one's
+     details and the sound. */
+  #view-forest-select .cols { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 0 12px; align-content: start; }
+  #view-forest-select :is(.col-main, .col-side) { display: contents; }
+  #view-forest-select :is(.col-main, .col-side) > * { grid-column: 1 / -1; }
+  #view-forest-select .title-row { order: 1; flex-wrap: nowrap; align-items: baseline; padding: 8px 0; }
+  #view-forest-select .title-row h1 { font-size: 18px; }
+  #view-forest-select .kind-line { order: 2; padding-top: 6px; font-size: 11px; }
+  #view-forest-select .col-side > .rule-head:first-child { order: 3; margin-top: 10px; }
+  #view-forest-select .fh-portrait { order: 4; grid-column: 1; grid-row: span 2; align-self: start; height: 64px; margin-top: 10px; }
+  #view-forest-select .fh-portrait svg { width: auto; height: 50px; }
+  #view-forest-select .fh-pick-title { order: 5; grid-column: 2; }
+  #view-forest-select .fh-blurb { order: 6; grid-column: 2; }
+  #view-forest-select .fh-unlock { order: 7; }
+  #view-forest-select .col-side > .note { order: 8; }
+  #view-forest-select .fh-animals { order: 9; padding-top: 14px; }
+  #view-forest-select .status { order: 10; margin-top: 12px; border-top: var(--rule); }
+  #view-forest-select .col-side > .rule-head:not(:first-child) { order: 11; border-top: none; }
+  #view-forest-select .tl-toggles { order: 12; }
+}
+
+/* On its side: the eight animals and the picked one side by side, each column scrolling by itself; in
+   the picked one's, what it takes to play it comes before its details. */
+html.short:not(.compact) #view-forest-select .cols { flex-wrap: nowrap; gap: 24px; }
+html.short:not(.compact) #view-forest-select :is(.col-main, .col-side) { max-height: 100%; overflow-x: hidden; overflow-y: auto; }
+html.short:not(.compact) #view-forest-select .col-main { flex: 1 1 0; }
+html.short:not(.compact) #view-forest-select .title-row h1 { font-size: 20px; }
+html.short:not(.compact) #view-forest-select .kind-line { padding-top: 6px; font-size: 11px; }
+html.short:not(.compact) #view-forest-select .col-side { flex: 0 0 min(300px, 42%); display: grid; grid-template-columns: 56px minmax(0, 1fr); column-gap: 12px; align-content: start; }
+html.short:not(.compact) #view-forest-select .col-side > * { grid-column: 1 / -1; }
+html.short:not(.compact) #view-forest-select .fh-portrait { grid-column: 1; grid-row: span 2; align-self: start; height: 56px; margin-top: 8px; }
+html.short:not(.compact) #view-forest-select .fh-portrait svg { width: auto; height: 44px; }
+html.short:not(.compact) #view-forest-select :is(.fh-pick-title, .fh-blurb) { grid-column: 2; }
+html.short:not(.compact) #view-forest-select :is(.status, .col-side > .rule-head:not(:first-child), .tl-toggles) { order: 1; }
+html.short:not(.compact) #view-forest-select .status { margin-top: 10px; border-top: var(--rule); }
+/* (a note here takes the lines it needs, rather than the one line notes get on a phone on its side) */
+html.short:not(.compact) #view-forest-select .col-side > .note { overflow: visible; white-space: normal; }
+html.short:not(.compact) #view-forest-select .col-side > .rule-head:not(:first-child) { border-top: none; }
+
+/* ---------- Forest Hop: how to play ---------- */
+
+:where(html.compact, html.short) #view-forest-guide .title-row { align-items: baseline; padding: 8px 0; }
+:where(html.compact, html.short) #view-forest-guide .title-row h1 { font-size: 20px; }
+:where(html.compact, html.short) #view-forest-guide .title-meta { font-size: 11px; }
+:where(html.compact, html.short) #view-forest-guide .fh-guide { gap: 18px; padding-top: 10px; }
+:where(html.compact, html.short) #view-forest-guide .rule-head { padding: 6px 0; font-size: 13px; }
+:where(html.compact, html.short) #view-forest-guide .fh-mini-cross { grid-template-columns: repeat(3, 84px); margin: 12px 0; }
+:where(html.compact, html.short) #view-forest-guide .fh-rules { padding-left: 20px; font-size: 15px; line-height: 1.4; }
+:where(html.compact, html.short) #view-forest-guide .fh-acorn-note { font-size: 15px; line-height: 1.35; }
+:where(html.compact, html.short) #view-forest-guide .fh-lane-title { padding: 6px 0 5px; font-size: 16px; }
+:where(html.compact, html.short) #view-forest-guide .fh-lane-title .caps-label { font-size: 12px; }
+:where(html.compact, html.short) #view-forest-guide .fh-lane-card p { margin-top: 6px; font-size: 14px; }
+@media (max-width: 600px) {
+  #view-forest-guide .fh-lanes { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+}
+
+/* ---------- Forest Hop: the field ---------- */
+
+/* the boxes over the field (under the end screen), a size smaller */
+:where(html.compact, html.short) #view-forest .fh-hud { top: 8px; }
+:where(html.compact, html.short) #view-forest .fh-hud-l { left: 8px; padding: 4px 10px 6px; }
+:where(html.compact, html.short) #view-forest .fh-hud-l .caps-label { font-size: 11px; }
+:where(html.compact, html.short) #view-forest .fh-hud-r { right: 8px; gap: 6px; }
+:where(html.compact, html.short) #view-forest .fh-score { gap: 6px; }
+:where(html.compact, html.short) #view-forest .fh-score span:first-child { font-size: 26px; }
+:where(html.compact, html.short) #view-forest .fh-chip { gap: 6px; padding: 3px 8px; font-size: 13px; }
+:where(html.compact, html.short) #view-forest .fh-chip svg { width: auto; height: 18px; }
+
+/* While it's played the field takes every edge of what the keyboard leaves, down to nothing: forest.js
+   sizes the tiles and the words to it. */
+html.task.playing #app:has(#view-forest:not([hidden])) .folder { padding: 0; }
+html.task #view-forest { padding: 0; }
+html.task #view-forest .fh-stage { min-height: 0; border: none; }
+
+/* The score, the best and the treats move up into the action bar, beside RESTART and PAUSE, so nothing
+   covers the lanes ahead. (They're fixed in place there: the field clips what it holds.) */
+html.task.playing:where(.compact, .short) #view-forest .fh-hud {
+  position: fixed;
+  top: var(--safe-t);
+  z-index: 5;
+  height: 46px;
+  align-items: center;
+  pointer-events: none;
+}
+html.task.playing:where(.compact, .short) #view-forest .fh-hud-l {
+  left: auto;
+  right: calc(var(--safe-r) + 76px);
+  display: grid;
+  grid-template-columns: auto auto;
+  align-content: center;
+  column-gap: 6px;
+  padding: 0;
+  border: none;
+  background: none;
+}
+html.task.playing:where(.compact, .short) #view-forest .fh-score { display: contents; }
+html.task.playing:where(.compact, .short) #view-forest .fh-score span:first-child { grid-row: 1 / span 2; font-size: 26px; font-variant-numeric: tabular-nums; }
+html.task.playing:where(.compact, .short) #view-forest .fh-hud-l .caps-label { font-size: 11px; line-height: 1.25; letter-spacing: 0.1em; }
+html.task.playing:where(.compact, .short) #view-forest .fh-hud-r { right: calc(var(--safe-r) + 12px); display: flex; flex-direction: row; gap: 0; }
+html.task.playing:where(.compact, .short) #view-forest .fh-chip { gap: 4px; min-width: 56px; justify-content: flex-end; padding: 0; border: none; background: none; font-size: 15px; font-variant-numeric: tabular-nums; }
+html.task.playing:where(.compact, .short) #view-forest .fh-chip svg { height: 20px; }
+/* which animal it is shows on the field */
+html.task.playing:where(.compact, .short) #view-forest .fh-chip[data-f="animal"] { display: none; }
+/* the predator's countdown: top and centre of the field, where it can't be missed */
+html.task.playing:where(.compact, .short) #view-forest .fh-chip.fh-threat {
+  position: fixed;
+  top: calc(var(--safe-t) + 54px);
+  left: 0;
+  right: 0;
+  width: fit-content;
+  margin: 0 auto;
+  gap: 8px;
+  padding: 5px 12px;
+  border: var(--rule);
+  border-color: var(--ink);
+  background: var(--ink);
+  font-size: 14px;
+}
+/* on its side there's room for it in the bar */
+html.task.playing.short:not(.compact) #view-forest .fh-chip.fh-threat { top: calc(var(--safe-t) + 7px); }
+
+/* ---------- Path Runner ---------- */
+
+/* The board: three rows show (what's coming, the three paths to choose from, and where you are). Their
+   height is set on the screen, so what's placed over the board (below) can use it too. */
+:where(html.compact, html.short) #view-game { --pr-row: 88px; --pr-gap: 8px; }
+:where(html.compact, html.short) #view-game .pr-board { --pr-row: inherit; height: calc(var(--pr-row) * 3 + var(--pr-gap) * 2); }
+:where(html.compact, html.short) #view-game .pr-rows { gap: var(--pr-gap); }
+:where(html.compact, html.short) #view-game .pr-row { gap: var(--pr-gap); }
+/* the longest word (ten letters) fits a third of the narrowest phone */
+:where(html.compact, html.short) #view-game .pr-cell { font-size: clamp(16px, 4.8vw, 22px); }
+:where(html.compact, html.short) #view-game .pr-word b { text-underline-offset: 4px; }
+:where(html.compact, html.short) #view-game .pr-bonus { top: 4px; right: 6px; font-size: 11px; }
+:where(html.compact, html.short) #view-game .pr-player { width: min(36px, calc(var(--pr-row) - 10px)); height: min(36px, calc(var(--pr-row) - 10px)); }
+:where(html.compact, html.short) #view-game .pr-input { align-self: center; min-height: 44px; margin-top: 8px; font-size: 22px; }
+:where(html.compact, html.short) #view-game .pr-placeholder { margin-left: 8px; font-size: 15px; }
+:where(html.compact, html.short) #view-game .note { margin-top: 10px; }
+
+/* the steps and the clock, over the board */
+:where(html.compact, html.short) #view-game .pr-top { align-items: center; gap: 14px; margin-bottom: 10px; }
+:where(html.compact, html.short) #view-game .live { gap: 8px; }
+:where(html.compact, html.short) #view-game .live-num { font-size: 36px; }
+:where(html.compact, html.short) #view-game .live .caps-label { font-size: 12px; }
+:where(html.compact, html.short) #view-game .pr-timer { flex: 1; min-width: 0; gap: 4px; }
+:where(html.compact, html.short) #view-game .pr-timer .caps-label { font-size: 13px; }
+:where(html.compact, html.short) #view-game .pr-bar { width: 100%; max-width: 260px; height: 12px; }
+
+/* on its side the run's details go beside the board, each column scrolling by itself, so the end
+   screen's buttons aren't down in the fade at the bottom */
+html.short:not(.compact) #view-game .cols { flex-wrap: nowrap; gap: 24px; }
+html.short:not(.compact) #view-game :is(.col-main, .col-side) { max-height: 100%; overflow-x: hidden; overflow-y: auto; }
+html.short:not(.compact) #view-game .col-main { flex: 1 1 0; }
+html.short:not(.compact) #view-game .col-side { flex: 0 0 min(280px, 38%); }
+/* (and once it's over, the steps and the empty clock over the board go: the end screen says the steps) */
+html.short:not(.compact) #view-game[data-state="over"] .pr-top { display: none; }
+
+/* Paused or over there's nothing to type: the board and the typed word make way for the screen that
+   was over them, which takes the room it needs. */
+:where(html.compact, html.short) #view-game .pr-board:has(.pr-over:not([hidden])) { flex: none; height: auto; }
+:where(html.compact, html.short) #view-game .pr-board:has(.pr-over:not([hidden])) .pr-rows,
+:where(html.compact, html.short) #view-game .pr-main:has(.pr-over:not([hidden])) .pr-input { display: none; }
+:where(html.compact, html.short) #view-game .pr-over { position: static; padding: 18px 0 20px; background: none; }
+
+/* While it's played: the steps and the seconds are in the action bar, the clock's bar is a strip
+   across the screen under it, and the board and the typed word share what the keyboard leaves.
+   (They're placed against the folder, which lets them show outside it here, so they come in with it
+   when the game opens.) */
+html.task.playing:where(.compact, .short) #app:has(#view-game:not([hidden])) .folder { padding: 16px 8px 8px; overflow: visible; }
+html.task #view-game { padding: 0; }
+html.task:where(.compact, .short) #view-game :is(.cols, .cols > *) { mask-image: none; animation: none; }
+html.task.playing:where(.compact, .short) #view-game .pr-top {
+  position: absolute;
+  top: -46px;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  justify-content: flex-end;
+  gap: 12px;
+  height: 46px;
+  margin: 0;
+  padding: 0 12px 2px;
+  pointer-events: none;
+}
+html.task.playing:where(.compact, .short) #view-game .live-num { font-size: 26px; font-variant-numeric: tabular-nums; }
+html.task.playing:where(.compact, .short) #view-game .live .caps-label { font-size: 11px; }
+html.task.playing:where(.compact, .short) #view-game .pr-timer { flex: none; min-width: 46px; }
+html.task.playing:where(.compact, .short) #view-game .pr-timer .caps-label { font-size: 15px; letter-spacing: 0.06em; }
+html.task.playing:where(.compact, .short) #view-game .pr-bar {
+  position: absolute;
+  top: 46px;
+  left: 0;
+  right: 0;
+  width: auto;
+  max-width: none;
+  height: 8px;
+  border: none;
+  background: color-mix(in srgb, var(--ink) 16%, transparent);
+}
+
+/* With the keyboard up the board is as tall as the room there is, and only what's played by shows. */
+html.task.kb-open:where(.compact, .short) #view-game { --pr-row: clamp(36px, calc((var(--app-h) - var(--safe-t) - var(--safe-b) - 138px) / 3), 150px); }
+html.task.kb-open:where(.compact, .short) #view-game :is(.col-side, .note) { display: none; }
+html.task.kb-open:where(.compact, .short) #view-game .pr-board { border: none; }
+/* before the first key, how it's played is said where the paths still to come will show */
+html.task.kb-open.compact #view-game[data-state="ready"] .note {
+  position: absolute;
+  top: 16px;
+  left: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--pr-row);
+  margin: 0;
+  padding: 0 12px;
+  background: var(--ground);
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.3;
+  text-align: center;
+  text-wrap: balance;
+}
+
+/* on its side with the keyboard up: three slim rows, and the typed word beside them */
+html.task.kb-open.short:not(.compact) #view-game { --pr-row: clamp(26px, calc((var(--app-h) - var(--safe-t) - var(--safe-b) - 78px) / 3), 96px); --pr-gap: 4px; }
+html.task.kb-open.short:not(.compact) #view-game .pr-main { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; column-gap: 16px; max-width: none; }
+html.task.kb-open.short:not(.compact) #view-game .pr-cell { font-size: 16px; }
+html.task.kb-open.short:not(.compact) #view-game .pr-input { align-self: end; min-width: 180px; margin: 0; font-size: 20px; }
+
 /* =====================================================================================================
    end of Compact: Forest Hop, Path Runner
    ===================================================================================================== */

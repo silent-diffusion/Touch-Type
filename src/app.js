@@ -716,6 +716,13 @@
     },
   });
 
+  // A tap on a game's field brings the on-screen keyboard back while a round is on (it can be put away
+  // mid-round); the buttons on its pause and end screens just do what they say.
+  const tapToType = (root, game) => root.addEventListener("click", (e) => {
+    if (document.documentElement.classList.contains("playing") && !e.target.closest("button") && !game.isPaused() && !game.isOver()) TT.keyboard.open();
+  });
+  tapToType($("view-game"), runner);
+
   function startGame() {
     engine.stop();
     document.body.classList.remove("typing");
@@ -758,6 +765,7 @@
       els.statusLine.textContent = "Run saved. Press R to replay it.";
     },
   });
+  tapToType($("view-forest"), forest);
 
   function openForestSelect() {
     engine.stop();
@@ -778,7 +786,7 @@
     const open = unlocked(pick);
     const cards = FH_ANIMALS.map((a) => {
       const on = a.kind === pick.kind;
-      const tag = !unlocked(a) ? `LOCKED · ${a.cost}` : d.bestBy[a.kind] ? `BEST ${d.bestBy[a.kind]}` : "NEW";
+      const tag = !unlocked(a) ? `LOCKED<span class="fh-dot"> ·</span> ${a.cost}` : d.bestBy[a.kind] ? `BEST ${d.bestBy[a.kind]}` : "NEW";
       return `<button class="fh-animal ${on ? "on" : ""} ${unlocked(a) ? "" : "locked"}" data-act="fh:pick:${a.kind}" aria-pressed="${on}" aria-label="${a.title.toLowerCase()}${unlocked(a) ? "" : ", locked"}">
         ${TT.sprites.svg(a.kind, 90)}<span class="fh-animal-name">${a.title}</span><span class="caps-label">${tag}</span>
       </button>`;
@@ -815,6 +823,8 @@
   }
 
   function renderForestGuide() {
+    // a phone's own keyboard has space, return and delete keys
+    const touch = (TT.viewport.compact || TT.viewport.short) && window.matchMedia("(pointer: coarse)").matches;
     const lane = (bg, inner) => `<div class="fh-lane" style="background: ${bg}">${inner}</div>`;
     const at = (c, html) => `<span class="fh-at" style="left: ${c * 56 + 3}px">${html}</span>`;
     const sp = (k, c) => at(c, TT.sprites.svg(k, 50));
@@ -846,8 +856,8 @@
           </div>
           <ol class="fh-rules">
             <li>A word sits beside each tile around your animal: forward, back, left and right.</li>
-            <li>Type the word, then press <strong>Space</strong> or <strong>Enter</strong> to hop. You can type ahead and wait for the right moment.</li>
-            <li>A wrong letter stays in what you've typed until you Backspace it, like in the speed test. Each one counts as a mistake.</li>
+            <li>Type the word, then ${touch ? "tap <strong>space</strong> or <strong>return</strong>" : "press <strong>Space</strong> or <strong>Enter</strong>"} to hop. You can type ahead and wait for the right moment.</li>
+            <li>A wrong letter stays in what you've typed until you ${touch ? "delete" : "Backspace"} it, like in the speed test. Each one counts as a mistake.</li>
             <li>If a tree or rock is in the way, that direction has no word.</li>
             <li>Only the word you used changes after a hop. New words lean toward your target keys and get longer the further you go.</li>
           </ol>
