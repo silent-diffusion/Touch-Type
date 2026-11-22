@@ -81,7 +81,7 @@
   const eventOk = ([t, type, data]) => isNum(t) && (type === "key" ? isStr(data) : type === "prompt" ? isNum(data)
     : type === "submit" ? isObject(data) && answerOk(data.r) : type === "timeout" ? isObject(data) : true);
   const pickOk = (p) => !(p && p.name) || isNum(p.pts);
-  const wormOk = ({ spec, ev }) => isObject(spec) && listOf(spec.prompts, isStr) && (spec.date == null || isStr(spec.date)) &&
+  const wormOk = ({ spec, ev }) => isObject(spec) && listOf(spec.prompts, isStr) && (spec.date == null || (isStr(spec.date) && /^\d{4}-\d\d-\d\d$/.test(spec.date))) &&
     (spec.resume == null || (isObject(spec.resume) && (spec.resume.picks == null || listOf(spec.resume.picks, pickOk)))) &&
     listOf(ev, (e) => Array.isArray(e) && eventOk(e));
 
@@ -94,7 +94,7 @@
       // (the analysis charts a typing round's speed second by second up to its end, and no round
       // lasts anywhere near a day: a song or a 50-word test is minutes)
       if (rec.duration > 864e5) return undefined;
-      if (rec.title != null && !isStr(rec.title)) return undefined;
+      if (["title", "mode"].some((k) => rec[k] != null && !isStr(rec[k]))) return undefined;
       if (rec.words != null && !wordsOk(rec)) return undefined;
       // Tiles: before v4 each tile's word and column; the times the tiles are hit and their columns
       if (rec.tiles != null && !listOf(rec.tiles, (x) => !x || (isObject(x) && isStr(x.w) && (x.l == null || isNum(x.l))))) return undefined;
@@ -104,8 +104,9 @@
       if (rec.rows != null && !(typeof rec.rows === "object" &&
         Object.values(rec.rows).every((row) => isObject(row) && listOf(row.cells, (c) => isObject(c) && (c.word == null || isStr(c.word)))))) return undefined;
       if (rec.game === "worm" && !wormOk(rec)) return undefined;
-      if (rec.animal != null && !Object.hasOwn(TT.forestCore.THEMES, rec.animal)) delete rec.animal;
-      if (rec.diff != null && !Object.hasOwn(TT.tilesCore.DIFFS, rec.diff)) delete rec.diff;
+      // (a name: a list holding one would pass as that name when used as a key)
+      if (rec.animal != null && !(isStr(rec.animal) && Object.hasOwn(TT.forestCore.THEMES, rec.animal))) delete rec.animal;
+      if (rec.diff != null && !(isStr(rec.diff) && Object.hasOwn(TT.tilesCore.DIFFS, rec.diff))) delete rec.diff;
       return rec;
     } catch {
       return undefined;
