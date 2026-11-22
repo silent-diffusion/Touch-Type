@@ -291,7 +291,9 @@
     for (const rec of recs) {
       if (ratios.length >= SCALE_TESTS) break;
       if (rec.kind === "game" || !rec.words || !rec.keys || rec.duration < 10000) continue;
-      const { game, real } = gameStyleWpm(rec);
+      let wpm;
+      try { wpm = gameStyleWpm(rec); } catch { continue; } // (one that can't be replayed is left out, as in Stats)
+      const { game, real } = wpm;
       if (game > 0 && real > 0) ratios.push(real / game);
     }
     if (ratios.length < 3) return null;
