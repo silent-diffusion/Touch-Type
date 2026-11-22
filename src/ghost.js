@@ -334,12 +334,19 @@
       ctx.globalAlpha = a;
       // (over the stands, or just under the scores where they cover the stands; in the strip, small and
       // along its top edge)
-      const fs = strip ? 11 : Math.max(14, Math.round(standH * 0.2));
-      const my = strip ? fs * 0.8 : v.under ? Math.max(standH * 0.5, v.under + fs * 0.8 + 4) : standH * 0.5;
+      let fs = strip ? 11 : Math.max(14, Math.round(standH * 0.2));
       ctx.font = `800 ${fs}px Archivo, sans-serif`;
+      let tw = ctx.measureText(v.msg.text).width;
+      // (a tall picture on a narrow screen, a phone held upright, would make it wider than the track:
+      // then it's as big as fits)
+      if (tw + 28 > w) {
+        fs = Math.max(10, Math.floor((fs * (w - 36)) / tw));
+        ctx.font = `800 ${fs}px Archivo, sans-serif`;
+        tw = ctx.measureText(v.msg.text).width;
+      }
+      const my = strip ? fs * 0.8 : v.under ? Math.max(standH * 0.5, v.under + fs * 0.8 + 4) : standH * 0.5;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      const tw = ctx.measureText(v.msg.text).width;
       ctx.fillStyle = "#3F3C33";
       ctx.fillRect(w / 2 - tw / 2 - 14, my - fs * 0.8, tw + 28, fs * 1.6);
       ctx.fillStyle = "#F2EEE2";
