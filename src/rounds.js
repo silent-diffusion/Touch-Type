@@ -60,7 +60,7 @@
   // recording with anything of the wrong kind there is left out, like one that can't be read. A Forest
   // Hop animal or a Tiles difficulty that isn't one of the game's own reads as none (a frog, medium).
   const isObject = (x) => !!x && typeof x === "object" && !Array.isArray(x);
-  const isNum = (x) => typeof x === "number";
+  const isNum = Number.isFinite;
   const isStr = (x) => typeof x === "string";
   // A list is checked by what it holds: its length alone can claim billions of empty places, which
   // every() would visit one by one (and so would whatever reads it next), so one with gaps is out.
@@ -91,6 +91,9 @@
       if (rec.keys != null && !isStr(rec.keys)) return undefined;
       if (rec.times != null && !listOf(rec.times, isNum)) return undefined;
       if (NUMBERS.some((k) => rec[k] != null && !isNum(rec[k]))) return undefined;
+      // (the analysis charts a typing round's speed second by second up to its end, and no round
+      // lasts anywhere near a day: a song or a 50-word test is minutes)
+      if (rec.duration > 864e5) return undefined;
       if (rec.title != null && !isStr(rec.title)) return undefined;
       if (rec.words != null && !wordsOk(rec)) return undefined;
       // Tiles: before v4 each tile's word and column; the times the tiles are hit and their columns
