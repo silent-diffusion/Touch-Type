@@ -1109,7 +1109,7 @@
       <div class="fh-stage">
         <canvas class="fh-canvas" role="img" aria-label="Forest Hop playing field"></canvas>
         <div class="fh-hud fh-hud-l">
-          <div class="fh-score"><span data-f="score">0</span><span class="caps-label">STEPS</span></div>
+          <div class="fh-score"><span data-f="score">0</span><span class="caps-label" data-f="unit">STEPS</span></div>
           <div class="caps-label" data-f="best"></div>
         </div>
         <div class="fh-hud fh-hud-r">
@@ -1294,7 +1294,7 @@
         hud[name] = key;
         write(el[name]);
       };
-      part("score", score(g), (e) => { e.textContent = score(g); });
+      part("score", score(g), (e) => { e.textContent = score(g); el.unit.textContent = score(g) === 1 ? "STEP" : "STEPS"; });
       part("best", best, (e) => { e.textContent = `BEST ${best}`; });
       part("treats", `${th.treat}|${treats}`, (e) => { e.innerHTML = `${TT.sprites.svg(th.treat, 26)}<span>${treats}</span>`; });
       el.treats.title = th.treats[1];
@@ -1474,7 +1474,7 @@
       const overHtml = `
         <h2>${causeText(g.cause, g.animal)}</h2>
         <div class="fh-over-score">${s}</div>
-        <div class="caps-label">STEPS</div>
+        <div class="caps-label">${s === 1 ? "STEP" : "STEPS"}</div>
         <p>${line}${got}</p>
         <div class="hints">
           <button data-act="fh:play"><kbd>TAB</kbd>PLAY AGAIN</button>
@@ -1538,7 +1538,7 @@
       }
       advance(g, Math.min(T, rec.duration));
       replay.lastT = T;
-      const overHtml = () => `<h2>${causeText(g.cause, g.animal)}</h2><div class="fh-over-score">${score(g)}</div><div class="caps-label">STEPS</div>`;
+      const overHtml = () => `<h2>${causeText(g.cause, g.animal)}</h2><div class="fh-over-score">${score(g)}</div><div class="caps-label">${score(g) === 1 ? "STEP" : "STEPS"}</div>`;
       if (g.over && !replay.over) {
         // reaching the end plays the death, then shows how the run ended
         replay.over = true;

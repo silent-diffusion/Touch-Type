@@ -105,7 +105,7 @@
   const MAIN = `
       <section class="col-main pr-main">
         <div class="pr-top">
-          <div class="live"><span class="live-num" data-pr="score">0</span><span class="caps-label">STEPS</span></div>
+          <div class="live"><span class="live-num" data-pr="score">0</span><span class="caps-label" data-pr="unit">STEPS</span></div>
           <div class="pr-timer">
             <span class="caps-label" data-pr="time"></span>
             <div class="pr-bar"><i data-pr="bar"></i></div>
@@ -255,6 +255,8 @@
 
     function renderStatus() {
       el.score.textContent = g.n;
+      const unit = g.n === 1 ? "STEP" : "STEPS";
+      if (el.unit.textContent !== unit) el.unit.textContent = unit;
       if (!el.status) return;
       const { wpm, acc } = gameStats(g, viewT);
       el.status.innerHTML = TT.ui.statusRows([
@@ -381,7 +383,7 @@
       el.over.innerHTML = `
         <h2>OUT OF TIME</h2>
         <div class="pr-over-score">${g.n}</div>
-        <div class="caps-label">STEPS</div>
+        <div class="caps-label">${g.n === 1 ? "STEP" : "STEPS"}</div>
         <p>${line}</p>
         <div class="hints">
           <button data-act="play"><kbd>TAB</kbd>PLAY AGAIN</button>
@@ -488,7 +490,7 @@
       render(moved && !rewind);
       if (missed && !rewind) shake();
       if (g.over) {
-        el.over.innerHTML = `<h2>OUT OF TIME</h2><div class="pr-over-score">${g.n}</div><div class="caps-label">STEPS</div>`;
+        el.over.innerHTML = `<h2>OUT OF TIME</h2><div class="pr-over-score">${g.n}</div><div class="caps-label">${g.n === 1 ? "STEP" : "STEPS"}</div>`;
       }
       el.over.hidden = !g.over;
       return g;
