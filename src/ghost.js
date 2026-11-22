@@ -864,8 +864,11 @@
       }
     }
 
+    // The start can be paused too, when the window is left during it (app.js, pauseIfRunning): it
+    // carries on from where it was, as Wormhole's does. (Esc on the start still goes back to the tracks.)
     function pause() {
-      if (!live || live.state !== "running") return;
+      if (!live || (live.state !== "running" && live.state !== "count")) return;
+      live.pausedFrom = live.state;
       live.state = "paused";
       live.pausedAt = now();
       cancelAnimationFrame(raf);
@@ -877,17 +880,19 @@
 
     function resume() {
       if (!live || live.state !== "paused") return;
-      live.goAt += now() - live.pausedAt;
-      live.state = "running";
+      if (live.pausedFrom === "count") live.countAt += now() - live.pausedAt;
+      else live.goAt += now() - live.pausedAt;
+      live.state = live.pausedFrom;
       el.over.hidden = true;
       delete root.dataset.over;
-      snd.music();
+      if (live.state === "running") snd.music();
       raf = requestAnimationFrame(frame);
     }
 
     return {
       newRace, stop, handleKey, pause, resume, relayout,
       isRunning: () => !!live && live.state === "running",
+      isCounting: () => !!live && live.state === "count",
       isPaused: () => !!live && live.state === "paused",
       isOver: () => !!live && live.state === "over",
     };
