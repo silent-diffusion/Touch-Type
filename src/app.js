@@ -172,6 +172,8 @@
     const s = S();
     ui.lastTyping = kind;
     document.body.classList.remove("typing");
+    // (first: on a short screen Practice's note takes room from the words, so their size follows the
+    // screen shown, and engine.begin() below sizes the box for it. style.css, "a small window: the chrome")
     show(kind);
     renderBar();
 
@@ -190,8 +192,6 @@
       els.note.textContent = "";
       engine.begin({ mode: s.mode, amount: s.amount, gen: TT.randomWords });
     }
-    // (a short screen makes room for the note: style.css, "a small window: the chrome")
-    document.documentElement.classList.toggle("has-note", !!els.note.textContent);
   }
 
   function renderBar() {

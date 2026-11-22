@@ -1657,7 +1657,12 @@ html:where(.compact, .short) {
 /* with width to spare (a phone on its side, an iPad with its keyboard up) only the height limits it */
 html.short:not(.compact) { --type-fit: max(12px, min(var(--type-size), calc(var(--type-room) / 5.7))); }
 html.short:not(.compact, .task) { --type-room: calc(var(--app-h) - var(--safe-t) - var(--safe-b) - 240px); }
-html.short:not(.compact, .task).has-note { --type-room: calc(var(--app-h) - var(--safe-t) - var(--safe-b) - 272px); }
+/* (Practice has a note under the words: their size is worked out again on the app, which is marked with the
+   screen before the words are laid out, from the room the note leaves) */
+html.short:not(.compact, .task) #app[data-view="practice"] {
+  --type-room: calc(var(--app-h) - var(--safe-t) - var(--safe-b) - 272px);
+  --type-fit: max(12px, min(var(--type-size), calc(var(--type-room) / 5.7)));
+}
 html.task { --type-room: calc(var(--app-h) - var(--safe-t) - var(--safe-b) - 248px); }
 html.task.short:not(.compact) { --type-room: calc(var(--app-h) - var(--safe-t) - var(--safe-b) - 72px); }
 
