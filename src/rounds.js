@@ -97,6 +97,11 @@
       if (rec.duration > 864e5) return undefined;
       if (["title", "mode"].some((k) => rec[k] != null && !isStr(rec[k]))) return undefined;
       if (rec.words != null && !wordsOk(rec)) return undefined;
+      // A typed round (a test, practice, a Ghost Race run) is replayed, and raced, from its words, keys
+      // and times, and a Tiles round before v4 from its tiles. The game always writes them (a test's words
+      // are dealt before its first key), so one without them has been damaged, and is left out too.
+      if ((rec.kind !== "game" || rec.game === "ghost") && !(Array.isArray(rec.words) && rec.words.length && isStr(rec.keys) && Array.isArray(rec.times))) return undefined;
+      if (rec.game === "tiles" && (rec.v || 1) < 4 && !Array.isArray(rec.tiles)) return undefined;
       // Tiles: before v4 each tile's word and column; the times the tiles are hit and their columns
       if (rec.tiles != null && !listOf(rec.tiles, (x) => !x || (isObject(x) && isStr(x.w) && (x.l == null || isNum(x.l))))) return undefined;
       if (rec.hits != null && !listOf(rec.hits, isNum)) return undefined;
