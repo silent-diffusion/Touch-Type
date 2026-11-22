@@ -82,24 +82,26 @@
 
   // ---------- settings ----------
 
+  // A saved value counts only if it's one of a table's own keys: one named like one of Object's
+  // members ("constructor", "__proto__") would find that member, and start-up would stop.
   function sanitizeSettings() {
     const s = S();
-    if (!MODES[s.mode]) s.mode = "time";
+    if (!Object.hasOwn(MODES, s.mode)) s.mode = "time";
     if (!MODES[s.mode].includes(s.amount)) s.amount = s.mode === "time" ? 30 : 25;
     if (!PRACTICE_AMOUNTS.includes(s.practiceAmount)) s.practiceAmount = 30;
     if (!MIXES.includes(s.mix)) s.mix = 60;
-    if (!THEMES[s.theme]) s.theme = "sand";
-    if (!ACCENTS[s.accent]) s.accent = "rust";
-    if (!UI_FONTS[s.uiFont]) s.uiFont = "archivo";
-    if (!TYPE_FONTS[s.typingFont]) s.typingFont = "jetbrains";
-    if (!SIZES[s.size]) s.size = "m";
-    if (!CARETS[s.caret]) s.caret = "line";
+    if (!Object.hasOwn(THEMES, s.theme)) s.theme = "sand";
+    if (!Object.hasOwn(ACCENTS, s.accent)) s.accent = "rust";
+    if (!Object.hasOwn(UI_FONTS, s.uiFont)) s.uiFont = "archivo";
+    if (!Object.hasOwn(TYPE_FONTS, s.typingFont)) s.typingFont = "jetbrains";
+    if (!Object.hasOwn(SIZES, s.size)) s.size = "m";
+    if (!Object.hasOwn(CARETS, s.caret)) s.caret = "line";
     s.second = !!s.second;
     s.autoUpdate = !!s.autoUpdate;
     // Added songs load a moment after start-up, so their ids are kept here.
     // (looked up in the list: getting the song would also work its notes out, which start-up doesn't need)
     if (!TT.songs.list.some((x) => x.id === s.tilesSong) && !TT.music.isUser(s.tilesSong)) s.tilesSong = TT.songs.list[0].id;
-    if (!TT.tilesCore.DIFFS[s.tilesDiff]) s.tilesDiff = "medium";
+    if (!Object.hasOwn(TT.tilesCore.DIFFS, s.tilesDiff)) s.tilesDiff = "medium";
     s.tilesMusic = s.tilesMusic !== false;
     s.tilesMetronome = !!s.tilesMetronome;
     s.tilesScope = s.tilesScope !== false;
