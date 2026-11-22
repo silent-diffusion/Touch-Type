@@ -192,7 +192,7 @@
       onStep("Saving…");
       await tx("readwrite", (s) => s.put({ ...meta, blob: file }));
       metas.set(meta.id, meta);
-      decoded = { id: meta.id, buffer };
+      keep(meta.id, buffer); // (and the song that was kept decoded lets go of its audio)
       register(meta);
       // with the separation pack installed, its parts are made in the background, and with lyric
       // timing, when its words are sung
@@ -293,6 +293,9 @@
       await tx("readwrite", (s) => s.delete(id));
       metas.delete(id);
       if (decoded.id === id) decoded = { id: null, buffer: null };
+      // (the last Tiles round still knows the song, so its audio is let go here)
+      const song = TT.songs.get(songId);
+      if (song) song.buffer = song.stems = null;
       TT.songs.unregister(songId);
       if (TT.separate) await TT.separate.forget(songId);
       if (TT.align) TT.align.forget(songId);

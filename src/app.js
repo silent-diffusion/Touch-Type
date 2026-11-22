@@ -1631,13 +1631,15 @@
       await ui.tlLoad;
       if (dropped()) return;
     }
-    // An added song's audio is loaded from disk the first time it's played.
+    // An added song's audio is loaded from disk the first time it's played. The round is given it to
+    // keep (tiles.js): a song loaded later, or added, takes it from the song.
+    let audio = song.buffer;
     if (song.user && s.tilesMusic && !song.buffer) {
       els.statusLine.textContent = "Loading the song…";
       const load = TT.music.buffer(song.id);
       ui.tlLoad = load.catch(() => {});
       try {
-        await load;
+        audio = await load;
       } catch (err) {
         if (dropped()) return;
         ui.tlStarting = null;
@@ -1669,7 +1671,7 @@
     show("tiles");
     setPlaying(true);
     renderBar();
-    tiles.newGame(s.tilesSong, s.tilesDiff, { music: s.tilesMusic, metronome: s.tilesMetronome, scope: s.tilesScope, lyrics: s.tilesLyrics, words: s.tilesWords, queue: s.tilesQueue });
+    tiles.newGame(s.tilesSong, s.tilesDiff, { music: s.tilesMusic, metronome: s.tilesMetronome, scope: s.tilesScope, lyrics: s.tilesLyrics, words: s.tilesWords, queue: s.tilesQueue, audio });
   }
 
   // ---------- Ludicrous: the reveal ----------

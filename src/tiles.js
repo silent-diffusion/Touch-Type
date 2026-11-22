@@ -891,8 +891,8 @@
 
   // Plays a song in step with the game clock. startPerf: performance.now() time of song time 0.
   // Notes are scheduled a little ahead on the audio clock, and started early by the output
-  // latency so they're heard right when the tiles reach the line.
-  function createPlayer({ song, startPerf, music, metronome }) {
+  // latency so they're heard right when the tiles reach the line. audio: an added song's file, decoded.
+  function createPlayer({ song, startPerf, music, metronome, audio }) {
     const ctx = music || metronome ? getAudio() : null;
     if (!ctx) return { pump() {}, stop() {} };
     const bus = ctx.createGain();
@@ -952,10 +952,10 @@
         // if the audio clock and the game's have drifted apart (the audio stalled, say), the file
         // starts again from where the game is, rather than playing on out of step
         if (source && Math.abs(zero - sourceZero) > RESYNC_S) stopSources();
-        if (music && song.buffer && !source && zero < horizon) {
+        if (music && audio && !source && zero < horizon) {
           // an added song: the whole file, started so its time 0 lines up with the game
           source = ctx.createBufferSource();
-          source.buffer = song.buffer;
+          source.buffer = audio;
           const gain = ctx.createGain();
           gain.gain.value = 0.85;
           source.connect(gain).connect(bus);
@@ -993,6 +993,7 @@
       stop() {
         if (stopped) return;
         stopped = true;
+        audio = null; // (what's playing it keeps it until it's stopped)
         try {
           bus.gain.setTargetAtTime(0, ctx.currentTime, 0.03);
           setTimeout(() => {
@@ -1995,7 +1996,10 @@
 
     // ---------- live play ----------
 
-    // sound: the toggles (music, metronome, scope, lyrics), and queue for queue mode
+    // sound: the toggles (music, metronome, scope, lyrics), and queue for queue mode. An added song's
+    // decoded audio comes with them (audio), and the round keeps it until it's over: the song itself
+    // can lose it meanwhile, since only the latest song loaded is kept decoded (music.js), and that
+    // mustn't silence the round after a pause.
     function newGame(songId, diff, sound = { music: true, metronome: false, scope: true, lyrics: true, queue: false }) {
       stop();
       replay = null;
@@ -2162,6 +2166,7 @@
       live.state = "over";
       cancelAnimationFrame(raf);
       if (live.player) live.player.stop();
+      live.sound.audio = null; // (done with it: the song keeps it, or lets it go)
       if (scope) scope.off();
       viewT = g.endAt;
       // a half-typed word counts toward its column's word
@@ -2238,6 +2243,7 @@
       if (live) {
         if (live.player) live.player.stop();
         if (live.state !== "over") live.state = "stopped";
+        live.sound.audio = null;
       }
     }
 
