@@ -2172,7 +2172,7 @@
     const last = pts.length - 1;
     const grid = [hi, mid, lo].map((v) =>
       `<line x1="${X0}" x2="${VW}" y1="${y(v)}" y2="${y(v)}" stroke="var(--ink)" stroke-opacity="0.25"/><text x="0" y="${y(v) + 4}">${Math.round(v)}</text>`).join("");
-    return `<svg class="chart" viewBox="0 0 ${VW} 200" role="img" aria-label="Words per minute over your last ${pts.length} tests">
+    return `<svg class="chart" viewBox="0 0 ${VW} 200" role="img" aria-label="Words per minute over your last ${pts.length} ${pts.length === 1 ? "test" : "tests"}">
       ${grid}
       <polyline points="${coords}" fill="none" stroke="var(--ink)" stroke-width="3" stroke-linejoin="round"/>
       <circle cx="${x(last)}" cy="${y(pts[last])}" r="6" fill="var(--accent)"/>
