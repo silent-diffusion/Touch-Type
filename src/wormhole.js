@@ -731,7 +731,8 @@
   }
 
   // The whole scene at a moment. v: { w, h, t, P, pts (the worm's depth), moving, digs, finds,
-  //   firstDig (when the worm first dug), happy (until when it's pleased), night }
+  //   firstDig (when the worm first dug), happy (until when it's pleased), night,
+  //   under (in a small window, where the scores drawn over the picture end; 0 otherwise) }
   function drawScene(ctx, v) {
     const { w, h, t, P, pts } = v;
     const PX = h / 100; // screen pixels a point
@@ -916,7 +917,8 @@
       const nw = ctx.measureText(name).width;
       ctx.font = `600 ${Math.round(fs * 0.62)}px Archivo, sans-serif`;
       const tw = Math.max(nw, ctx.measureText(note).width);
-      const bx = w * 0.5, by = h - fs * 3.4;
+      // (low in the picture; in a small one, clear of the scores over its top if there's room)
+      const bx = w * 0.5, by = v.under ? Math.min(Math.max(h - fs * 3.4, v.under + 4 + fs * 1.1), h - fs * 1.4) : h - fs * 3.4;
       ctx.fillStyle = "rgba(42,40,35,0.85)";
       ctx.fillRect(bx - tw / 2 - 16, by - fs * 1.1, tw + 32, fs * 2.5);
       ctx.fillStyle = "#f2eee2";
@@ -1071,6 +1073,13 @@
   const W = TT.wordInput;
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
   const tierTag = (tier) => `<span class="wm-tier t${esc(tier)}">${esc(TIERS[tier])}</span>`;
+  // "Press Enter", as it's said here. On a phone (a small window on a touch screen) it's the on-screen
+  // keyboard's return key, and it's tapped.
+  const coarse = window.matchMedia ? window.matchMedia("(pointer: coarse)") : { matches: false };
+  const pressEnter = (cap, b = (k) => k) => {
+    const touch = coarse.matches && document.documentElement.matches(".compact, .short");
+    return `${touch ? (cap ? "Tap" : "tap") : cap ? "Press" : "press"} ${b(touch ? "return" : "Enter")}`;
+  };
 
   const TEMPLATE = `
     <div class="wm">
@@ -1107,6 +1116,7 @@
     const el = Object.fromEntries([...root.querySelectorAll("[data-w]")].map((x) => [x.dataset.w, x]));
     const canvas = root.querySelector(".wm-canvas");
     const ctx = canvas.getContext("2d");
+    const stage = root.querySelector(".wm-stage"), huds = [...root.querySelectorAll(".fh-hud")];
     const snd = {
       music: () => TT.forestSound && TT.forestSound.startMusic("burrow", "wmMusic"),
       stop: (fade) => TT.forestSound && TT.forestSound.stopMusic(fade),
@@ -1125,7 +1135,17 @@
     // as it always did, so drawing after a resize, a new round or in a replay goes the same way.
     let cw = 0, ch = 0, inFrame = false;
     new ResizeObserver(() => { cw = canvas.clientWidth; ch = canvas.clientHeight; }).observe(canvas);
+    // In a small window the scores take more of the picture's height (style.css, "Compact"): where they
+    // end (0 in a big window) is kept the same way, from when they last changed size.
+    let under = 0;
+    const hudSize = new ResizeObserver(() => {
+      const small = document.documentElement.matches(".compact, .short");
+      under = small ? Math.max(0, ...huds.filter((x) => x.offsetParent === stage).map((x) => x.offsetTop + x.offsetHeight)) : 0;
+    });
+    huds.forEach((x) => hudSize.observe(x));
     new ResizeObserver(() => { if (st) render(gameT()); }).observe(root.querySelector(".wm-stage"));
+    // On a touch screen, a tap on the dig (the answer field, say) brings the on-screen keyboard back if it has gone away.
+    root.addEventListener("click", () => { if (live && live.state === "running") TT.keyboard.open(); });
 
     // ---------- drawing ----------
 
@@ -1161,7 +1181,7 @@
         w, h, t: T, P: Math.max(2, Math.round(h / 150)), pts, moving: digging(st, T),
         digs: st.digs, finds: st.finds, firstDig: st.digs.find((g) => g.d > 0)?.s ?? null,
         happy: happy != null ? happy + 1300 : null, entered: entered(T, pts),
-        night: document.documentElement.dataset.theme === "night",
+        night: document.documentElement.dataset.theme === "night", under,
       });
     }
 
@@ -1211,9 +1231,9 @@
           html = `${tierTag(r.tier)} <strong>+${esc(r.pts)}</strong>${r.mult > 1 ? ` <span class="wm-mult">×${esc(r.mult)}</span>` : ""} ${esc(r.name)}${as}`;
         } else if (r.bad === "dup") html = `You've already dug up <strong>${esc(r.what)}</strong>.`;
         else if (r.bad === "amb") html = `So close to two answers: did you mean ${r.opts.map((o) => `<strong>${esc(o)}</strong>`).join(" or ")}?`;
-        else if (r.bad === "near") html = `Did you mean <strong>${esc(r.opts[0])}</strong>? Press <strong>Enter</strong> to dig it in, or keep typing.`;
+        else if (r.bad === "near") html = `Did you mean <strong>${esc(r.opts[0])}</strong>? ${pressEnter(true, (k) => `<strong>${k}</strong>`)} to dig it in, or keep typing.`;
         else html = `<strong>${esc(note.typed)}</strong> isn't in this ground. Try another.`;
-      } else if (st.phase === "ask" && !st.typed) html = st.mode === "daily" ? "Type an answer and press Enter. Rarer answers dig deeper." : "Answer after answer: press Enter after each one.";
+      } else if (st.phase === "ask" && !st.typed) html = st.mode === "daily" ? `Type an answer and ${pressEnter()}. Rarer answers dig deeper.` : `Answer after answer: ${pressEnter()} after each one.`;
       el.note.innerHTML = html;
       el.note.className = `wm-note${note && !note.r.name ? " bad" : ""}`;
       // the Daily's seven, by tier; Blitz's finds, newest first
@@ -1432,7 +1452,7 @@
       if (st.mode === "blitz") {
         el.sr.textContent = r.name ? `${TIERS[r.tier].toLowerCase()}, ${r.pts} points: ${r.name}`
           : r.bad === "dup" ? `Already dug up ${r.what}` : r.bad === "amb" ? `Did you mean ${r.opts.join(" or ")}?`
-          : r.bad === "near" ? `Did you mean ${r.opts[0]}? Press Enter to dig it in.` : `${typed} isn't in the bank`;
+          : r.bad === "near" ? `Did you mean ${r.opts[0]}? ${pressEnter(true)} to dig it in.` : `${typed} isn't in the bank`;
       }
       if (r.name) {
         W.done(live.g, typed);

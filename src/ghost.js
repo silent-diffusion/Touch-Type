@@ -19,6 +19,10 @@
   const FINISH_MS = 1300; // the finish plays this long before the results
   const PHOTO_MS = 50;    // closer than this is a photo finish
   const PACES = [30, 45, 60, 75, 90, 120]; // the steady-pace ghosts, in wpm
+  // In a small window (a phone) the track is drawn in whatever height the passage leaves it:
+  const SMALL_H = 200;  // px: under this the picture is small, and its labels keep to a readable size
+  const STRIP_H = 96;   // px: under this there's only room for the two lanes being run
+  const MIN_TRACK = 64; // px: with less than this left for the track, the passage shows two lines, not three
 
   // The events: a passage each, and how many metres it stands for (for the marks on the track).
   const TRACKS = [
@@ -182,15 +186,19 @@
   const SKIN = ["#E0B48A", "#C99A6B", "#8E6544", "#F0CFA8"];
 
   // view: { w, h, t (race ms), total, metres, accent, night, me: { pos, moved, frameT }, ghost: { pos, label, moving },
-  //         msg, finish (your time), won, flash (when the first runner crossed), cheer (when the crowd last roared), state }
+  //         msg, finish (your time), won, flash (when the first runner crossed), cheer (when the crowd last roared), state,
+  //         under (in a small window, where the scores drawn over the picture end; 0 otherwise) }
   function drawRace(ctx, v) {
     const { w, h } = v;
     ctx.clearRect(0, 0, w, h);
-    // the stands: a wall, then rows of the crowd, who bob and cheer
-    const standH = Math.round(h * 0.3);
+    // With hardly any height (a phone on its side, its keyboard up) the stadium is left out: only the
+    // two lanes being run are drawn, the ghost's and yours.
+    const strip = h < STRIP_H;
+    // the stands: a wall, then rows of the crowd, who bob and cheer (fewer rows in low stands)
+    const standH = strip ? 0 : Math.round(h * 0.3);
     ctx.fillStyle = "#8f8b7c";
     ctx.fillRect(0, 0, w, standH);
-    const rowsN = 4, rowH = (standH - 12) / rowsN, px = Math.max(2, Math.round(rowH / 7));
+    const rowsN = strip ? 0 : standH < 44 ? 2 : standH < 64 ? 3 : 4, rowH = (standH - 12) / rowsN, px = Math.max(2, Math.round(rowH / 7));
     const cheer = Math.max(0, 1 - (v.t - v.cheer) / 1800);
     for (let r = 0; r < rowsN; r++) {
       const y0 = 4 + r * rowH;
@@ -218,15 +226,16 @@
     ctx.fillRect(0, standH - 6, w, 3);
 
     // the track: four red lanes with white lines, and the infield below
-    const infH = Math.round(h * 0.1);
+    const infH = strip ? 0 : Math.round(h * 0.1);
     const trackTop = standH, trackH = h - standH - infH;
-    const laneH = trackH / 4;
+    const lanesN = strip ? 2 : 4;
+    const laneH = trackH / lanesN;
     ctx.fillStyle = "#B5523B";
     ctx.fillRect(0, trackTop, w, trackH);
     ctx.fillStyle = "rgba(0,0,0,0.06)";
     for (let i = 0; i < 160; i++) ctx.fillRect(hash(i, 2) * w, trackTop + hash(i, 3) * trackH, 2, 2); // the rubber's grain
     ctx.fillStyle = "#F2EEE2";
-    for (let k = 0; k <= 4; k++) ctx.fillRect(0, Math.round(trackTop + k * laneH) - 1, w, 2);
+    for (let k = 0; k <= lanesN; k++) ctx.fillRect(0, Math.round(trackTop + k * laneH) - 1, w, 2);
     ctx.fillStyle = "#6F8F4E";
     ctx.fillRect(0, h - infH, w, infH);
     ctx.fillStyle = "#4E6A36";
@@ -238,20 +247,20 @@
     ctx.font = `800 ${Math.max(10, Math.round(laneH * 0.42))}px Archivo, sans-serif`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    for (let k = 0; k < 4; k++) {
+    for (let k = 0; k < lanesN; k++) {
       ctx.fillStyle = "rgba(242,238,226,0.85)";
-      ctx.fillText(String(k + 1), x0 - laneH * 0.55, trackTop + (k + 0.5) * laneH);
+      ctx.fillText(String(k + 1 + (strip ? 1 : 0)), x0 - laneH * 0.55, trackTop + (k + 0.5) * laneH);
     }
     ctx.fillStyle = "#F2EEE2";
     ctx.fillRect(x0 - 2, trackTop, 4, trackH);
-    // distance marks, in metres
-    ctx.font = `800 ${Math.max(9, Math.round(laneH * 0.26))}px Archivo, sans-serif`;
+    // distance marks, in metres (the numbers go on the infield; on a small track they're no smaller than 10px)
+    ctx.font = `800 ${Math.max(h < SMALL_H ? 10 : 9, Math.round(laneH * 0.26))}px Archivo, sans-serif`;
     for (const q of [0.25, 0.5, 0.75]) {
       const x = Math.round(x0 + (x1 - x0) * q);
       ctx.fillStyle = "rgba(242,238,226,0.35)";
       for (let y = trackTop; y < trackTop + trackH; y += 10) ctx.fillRect(x - 1, y, 2, 5);
       ctx.fillStyle = "#F2EEE2";
-      ctx.fillText(`${Math.round(v.metres * q)}M`, x, h - infH / 2);
+      if (!strip) ctx.fillText(`${Math.round(v.metres * q)}M`, x, h - infH / 2);
     }
     // the finish: a checked line, a post with the photo-finish camera
     const sq = Math.max(4, Math.round(laneH / 5));
@@ -261,16 +270,18 @@
         ctx.fillRect(x1 + k * sq - sq, y, sq, Math.min(sq, trackTop + trackH - y));
       }
     }
-    const camY = standH - laneH * 0.9;
-    ctx.fillStyle = "#3F3C33";
-    ctx.fillRect(x1 + sq + 4, camY, 4, trackTop + trackH * 0.15 - camY);
-    ctx.fillRect(x1 + sq - 6, camY - laneH * 0.25, laneH * 0.55, laneH * 0.32);
-    ctx.fillStyle = v.flash != null && v.t - v.flash < 200 ? "#fff" : "#9FB3BD";
-    ctx.fillRect(x1 + sq - 10, camY - laneH * 0.15, 6, laneH * 0.12);
+    if (!strip) {
+      const camY = standH - laneH * 0.9;
+      ctx.fillStyle = "#3F3C33";
+      ctx.fillRect(x1 + sq + 4, camY, 4, trackTop + trackH * 0.15 - camY);
+      ctx.fillRect(x1 + sq - 6, camY - laneH * 0.25, laneH * 0.55, laneH * 0.32);
+      ctx.fillStyle = v.flash != null && v.t - v.flash < 200 ? "#fff" : "#9FB3BD";
+      ctx.fillRect(x1 + sq - 10, camY - laneH * 0.15, 6, laneH * 0.12);
+    }
 
     // the runners: the ghost in lane 2, you in lane 3
-    const lanes = [trackTop + laneH, trackTop + laneH * 2];
-    const S = laneH * 1.25; // a runner's height
+    const lanes = strip ? [trackTop, trackTop + laneH] : [trackTop + laneH, trackTop + laneH * 2];
+    const S = laneH * (strip ? 0.92 : 1.25); // a runner's height (in the strip there's no lane above to stand tall in)
     const feet = (k) => lanes[k] + laneH * 0.88;
     // the finish tape across each runner's lane, broken once they're through
     const tape = (k, through, at) => {
@@ -321,15 +332,18 @@
     if (v.msg && v.t - v.msg.t < 1100) {
       const a = 1 - Math.max(0, (v.t - v.msg.t - 700) / 400);
       ctx.globalAlpha = a;
-      const fs = Math.max(14, Math.round(standH * 0.2));
+      // (over the stands, or just under the scores where they cover the stands; in the strip, small and
+      // along its top edge)
+      const fs = strip ? 11 : Math.max(14, Math.round(standH * 0.2));
+      const my = strip ? fs * 0.8 : v.under ? Math.max(standH * 0.5, v.under + fs * 0.8 + 4) : standH * 0.5;
       ctx.font = `800 ${fs}px Archivo, sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       const tw = ctx.measureText(v.msg.text).width;
       ctx.fillStyle = "#3F3C33";
-      ctx.fillRect(w / 2 - tw / 2 - 14, standH * 0.5 - fs * 0.8, tw + 28, fs * 1.6);
+      ctx.fillRect(w / 2 - tw / 2 - 14, my - fs * 0.8, tw + 28, fs * 1.6);
       ctx.fillStyle = "#F2EEE2";
-      ctx.fillText(v.msg.text, w / 2, standH * 0.5 + 1);
+      ctx.fillText(v.msg.text, w / 2, my + 1);
       ctx.globalAlpha = 1;
     }
     // the photo-finish camera's flash, the moment the first runner crosses
@@ -384,6 +398,7 @@
     const el = Object.fromEntries([...root.querySelectorAll("[data-g]")].map((x) => [x.dataset.g, x]));
     const canvas = root.querySelector(".gr-canvas");
     const ctx = canvas.getContext("2d");
+    const stage = root.querySelector(".gr-stage"), huds = [...root.querySelectorAll(".fh-hud")];
     const snd = {
       music: () => TT.forestSound && TT.forestSound.startMusic("stadium", "grMusic"),
       stop: (fade) => TT.forestSound && TT.forestSound.stopMusic(fade),
@@ -391,7 +406,7 @@
     };
     let live = null; // { state, track, words, c, ghost, goAt, keys, times, first, finishT, ... }
     let raf = 0;
-    let wordEls = [], caret = null, ghostMark = null, lineStep = 0;
+    let wordEls = [], caret = null, ghostMark = null, lineStep = 0, lines = 3;
     let hudSig = "";
     // place() runs every frame, but where the caret and the ghost's mark go only changes when a key
     // changes the words, the ghost reaches another letter, or the words are laid out again. geo counts
@@ -407,6 +422,14 @@
     // as it always did, so drawing after a resize, a new round or in a replay goes the same way.
     let cw = 0, ch = 0, inFrame = false;
     new ResizeObserver(() => { cw = canvas.clientWidth; ch = canvas.clientHeight; }).observe(canvas);
+    // In a small window the scores cover the middle of the stands too (style.css, "Compact"): where they
+    // end (0 in a big window) is kept the same way, from when they last changed size.
+    let under = 0;
+    const hudSize = new ResizeObserver(() => {
+      const small = document.documentElement.matches(".compact, .short");
+      under = small ? Math.max(0, ...huds.filter((x) => x.offsetParent === stage).map((x) => x.offsetTop + x.offsetHeight)) : 0;
+    });
+    huds.forEach((x) => hudSize.observe(x));
 
     const readAccent = () => { accent = getComputedStyle(root).getPropertyValue("--accent").trim() || "#B4472B"; };
     new ResizeObserver(() => { readAccent(); relayout(); draw(); }).observe(root.querySelector(".gr-stage"));
@@ -414,6 +437,8 @@
     new ResizeObserver(() => { geo++; }).observe(el.words);
     if (document.fonts && document.fonts.addEventListener) document.fonts.addEventListener("loadingdone", () => { geo++; });
     // (one race screen is made, at start-up, so this listener is added once)
+    // On a touch screen, a tap on the race brings the on-screen keyboard back if it has gone away.
+    root.addEventListener("click", () => { if (live && (live.state === "count" || live.state === "running")) TT.keyboard.open(); });
 
     const now = () => performance.now();
     const raceT = () => {
@@ -476,7 +501,12 @@
       if (!live || !wordEls.length) return;
       const first = wordEls[0], cs = getComputedStyle(first);
       lineStep = first.offsetHeight + parseFloat(cs.marginTop) + parseFloat(cs.marginBottom);
-      el.box.style.height = `${lineStep * 3}px`;
+      // Three lines of the passage, as long as that leaves the track some height (it always does in a big
+      // window); otherwise two, and the track is a strip.
+      const game = root.querySelector(".gr");
+      const spare = game.clientHeight - (parseFloat(getComputedStyle(game).rowGap) || 0) - (stage.offsetHeight - canvas.offsetHeight);
+      lines = spare - lineStep * 3 >= MIN_TRACK ? 3 : 2;
+      el.box.style.height = `${lineStep * lines}px`;
       geo++;
       place();
     }
@@ -512,9 +542,11 @@
         lh = l.offsetHeight;
         lt = l.offsetTop;
         x = l.offsetLeft + (atEnd ? lw : 0);
-        // keep your line second once you're past the first
+        // keep your line second once you're past the first (with only two lines showing, it's the first,
+        // until the last line comes up second)
         const cur = wordEls[Math.min(c.index, wordEls.length - 1)];
-        shift = Math.max(0, cur.offsetTop - wordEls[0].offsetTop - lineStep);
+        shift = Math.max(0, cur.offsetTop - wordEls[0].offsetTop - (lines === 3 ? lineStep : 0));
+        if (lines === 2) shift = Math.min(shift, Math.max(0, wordEls[wordEls.length - 1].offsetTop - wordEls[0].offsetTop - lineStep));
       }
       if (gh) {
         gx = gh.l.offsetLeft + (gh.atEnd ? gh.l.offsetWidth : 0);
@@ -572,7 +604,7 @@
         me: { pos: along(live.c), moved: live.movedAt },
         ghost: { pos: gp, label: live.ghost.label, moving: (live.state === "running" || live.state === "finishing") && gp < live.total && t > 0, finishAt: live.ghost.finish },
         msg: live.msg, finish: live.finishT, won: live.won, cheer: live.cheerAt,
-        flash: live.goAt != null && t >= first ? first : null,
+        flash: live.goAt != null && t >= first ? first : null, under,
       });
     }
 

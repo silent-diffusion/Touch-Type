@@ -2867,6 +2867,255 @@ html.short:not(.compact) #view-tiles .tl-over[data-shows="result"] .tl-over-grad
    Compact: Ghost Race, Wormhole
    ===================================================================================================== */
 
+/* ---------- both games in play: the stage takes what the typing leaves ---------- */
+
+/* (A Wormhole round's replay shows the same game in the Replay screen, #view-replay .rp-worm: what isn't
+   about playing it, its scores, prompt, answer, reveal and end, reads the same there.) */
+
+/* No minimum heights: the passage (or the prompt and the answer) is laid out first, and the picture gets
+   the rest, however little that is (ghost.js and wormhole.js draw to whatever size their canvas has). A
+   replay, where the dig is what's watched and nothing is typed, keeps its picture's own minimum. */
+:where(html.compact, html.short) :is(#view-ghost .gr, #view-worm .wm, #view-replay .rp-worm .wm) { gap: 8px; }
+:where(html.compact, html.short) :is(#view-ghost .gr, #view-worm .wm) { min-height: 0; }
+:where(html.compact, html.short) :is(#view-ghost .gr-stage, #view-worm .wm-stage) { min-height: 0; }
+/* A game fits its view, so the page's scroll fades are left off: a pixel's overflow (a tall font's line,
+   say) would otherwise fade out the bottom of what's being typed. */
+:where(html.compact, html.short) .view:is(#view-ghost, #view-worm) { mask-image: none; animation: none; }
+/* upright, the stage is a container, so what's drawn over it can be sized from it */
+html.compact :is(#view-ghost .gr-stage, #view-worm .wm-stage) { container-type: size; }
+
+/* the scores in the corners, a size smaller */
+:where(html.compact, html.short) :is(#view-ghost, #view-worm, #view-replay .rp-worm) .fh-hud { top: 6px; }
+:where(html.compact, html.short) :is(#view-ghost, #view-worm, #view-replay .rp-worm) .fh-hud-l { left: 6px; min-width: 0; padding: 3px 9px 5px; }
+:where(html.compact, html.short) :is(#view-ghost, #view-worm, #view-replay .rp-worm) .fh-hud-r { right: 6px; gap: 4px; }
+:where(html.compact, html.short) :is(#view-ghost, #view-worm, #view-replay .rp-worm) .fh-score { gap: 6px; }
+:where(html.compact, html.short) :is(#view-ghost, #view-worm, #view-replay .rp-worm) .fh-score span:first-child { font-size: 26px; }
+:where(html.compact, html.short) :is(#view-ghost, #view-worm, #view-replay .rp-worm) .fh-hud .caps-label { font-size: 11px; letter-spacing: 0.1em; }
+:where(html.compact, html.short) :is(#view-ghost, #view-worm, #view-replay .rp-worm) .fh-chip { gap: 5px; padding: 2px 7px; font-size: 13px; }
+:where(html.compact, html.short) :is(#view-ghost, #view-worm, #view-replay .rp-worm) .fh-chip svg { width: 16px; height: 18px; }
+/* who you're racing (a long name, say) takes two lines rather than run under the clock */
+:where(html.compact, html.short) #view-ghost .fh-hud-r { max-width: calc(100% - 172px); }
+:where(html.compact, html.short) #view-ghost .fh-hud-r [data-g="vs"] { display: block; line-height: 1.25; text-align: right; }
+/* the dig's points and where they've got to take two lines rather than run under the chips */
+:where(html.compact, html.short) :is(#view-worm, #view-replay .rp-worm) .wm-hud-l { max-width: calc(100% - 152px); }
+:where(html.compact, html.short) :is(#view-worm, #view-replay .rp-worm) .wm-clock { min-width: 52px; }
+
+/* The countdown sits in the picture below the scores, as big as the room there allows. */
+html.compact :is(#view-ghost, #view-worm) .gr-count {
+  top: calc(50% + 28px);
+  font-size: clamp(22px, min(calc((100cqh - 64px) * 0.7), 24cqw), 96px);
+  line-height: 1;
+}
+html.compact :is(#view-ghost, #view-worm) .gr-count.long { font-size: clamp(14px, min(calc((100cqh - 64px) * 0.4), 8.4cqw), 48px); letter-spacing: 0.04em; }
+
+/* the end and pause screens over the game */
+:where(html.compact, html.short) :is(#view-ghost, #view-worm, #view-replay .rp-worm) .fh-over { padding: 12px 14px; overflow-y: auto; justify-content: safe center; }
+:where(html.compact, html.short) :is(#view-ghost, #view-worm, #view-replay .rp-worm) .fh-over h2 { margin-bottom: 6px; font-size: 26px; line-height: 1.1; }
+:where(html.compact, html.short) :is(#view-ghost, #view-worm, #view-replay .rp-worm) .fh-over-score { font-size: 72px; }
+:where(html.compact, html.short) :is(#view-ghost, #view-worm, #view-replay .rp-worm) .fh-over .caps-label { font-size: 12px; line-height: 1.4; }
+:where(html.compact, html.short) :is(#view-ghost, #view-worm, #view-replay .rp-worm) .fh-over p { margin: 10px 0; font-size: 15px; line-height: 1.4; }
+:where(html.compact, html.short) :is(#view-ghost, #view-worm, #view-replay .rp-worm) .fh-over .hints { flex-wrap: wrap; justify-content: center; gap: 6px; }
+:where(html.compact, html.short) :is(#view-ghost, #view-worm, #view-replay .rp-worm) .fh-over .hints button { padding: 0 10px; letter-spacing: 0.06em; }
+:where(html.compact, html.short) :is(#view-ghost, #view-worm, #view-replay .rp-worm) .fh-over .note { margin-top: 8px; font-size: 13px; }
+
+/* ---------- Ghost Race: the race ---------- */
+
+/* The passage keeps its frame only while there's a race to type: paused or finished, a tap does nothing. */
+html:where(.compact, .short):not(.kb-open) #view-ghost .gr:has(.fh-over:not([hidden])) .words-box { outline: none; }
+
+/* ---------- both games on a phone on its side, in play ---------- */
+
+/* There's room for the typing and little else: the scores go up into the bar, beside its buttons, and
+   so does the countdown (in place of the clock, which hasn't started yet). (The view's scroll fades,
+   which would mask them out up there, are off: see above.) */
+html.task.short:not(.compact) :is(#view-ghost, #view-worm) .fh-hud {
+  position: fixed;
+  top: var(--safe-t);
+  z-index: 5;
+  height: 46px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  padding: 0;
+  border: 0;
+  background: none;
+  pointer-events: none;
+}
+html.task.short:not(.compact) :is(#view-ghost, #view-worm) .fh-hud-l { left: calc(var(--safe-l) + var(--bar-used, 180px)); }
+html.task.short:not(.compact) :is(#view-ghost, #view-worm) .fh-hud-r { right: calc(var(--safe-r) + 12px); }
+html.task.short:not(.compact) :is(#view-ghost, #view-worm) .fh-hud .fh-chip { padding: 0; border: 0; background: none; white-space: nowrap; }
+html.task.short:not(.compact) :is(#view-ghost, #view-worm) .fh-hud .fh-chip.low { padding: 2px 6px; background: var(--ink); }
+html.task.short:not(.compact) :is(#view-ghost, #view-worm) .fh-score span:first-child { font-size: 24px; }
+html.task.short:not(.compact) #view-ghost .gr-hud-l { flex-direction: row; align-items: baseline; }
+html.task.short:not(.compact) #view-ghost .fh-hud-r { max-width: calc(100vw - var(--safe-l) - var(--safe-r) - 184px - 224px); }
+html.task.short:not(.compact) #view-ghost .fh-hud-r [data-g="vs"] { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+html.task.short:not(.compact) #view-worm .wm-hud-l { flex-direction: column; align-items: flex-start; gap: 0; }
+html.task.short:not(.compact) #view-ghost { --bar-used: 184px; }
+html.task.short:not(.compact) #view-worm { --bar-used: 96px; }
+html.task.short:not(.compact) :is(#view-ghost, #view-worm) .gr-count {
+  position: fixed;
+  top: calc(var(--safe-t) + 23px);
+  left: calc(var(--safe-l) + var(--bar-used) + 8px);
+  z-index: 5;
+  font-size: 30px;
+  line-height: 1;
+  text-shadow: none;
+  transform: translate(0, -50%);
+  animation-name: gw-count-bar;
+}
+html.task.short:not(.compact) :is(#view-ghost, #view-worm) .gr-count.long { font-size: 22px; }
+@keyframes gw-count-bar { from { opacity: 0; transform: translate(0, -50%) scale(1.4); } 30% { opacity: 1; } to { transform: translate(0, -50%); } }
+html.task.short:not(.compact) :is(#view-ghost .gr-stage, #view-worm .wm-stage):has(.gr-count:not([hidden])) .fh-hud-l { visibility: hidden; }
+/* the dig: the prompt on one line with its label, the answer, one line of note; the picture gets what's left */
+html.task.short:not(.compact) #view-worm .wm { gap: 4px; }
+html.task.short:not(.compact) #view-worm .wm-panel { gap: 4px; }
+html.task.short:not(.compact) #view-worm .wm-bar { height: 4px; }
+html.task.short:not(.compact) #view-worm .wm-q { display: flex; align-items: baseline; gap: 12px; padding-right: 110px; }
+html.task.short:not(.compact) #view-worm .wm-q .caps-label { flex: none; }
+html.task.short:not(.compact) #view-worm .wm-q h2 { overflow: hidden; font-size: 19px; text-overflow: ellipsis; white-space: nowrap; }
+html.task.short:not(.compact) #view-worm .wm-dots { top: 50%; transform: translateY(-50%); }
+html.task.short:not(.compact) #view-worm .wm-input { min-height: 38px; }
+html.task.short:not(.compact) #view-worm .wm-note { -webkit-line-clamp: 1; min-height: 1.3em; font-size: 13px; }
+html.task.short:not(.compact) #view-worm .wm-found { display: none; }
+/* with the keyboard up that leaves no room worth drawing the dig in: its depth is up in the bar */
+html.task.kb-open.short:not(.compact) #view-worm { padding-top: 0; }
+html.task.kb-open.short:not(.compact) #view-worm .wm { gap: 0; }
+html.task.kb-open.short:not(.compact) #view-worm .wm-stage { flex: 0 0 0; border-width: 0; }
+html.task.kb-open.short:not(.compact) #view-worm .wm-input { min-height: 36px; }
+/* The reveal takes all the room there is, its button at the side where it's always in reach. */
+html.task.short:not(.compact) #view-worm .wm:has(.wm-reveal:not([hidden])) .wm-panel { display: none; }
+html.task.short:not(.compact) #view-worm .wm:has(.wm-reveal:not([hidden])) .wm-stage { flex: 1 1 0; border-width: 2px; }
+html.task.short:not(.compact) #view-worm .wm-reveal { display: grid; grid-template-columns: auto auto minmax(0, 1fr) minmax(150px, 28%); padding: 8px 12px; }
+html.task.short:not(.compact) #view-worm .wm-reveal > :not(.wm-tier, .wm-gain, .wm-ans) { grid-column: 1 / 4; }
+html.task.short:not(.compact) #view-worm .wm-reveal > .hints { position: sticky; top: 0; grid-area: 1 / 4 / span 9 / 5; align-self: start; margin: 0 0 0 8px; }
+html.task.short:not(.compact) #view-worm .wm-reveal p { margin-top: 4px; font-size: 13px; }
+
+/* a race's result has the whole game to itself: the passage is done with */
+:where(html.short:not(.compact)) #view-ghost .gr:has(.fh-over:not([hidden]) .fh-over-score) .gr-text { display: none; }
+
+/* ---------- Ghost Race: the track screen ---------- */
+
+:where(html.compact, html.short) #view-ghost-select :is(button, .fh-play) kbd { display: none; }
+@media (max-width: 600px) {
+  /* One column, in the order a race is set up: the track, who's running, then the rest. */
+  #view-ghost-select .cols { flex-direction: column; flex-wrap: nowrap; gap: 0; }
+  #view-ghost-select :is(.col-main, .col-side) { display: contents; }
+  #view-ghost-select .cols > *, #view-ghost-select :is(.col-main, .col-side) > * { flex: none; order: 3; }
+  #view-ghost-select .col-list { order: 0; }
+  #view-ghost-select .col-main > :is(.title-row, .kind-line, .gr-lineup) { order: 1; }
+  #view-ghost-select .col-side > :is(.rule-head:first-child, .gr-vs, .gr-paces, .gr-paces + .note) { order: 2; }
+  #view-ghost-select .col-side > :is(.rule-head:not(:first-child), .tl-toggles, .side-label, .fh-rules) { order: 4; }
+
+  /* the tracks: two to a row */
+  #view-ghost-select .col-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin-bottom: 14px; }
+  #view-ghost-select .col-list li:last-child:nth-child(odd) { grid-column: 1 / -1; }
+}
+/* each track (and each dig, below) is a name over its tag */
+:where(html.compact, html.short) :is(#view-ghost-select, #view-worm-select) .col-list button {
+  flex-direction: column; align-items: flex-start; justify-content: center; gap: 1px; min-height: 52px; padding: 4px 12px; font-size: 16px;
+}
+:where(html.compact, html.short) :is(#view-ghost-select, #view-worm-select) .col-list .tag { font-size: 11px; letter-spacing: 0.1em; }
+
+/* On its side: the three columns side by side, each scrolling by itself, as in a big window. */
+:where(html.short:not(.compact)) :is(#view-ghost-select, #view-worm-select) .cols { flex-wrap: nowrap; gap: 24px; overflow: hidden; }
+:where(html.short:not(.compact)) :is(#view-ghost-select, #view-worm-select) .cols > * { min-width: 0; max-height: 100%; margin: -4px; padding: 4px; overflow-x: hidden; overflow-y: auto; }
+:where(html.short:not(.compact)) :is(#view-ghost-select, #view-worm-select) .col-list { flex: 0 0 180px; }
+:where(html.short:not(.compact)) :is(#view-ghost-select, #view-worm-select) .col-main { flex: 3 1 0; }
+:where(html.short:not(.compact)) :is(#view-ghost-select, #view-worm-select) .col-side { flex: 2 1 0; }
+:where(html.compact, html.short) #view-ghost-select .gr-lineup { margin: 8px 0 14px; }
+:where(html.compact, html.short) #view-ghost-select .gr-lane { height: 46px; padding: 0 12px; }
+:where(html.compact, html.short) #view-ghost-select .gr-lane svg { height: 36px; width: auto; }
+:where(html.compact, html.short) #view-ghost-select .gr-num { font-size: 20px; }
+:where(html.compact, html.short) #view-ghost-select .gr-who { width: auto; min-width: 0; flex: 1; overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+:where(html.compact, html.short) #view-ghost-select .gr-flag { top: 4px; bottom: 4px; }
+:where(html.compact, html.short) #view-ghost-select .gr-lane > svg { margin-right: 30px; }
+:where(html.compact, html.short) #view-ghost-select .gr-vs { padding: 10px 0 12px; }
+:where(html.compact, html.short) #view-ghost-select .gr-vs-opt { min-height: 52px; padding: 6px 12px; }
+:where(html.compact, html.short) #view-ghost-select .gr-paces { flex-wrap: nowrap; align-self: stretch; gap: 4px; }
+:where(html.compact, html.short) #view-ghost-select .gr-paces button { flex: 1 1 0; min-width: 0; padding: 0; }
+:where(html.compact, html.short) #view-ghost-select .gr-paces + .note { margin: 6px 0 14px; }
+:where(html.compact, html.short) #view-ghost-select .gr-passage { margin: 4px 0 14px; font-size: 15px; line-height: 1.5; }
+:where(html.compact, html.short) #view-ghost-select .fh-play { margin: 14px 0 18px; }
+:where(html.compact, html.short) #view-ghost-select .tl-toggles { padding: 12px 0 8px; }
+:where(html.compact, html.short) #view-ghost-select .side-label { padding: 10px 0 8px; }
+:where(html.compact, html.short) #view-ghost-select .fh-rules { padding-bottom: 8px; font-size: 14px; line-height: 1.45; }
+
+/* ---------- Wormhole: the dig ---------- */
+
+/* the answer is typing text: it follows the typing size as shown */
+:where(html.compact, html.short) :is(#view-worm, #view-replay .rp-worm) .wm-input { min-height: 44px; padding: 0 12px; font-size: var(--type-fit); }
+/* an answer longer than the field (a big text size) shows its end, where the typing is */
+:where(html.compact, html.short) :is(#view-worm, #view-replay .rp-worm) .wm-typed { display: flex; justify-content: flex-end; }
+:where(html.compact, html.short) :is(#view-worm, #view-replay .rp-worm) .wm-panel { gap: 6px; }
+/* the prompt has the width to itself: its seven boxes sit up beside its label */
+:where(html.compact, html.short) :is(#view-worm, #view-replay .rp-worm) .wm-ask { position: relative; display: block; }
+:where(html.compact, html.short) :is(#view-worm, #view-replay .rp-worm) .wm-dots { position: absolute; top: 1px; right: 0; gap: 4px; padding: 0; }
+:where(html.compact, html.short) :is(#view-worm, #view-replay .rp-worm) .wm-dots span { width: 12px; height: 12px; }
+:where(html.compact, html.short) :is(#view-worm, #view-replay .rp-worm) .wm-q .caps-label { font-size: 12px; }
+:where(html.compact, html.short) :is(#view-worm, #view-replay .rp-worm) .wm-q h2 { font-size: 22px; line-height: 1.3; }
+/* the note under the answer keeps two lines' room, so the picture doesn't jump as it comes and goes */
+:where(html.compact, html.short) :is(#view-worm, #view-replay .rp-worm) .wm-note {
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
+  min-height: 2.6em; font-size: 14px; line-height: 1.3;
+}
+:where(html.compact, html.short) :is(#view-worm, #view-replay .rp-worm) .wm-note .wm-tier { padding: 1px 6px; font-size: 11px; }
+:where(html.compact, html.short) :is(#view-worm, #view-replay .rp-worm) .wm-found { gap: 4px; max-height: 48px; }
+:where(html.compact, html.short) :is(#view-worm, #view-replay .rp-worm) .wm-chip { gap: 4px; padding: 1px 7px; font-size: 13px; }
+:where(html.compact, html.short) :is(#view-worm, #view-replay .rp-worm) .wm-chip b { font-size: 11px; }
+
+/* The reveal after each Daily answer: a card across the bottom of the picture. While it shows, the answer
+   field and its note make way for it (the prompt stays, for what was asked). Its tier, points and answer
+   share a line; an answer too long for what's left goes whole onto the next. */
+:where(html.compact, html.short) :is(#view-worm, #view-replay .rp-worm) .wm:has(.wm-reveal:not([hidden])) :is(.wm-bar, .wm-input, .wm-note, .wm-found) { display: none; }
+:where(html.compact, html.short) :is(#view-worm, #view-replay .rp-worm) .wm-reveal {
+  top: auto; right: 8px; bottom: 8px; left: 8px; width: auto; max-height: calc(100% - 16px); overflow-y: auto;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0 10px;
+  padding: 10px 14px 12px; transform: none; animation-name: wm-in-up;
+}
+@keyframes wm-in-up { from { opacity: 0; transform: translateY(14px) scale(0.98); } }
+:where(html.compact, html.short) :is(#view-worm, #view-replay .rp-worm) .wm-reveal > :not(.wm-tier, .wm-gain, .wm-ans) { flex: 1 1 100%; }
+:where(html.compact, html.short) :is(#view-worm, #view-replay .rp-worm) .wm-reveal .wm-tier { font-size: 12px; padding: 3px 8px; }
+:where(html.compact, html.short) :is(#view-worm, #view-replay .rp-worm) .wm-gain { margin: 0; font-size: 32px; }
+:where(html.compact, html.short) :is(#view-worm, #view-replay .rp-worm) .wm-ans { flex: 0 1 auto; min-width: 0; overflow: hidden; font-size: 20px; line-height: 1.15; overflow-wrap: normal; }
+:where(html.compact, html.short) :is(#view-worm, #view-replay .rp-worm) .wm-reveal p { margin: 6px 0 0; font-size: 14px; line-height: 1.35; }
+:where(html.compact, html.short) :is(#view-worm, #view-replay .rp-worm) .wm-reveal .side-label { margin: 8px 0 0; padding: 0; font-size: 13px; }
+:where(html.compact, html.short) :is(#view-worm, #view-replay .rp-worm) .wm-cuts { margin-top: 2px; font-size: 14px; }
+:where(html.compact, html.short) :is(#view-worm, #view-replay .rp-worm) .wm-reveal .hints { margin-top: 10px; }
+:where(html.compact, html.short) :is(#view-worm, #view-replay .rp-worm) .wm-reveal .hints button { flex: 1; }
+
+/* the end of a dig: each prompt over its answer */
+:where(html.compact, html.short) :is(#view-worm, #view-replay .rp-worm) .wm-over { padding: 14px; }
+:where(html.compact, html.short) :is(#view-worm, #view-worm-select) .wm-picks li {
+  grid-template-columns: minmax(0, 1fr) auto 40px; grid-template-areas: "q q q" "a t p"; gap: 2px 8px; padding: 6px 0; font-size: 13px;
+}
+:where(html.compact, html.short) :is(#view-worm, #view-worm-select) .wm-picks li > span:first-child { grid-area: q; color: var(--muted); }
+:where(html.compact, html.short) :is(#view-worm, #view-worm-select) .wm-picks strong { grid-area: a; overflow-wrap: anywhere; font-size: 16px; }
+:where(html.compact, html.short) :is(#view-worm, #view-worm-select) .wm-picks .wm-tier { grid-area: t; font-size: 11px; }
+:where(html.compact, html.short) :is(#view-worm, #view-worm-select) .wm-picks em { grid-area: p; }
+
+/* ---------- Wormhole: the dig screen ---------- */
+
+:where(html.compact, html.short) #view-worm-select :is(button, .fh-play) kbd { display: none; }
+@media (max-width: 600px) {
+  /* The list is a grid: today's dig and Blitz side by side, then the past two weeks, three to a row. */
+  #view-worm-select .wm-list { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; }
+  #view-worm-select .wm-list li { grid-column: span 2; }
+  #view-worm-select .wm-list li:nth-child(-n + 2) { grid-column: span 3; }
+  #view-worm-select .wm-list .tl-group { grid-column: 1 / -1; margin-top: 8px; padding: 10px 0 2px; }
+  #view-worm-select .wm-list button { height: 100%; padding: 4px 8px; font-size: 13px; white-space: nowrap; }
+  #view-worm-select .wm-list li:nth-child(-n + 2) button { font-size: 16px; }
+  #view-worm-select .cols { gap: 24px; }
+}
+:where(html.compact, html.short) #view-worm-select .wm-art { height: 96px; margin: 6px 0 10px; }
+:where(html.compact, html.short) #view-worm-select .wm-art img { width: 72px; margin-bottom: 20px; }
+:where(html.compact, html.short) #view-worm-select .wm-today { margin-top: 12px; font-size: 15px; line-height: 1.45; }
+:where(html.compact, html.short) #view-worm-select .wm-packs { gap: 4px; }
+:where(html.compact, html.short) #view-worm-select .wm-packs button { padding: 0 12px; font-size: 13px; }
+:where(html.compact, html.short) #view-worm-select .fh-play { margin: 14px 0 4px; }
+:where(html.compact, html.short) #view-worm-select .outline-btn { align-self: flex-start; margin-top: 4px; }
+:where(html.compact, html.short) #view-worm-select .wm-credit { font-size: 13px; }
+
 /* =====================================================================================================
    end of Compact: Ghost Race, Wormhole
    ===================================================================================================== */

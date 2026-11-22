@@ -358,6 +358,8 @@
     }
     // a Daily Dig that's already done can only be replayed
     if (ui.view === "worm-select" && wormDigDone()) hints = hints.map((h) => (h[0] === "ENTER" ? ["R", "REPLAY", "wm:replay", "primary"] : h));
+    // a race or a dig that's over has buttons of its own: on a touch screen they're the only ones
+    if (ui.gameOver === ui.view) hints = hints.map(([key, label, act, flags]) => [key, label, act, `${flags || ""} keys`]);
     // Tiles' touch action bar follows what the screen is doing
     if (TILES_VIEWS.includes(ui.view)) hints = tilesHints(hints);
     // In full screen, Esc on a main screen leaves full screen.
@@ -981,6 +983,8 @@
     onEnd(id) {
       setPlaying(false);
       ui.lastGhostId = id;
+      ui.gameOver = "ghost";
+      renderHints();
       els.statusLine.textContent = `Race saved. ${say("Press R to replay it.", "Tap REPLAY to watch it.")}`;
     },
   });
@@ -1072,6 +1076,7 @@
   async function startGhost() {
     TT.keyboard.open(); // while this is still the tap that started it (see setPlaying)
     const s = S(), tr = TT.ghostCore.track(s.grTrack), pick = ghostChoice(tr.id);
+    ui.gameOver = null;
     let spec = { kind: "pace", wpm: s.grPace, label: `${s.grPace} wpm pace` };
     if (pick.run) {
       const rec = await TT.rounds.get(pick.run.id);
@@ -1115,6 +1120,8 @@
     onEnd(id) {
       setPlaying(false);
       ui.lastWormId = id;
+      ui.gameOver = "worm";
+      renderHints();
       els.statusLine.textContent = `Dig saved. ${say("Press R to replay it.", "Tap REPLAY to watch it.")}`;
     },
   });
@@ -1191,7 +1198,7 @@
           ["Best prompt:", b ? esc(WM.promptById(b.prompt) ? WM.promptById(b.prompt).q : "—") : "—"],
           ["Rounds:", rounds, true],
         ])}</dl>
-        <p class="note">Type answer after answer, pressing Enter after each. A run of rare answers multiplies them: the second in a row is worth 1.5 times its points, the third twice, and every one after that 2.5 times.</p>
+        <p class="note">Type answer after answer, ${say("pressing Enter", "tapping return")} after each. A run of rare answers multiplies them: the second in a row is worth 1.5 times its points, the third twice, and every one after that 2.5 times.</p>
         <button class="fh-play" data-act="wm:play">DIG <kbd>ENTER</kbd></button>`;
     } else {
       const day = wormDay(pick), e = d.daily[day];
@@ -1235,7 +1242,7 @@
         <aside class="col-side">
           <div class="rule-head">HOW IT SCORES</div>
           <dl class="status wm-legend">${statusRows(WM.TIERS.map((_, t) => [tierChip(t), `${WM.POINTS[t]} points`, t === 3]))}</dl>
-          <p class="note">Any right answer counts, and close spellings do too; further off, it asks if you meant the nearest answer, and Enter again digs it in. The rarer it is, the more it's worth. Every point digs the worm deeper: 700 reaches the centre of the Earth.</p>
+          <p class="note">Any right answer counts, and close spellings do too; further off, it asks if you meant the nearest answer, and ${say("Enter", "tapping return")} again digs it in. The rarer it is, the more it's worth. Every point digs the worm deeper: 700 reaches the centre of the Earth.</p>
           <div class="rule-head">SOUND</div>
           <div class="tl-toggles">${toggleBtn("MUSIC", s.wmMusic, "wm:music")}${toggleBtn("EFFECTS", s.wmSfx, "wm:sfx")}</div>
           <div class="side-label">How rare is rare?</div>
@@ -1266,6 +1273,7 @@
     tiles.stop();
     ghostRace.stop();
     document.body.classList.remove("typing");
+    ui.gameOver = null;
     show("worm");
     setPlaying(true);
     renderBar();
