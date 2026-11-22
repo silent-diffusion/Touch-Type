@@ -17,6 +17,8 @@
   const root = document.documentElement;
   const vv = window.visualViewport;
   const narrow = window.matchMedia ? window.matchMedia("(max-width: 600px)") : { matches: false };
+  // a touch-first device: the only kind with an on-screen keyboard (keyboard.js asks the same)
+  const coarse = window.matchMedia ? window.matchMedia("(pointer: coarse)") : { matches: false };
   const SHORT = 560;     // px of height below which the window is short
   const KEYBOARD = 120;  // px: an on-screen keyboard takes more than this (a hardware keyboard's bar doesn't)
 
@@ -45,8 +47,10 @@
       height = Math.min(seen, full - inset);
     } else if (ih - seen > KEYBOARD) {
       keyboard = ih - seen; // the keyboard covers the bottom of the page (iOS)
-    } else if (full - ih > KEYBOARD && inField()) {
-      keyboard = full - ih; // the window itself got shorter while typing in a field
+    } else if (full - ih > KEYBOARD && inField() && coarse.matches) {
+      // the window itself got shorter while typing in a field (Android, or a shell that resizes the
+      // page for its keyboard). With a mouse, a window made shorter is just shorter.
+      keyboard = full - ih;
     }
     return { height, keyboard };
   }
