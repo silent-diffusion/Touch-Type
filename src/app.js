@@ -350,7 +350,7 @@
     get leaderboard() { return say("Everyone on this computer, ranked.", "Everyone on this device, ranked."); },
     settings: "Changes save automatically.",
   };
-  // ...and once a race or a dig is over, the line its end put up (on a phone, all its bar shows)
+  // ...and once a race or a dig is over, the line its end put up
   const OVER_STATUS = { ghost: "Race saved.", worm: "Dig saved." };
 
   function renderHints() {
@@ -1338,10 +1338,10 @@
   };
 
   // In a small window the action bar follows what Tiles is doing (style.css, "Compact: Tiles"). Before a
-  // round starts there's only the way back (Esc would leave, so there's no PAUSE); a paused round is
-  // resumed where PAUSE was, and a finished one played again or replayed; with the lyrics editor open,
-  // or while tapping along, it saves or cancels that. The keys do what they always did, so their hints
-  // stay for a big window, which shows only them.
+  // round starts there's only the way back (Esc would leave, so there's no PAUSE); with the lyrics editor
+  // open, or while tapping along, it saves or cancels that. A paused or finished round's actions are on
+  // its own screen, as in every game (style.css, "Compact: every game's pause and end screens"). The keys
+  // do what they always did, so their hints stay for a big window, which shows only them.
   function tilesHints(hints) {
     const keysOnly = () => hints.map(([key, label, act, flags = ""]) => [key, label, act, /\bkeys\b/.test(flags) ? flags : `${flags} keys`.trim()]);
     const bar = (...list) => [...keysOnly(), ...list.map(([label, act, flags = ""]) => ["", label, act, `touch ${flags}`.trim()])];
@@ -1351,8 +1351,6 @@
       if (ui.lyricsEdit && song && song.user) return bar(["SAVE", "tl:lyricssave", "primary"], ["OPEN .LRC FILE", "tl:lyricsfile", "nokb"], ["CANCEL", "tl:lyricscancel"]);
       return hints;
     }
-    if (tiles.isOver()) return bar(["PLAY AGAIN", "tl:play", "primary"], ["REPLAY", "replay:last"], ["SONGS", "tl:select"]);
-    if (tiles.isPaused()) return bar(["RESTART", "tl:play"], ["RESUME", "pause"]);
     if (tiles.isReady()) return bar(["SONGS", "tl:select"]);
     return hints;
   }

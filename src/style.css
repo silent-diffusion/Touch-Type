@@ -2259,6 +2259,32 @@ html.task.short:not(.compact) :is(.targets, .note, .capslock) { display: none; }
    ===================================================================================================== */
 
 /* =====================================================================================================
+   Compact: every game's pause and end screens
+   ===================================================================================================== */
+
+/* All five games pause and end the same way on a phone. The screen over the round holds its actions:
+   the main one (RESUME, PLAY AGAIN) filled in and across the row, the other two side by side under it
+   (one other on its own takes the row too). On its side they share one row. Each game's own section
+   sizes the rest of the screen. */
+:where(html.compact, html.short) :is(#view-forest .fh-over, #view-game .pr-over, #view-tiles .tl-over, #view-ghost .fh-over, #view-worm .fh-over) .hints { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: min(100%, 300px); }
+:where(html.compact, html.short) :is(#view-forest .fh-over, #view-game .pr-over, #view-tiles .tl-over, #view-ghost .fh-over, #view-worm .fh-over) .hints button { min-height: 48px; }
+:where(html.compact, html.short) :is(#view-forest .fh-over, #view-game .pr-over, #view-tiles .tl-over, #view-ghost .fh-over, #view-worm .fh-over) .hints button:is(:first-child, :nth-child(2):last-child) { grid-column: 1 / -1; }
+:where(html.compact, html.short) :is(#view-forest .fh-over, #view-game .pr-over, #view-tiles .tl-over, #view-ghost .fh-over, #view-worm .fh-over) .hints button:first-child { background: var(--ink); color: var(--ground); }
+html.short:not(.compact) :is(#view-forest .fh-over, #view-game .pr-over, #view-tiles .tl-over, #view-ghost .fh-over, #view-worm .fh-over) .hints { grid-template-columns: none; grid-auto-columns: 1fr; grid-auto-flow: column; width: min(100%, 480px); }
+html.short:not(.compact) :is(#view-forest .fh-over, #view-game .pr-over, #view-tiles .tl-over, #view-ghost .fh-over, #view-worm .fh-over) .hints button { min-height: 44px; }
+html.short:not(.compact) :is(#view-forest .fh-over, #view-game .pr-over, #view-tiles .tl-over, #view-ghost .fh-over, #view-worm .fh-over) .hints button:is(:first-child, :nth-child(2):last-child) { grid-column: auto; }
+
+/* The action bar. While a round is paused it keeps the scores but not its buttons (its PAUSE would only
+   resume): RESUME, RESTART and the way back are on the pause screen. Once a round is over the bar goes,
+   and the end screen has its room. (app.js marks the app: #app.paused, #app[data-view].) */
+html.task.playing:where(.compact, .short) #app.paused #hints { visibility: hidden; }
+html:where(.compact, .short):not(.playing) #app:is([data-view="forest"], [data-view="game"], [data-view="tiles"], [data-view="ghost"], [data-view="worm"]) .footer { display: none; }
+
+/* =====================================================================================================
+   end of Compact: every game's pause and end screens
+   ===================================================================================================== */
+
+/* =====================================================================================================
    Compact: Forest Hop, Path Runner
    ===================================================================================================== */
 
@@ -2269,32 +2295,18 @@ html.task.short:not(.compact) :is(.targets, .note, .capslock) { display: none; }
 
 /* ---------- both games: the pause and end screens ---------- */
 
-/* Their buttons are the screen's actions on a phone: the main one (RESUME, PLAY AGAIN) filled in and
-   full width, the other two side by side under it. */
+/* (their buttons, and the action bar, are every game's: "Compact: every game's pause and end screens") */
 :where(html.compact, html.short) :is(#view-forest .fh-over, #view-game .pr-over) { padding: 12px 16px; }
 :where(html.compact, html.short) :is(#view-forest .fh-over, #view-game .pr-over) h2 { margin: 0 0 8px; font-size: 26px; line-height: 1.05; text-wrap: balance; }
 :where(html.compact, html.short) :is(#view-forest .fh-over-score, #view-game .pr-over-score) { font-size: 96px; }
 :where(html.compact, html.short) :is(#view-forest .fh-over, #view-game .pr-over) .caps-label { margin-top: 4px; font-size: 12px; }
 :where(html.compact, html.short) :is(#view-forest .fh-over, #view-game .pr-over) p { max-width: 320px; margin: 10px 0 16px; font-size: 15px; line-height: 1.3; text-wrap: balance; }
-:where(html.compact, html.short) :is(#view-forest .fh-over, #view-game .pr-over) .hints { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: min(100%, 300px); }
-:where(html.compact, html.short) :is(#view-forest .fh-over, #view-game .pr-over) .hints button { min-height: 48px; }
-:where(html.compact, html.short) :is(#view-forest .fh-over, #view-game .pr-over) .hints button:first-child { grid-column: 1 / -1; background: var(--ink); color: var(--ground); }
 
-/* on its side there's less height: a size smaller, and the three buttons in one row */
+/* on its side there's less height: a size smaller */
 html.short:not(.compact) :is(#view-forest .fh-over, #view-game .pr-over) { padding: 8px 16px; }
 html.short:not(.compact) :is(#view-forest .fh-over, #view-game .pr-over) h2 { margin-bottom: 2px; font-size: 20px; }
 html.short:not(.compact) :is(#view-forest .fh-over-score, #view-game .pr-over-score) { font-size: 60px; }
 html.short:not(.compact) :is(#view-forest .fh-over, #view-game .pr-over) p { max-width: 480px; margin: 6px 0 10px; font-size: 14px; }
-html.short:not(.compact) :is(#view-forest .fh-over, #view-game .pr-over) .hints { grid-template-columns: repeat(3, 1fr); width: min(100%, 480px); }
-html.short:not(.compact) :is(#view-forest .fh-over, #view-game .pr-over) .hints button { min-height: 44px; }
-html.short:not(.compact) :is(#view-forest .fh-over, #view-game .pr-over) .hints button:first-child { grid-column: auto; }
-
-/* The action bar. Once a round is over it would still say RESTART and PAUSE under the game's own PLAY
-   AGAIN, REPLAY and the way back: it goes, and the end screen has its room. While a round is paused
-   the bar keeps the score and the clock but not its buttons: RESUME, RESTART and the way back are on
-   the pause screen. */
-html:where(.compact, .short):not(.playing) #app:is([data-view="forest"], [data-view="game"]) .footer { display: none; }
-html.task.playing:where(.compact, .short) #app.paused:is([data-view="forest"], [data-view="game"]) #hints { visibility: hidden; }
 
 /* ---------- Forest Hop: choose your animal ---------- */
 
@@ -2847,16 +2859,17 @@ html.task.scope #app[data-view="tiles"] .footer { background: color-mix(in srgb,
 :where(html.compact, html.short) #view-tiles .tl-over-sub { font-size: 13px; }
 :where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl-over-grade { font-size: 84px; }
 :where(html.compact, html.short) :is(#view-tiles, .rp-tiles) .tl-over .caps-label { font-size: 12px; }
-:where(html.compact, html.short) #view-tiles .tl-over-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px 6px; width: 100%; max-width: 400px; margin: 10px 0 0; }
+:where(html.compact, html.short) #view-tiles .tl-over-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px 6px; width: 100%; max-width: 400px; margin: 10px 0 6px; }
 :where(html.compact, html.short) #view-tiles .tl-over-stats dt { font-size: 11px; letter-spacing: 0.06em; }
 :where(html.compact, html.short) #view-tiles .tl-over-stats dd { font-size: 22px; }
-/* the result's actions are the action bar's */
-:where(html.compact, html.short) #view-tiles .tl-over[data-shows="result"] .hints { display: none; }
-/* on its side: the grade on the left, the counts beside it */
+/* (the pause and result screens' buttons are every game's: "Compact: every game's pause and end screens") */
+:where(html.compact, html.short) #view-tiles .tl-over .hints { margin-top: 10px; }
+/* on its side: the grade on the left, the counts beside it, the buttons under both */
 html.short:not(.compact) #view-tiles .tl-over[data-shows="result"] { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); grid-template-rows: repeat(3, auto) minmax(0, auto); align-content: safe center; justify-items: center; gap: 0 24px; }
 html.short:not(.compact) #view-tiles .tl-over[data-shows="result"] > * { grid-column: 1; }
 html.short:not(.compact) #view-tiles .tl-over[data-shows="result"] > .tl-over-stats { grid-area: 1 / 2 / span 4; align-self: center; margin: 0; }
 html.short:not(.compact) #view-tiles .tl-over[data-shows="result"] .tl-over-grade { font-size: 64px; }
+html.short:not(.compact) #view-tiles .tl-over[data-shows="result"] > .hints { grid-column: 1 / -1; margin-top: 10px; }
 /* a sliver of height: just the song's name and START, side by side */
 @container tiles (max-height: 200px) {
   #view-tiles .tl-over[data-shows="ready"] { flex-direction: row; flex-wrap: wrap; align-content: center; gap: 4px 20px; }
@@ -2921,14 +2934,14 @@ html.compact :is(#view-ghost, #view-worm) .gr-count {
 }
 html.compact :is(#view-ghost, #view-worm) .gr-count.long { font-size: clamp(14px, min(calc((100cqh - 64px) * 0.4), 8.4cqw), 48px); letter-spacing: 0.04em; }
 
-/* the end and pause screens over the game */
+/* the end and pause screens over the game (their buttons are every game's: "Compact: every game's pause
+   and end screens") */
 :where(html.compact, html.short) :is(#view-ghost, #view-worm, #view-replay .rp-worm) .fh-over { padding: 12px 14px; overflow-y: auto; justify-content: safe center; }
 :where(html.compact, html.short) :is(#view-ghost, #view-worm, #view-replay .rp-worm) .fh-over h2 { margin-bottom: 6px; font-size: 26px; line-height: 1.1; }
 :where(html.compact, html.short) :is(#view-ghost, #view-worm, #view-replay .rp-worm) .fh-over-score { font-size: 72px; }
 :where(html.compact, html.short) :is(#view-ghost, #view-worm, #view-replay .rp-worm) .fh-over .caps-label { font-size: 12px; line-height: 1.4; }
-:where(html.compact, html.short) :is(#view-ghost, #view-worm, #view-replay .rp-worm) .fh-over p { margin: 10px 0; font-size: 15px; line-height: 1.4; }
-:where(html.compact, html.short) :is(#view-ghost, #view-worm, #view-replay .rp-worm) .fh-over .hints { flex-wrap: wrap; justify-content: center; gap: 6px; }
-:where(html.compact, html.short) :is(#view-ghost, #view-worm, #view-replay .rp-worm) .fh-over .hints button { padding: 0 10px; letter-spacing: 0.06em; }
+:where(html.compact, html.short) :is(#view-ghost, #view-worm, #view-replay .rp-worm) .fh-over p { margin: 10px 0; font-size: 15px; line-height: 1.4; text-wrap: balance; }
+:where(html.compact, html.short) :is(#view-ghost, #view-worm) .fh-over .hints { margin-top: 6px; }
 :where(html.compact, html.short) :is(#view-ghost, #view-worm, #view-replay .rp-worm) .fh-over .note { margin-top: 8px; font-size: 13px; }
 
 /* a heading too long for one line breaks into even lines, so a dig's date isn't split with its month alone */
