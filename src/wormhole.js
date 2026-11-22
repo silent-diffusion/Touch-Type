@@ -1257,6 +1257,7 @@
       if (sig === revealSig) return;
       revealSig = sig;
       el.reveal.hidden = !rv;
+      root.toggleAttribute("data-reveal", !!rv);
       if (!rv) return;
       const r = rv.r, last = st.i + 1 >= st.prompts.length;
       const cuts = (r.cuts || []).map(esc).join(" · ");
@@ -1308,6 +1309,10 @@
       };
       panelSig = hudSig = revealSig = "";
       el.over.hidden = el.count.hidden = el.reveal.hidden = true;
+      // The countdown and the reveal are marked on the root as they come and go, so the page can make
+      // way for them (style.css) without searching the dig, which changes on every key.
+      root.toggleAttribute("data-count", false);
+      root.toggleAttribute("data-reveal", false);
       root.classList.remove("wm-hide", "wm-done");
       render(0);
       raf = requestAnimationFrame(frame);
@@ -1345,6 +1350,7 @@
       }
       if (T >= live.countOff) {
         el.count.hidden = true;
+        root.toggleAttribute("data-count", false);
         live.countOff = Infinity;
       }
       if (st.phase === "ask") {
@@ -1373,6 +1379,7 @@
       el.count.textContent = text;
       el.count.classList.toggle("long", text.length > 4);
       el.count.hidden = false;
+      root.toggleAttribute("data-count", true);
       el.count.classList.remove("pop");
       void el.count.offsetWidth; // restart the pop
       el.count.classList.add("pop");
@@ -1659,6 +1666,8 @@
       }
       el.reveal.hidden = true;
       el.count.hidden = true;
+      root.toggleAttribute("data-count", false);
+      root.toggleAttribute("data-reveal", false);
       el.over.innerHTML = html;
       el.over.hidden = false;
       root.classList.add("wm-done"); // the results take the whole game: the window is back to its usual size
@@ -1721,6 +1730,8 @@
       st = newState(rec.spec);
       panelSig = hudSig = revealSig = "";
       el.over.hidden = el.count.hidden = el.reveal.hidden = true;
+      root.toggleAttribute("data-count", false);
+      root.toggleAttribute("data-reveal", false);
       render(0);
     }
 

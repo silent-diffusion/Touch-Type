@@ -190,6 +190,8 @@
       els.note.textContent = "";
       engine.begin({ mode: s.mode, amount: s.amount, gen: TT.randomWords });
     }
+    // (a short screen makes room for the note: style.css, "a small window: the chrome")
+    document.documentElement.classList.toggle("has-note", !!els.note.textContent);
   }
 
   function renderBar() {
@@ -689,6 +691,10 @@
     else if (!FOLDER_VIEWS.includes(view)) folderShown.sub = null;
 
     ui.view = view;
+    // The screen on show (and that nothing on it is paused yet) is marked on the app for style.css,
+    // whose rules read it there: looking through the page for what isn't hidden costs on every key.
+    els.app.dataset.view = view;
+    els.app.classList.remove("paused");
     // Esc on the typing test (and quitting Path Runner) comes back to the games, to this game's screen
     if (SELECT_VIEWS.includes(view)) ui.lastGame = gameTabFor(view);
     if (SELECT_VIEWS.includes(view) || view === "game") ui.menuView = "games";
@@ -842,6 +848,8 @@
       ? `<button class="fh-play" data-act="fh:play">PLAY <kbd>ENTER</kbd></button>`
       : `<button class="outline-btn fh-unlock" data-act="fh:unlock:${pick.kind}" ${d.treats < pick.cost ? "disabled" : ""}>UNLOCK FOR ${pick.cost} TREATS</button>
          ${d.treats < pick.cost ? `<p class="note">You need ${pick.cost - d.treats} more treats.</p>` : ""}`;
+    // (a locked animal's PLAY leaves the action bar: style.css, "Forest Hop: choose your animal")
+    els.app.classList.toggle("fh-locked", !open);
 
     $("view-forest-select").innerHTML = `
       <div class="cols">
@@ -2876,6 +2884,13 @@
     return null;
   }
 
+  // Only these two pause and resume a game, so they mark the app while its round is paused (for
+  // style.css); show() clears it with any new screen or round.
+  const markPaused = () => {
+    const a = activeGame();
+    els.app.classList.toggle("paused", !!a && a.g.isPaused());
+  };
+
   // Esc: pauses a running game and resumes a paused one. Before a round starts or after it ends
   // it goes back, as it always did.
   function togglePause() {
@@ -2884,12 +2899,14 @@
     if (a.g.isPaused()) { TT.keyboard.open(); a.g.resume(); }
     else if (a.g.isRunning()) { a.g.pause(); TT.keyboard.close(); }
     else act(a.quit);
+    markPaused();
   }
 
   // Switching to another window pauses a running game, so a round isn't lost while you're away.
   const pauseIfRunning = () => {
     const a = activeGame();
     if (a && a.g.isRunning()) a.g.pause();
+    markPaused();
   };
   window.addEventListener("blur", pauseIfRunning);
   document.addEventListener("visibilitychange", () => { if (document.hidden) pauseIfRunning(); });

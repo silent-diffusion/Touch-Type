@@ -654,12 +654,14 @@
             onStart && onStart();
           }
           el.count.hidden = false;
+          root.toggleAttribute("data-count", true);
           el.count.classList.remove("pop");
           void el.count.offsetWidth; // restart the pop
           el.count.classList.add("pop");
         }
       } else if (live.state === "running" && live.countStep === 2 && now() - live.goAt > 600) {
         el.count.hidden = true;
+        root.toggleAttribute("data-count", false);
         live.countStep = 3;
       }
       // passing, or being passed
@@ -703,6 +705,10 @@
       readAccent();
       el.over.hidden = true;
       el.count.hidden = true;
+      // The countdown and the pause or end screen are marked on the root as they come and go, so the
+      // page can make way for them (style.css) without searching the race, which changes on every key.
+      root.toggleAttribute("data-count", false);
+      delete root.dataset.over;
       el.count.classList.remove("pop");
       renderWords();
       draw();
@@ -838,6 +844,7 @@
           <button data-act="gr:select"><kbd>ESC</kbd>TRACKS</button>
         </div>`;
       el.over.hidden = false;
+      root.dataset.over = "result";
       onEnd && onEnd(L.id);
     }
 
@@ -858,6 +865,7 @@
       snd.stop(0.2);
       el.over.innerHTML = TT.pausedHtml("gr:play", "gr:select", "TRACKS");
       el.over.hidden = false;
+      root.dataset.over = "paused";
     }
 
     function resume() {
@@ -865,6 +873,7 @@
       live.goAt += now() - live.pausedAt;
       live.state = "running";
       el.over.hidden = true;
+      delete root.dataset.over;
       snd.music();
       raf = requestAnimationFrame(frame);
     }

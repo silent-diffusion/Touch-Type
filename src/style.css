@@ -1655,7 +1655,7 @@ html:where(.compact, .short) {
 /* with width to spare (a phone on its side, an iPad with its keyboard up) only the height limits it */
 html.short:not(.compact) { --type-fit: max(12px, min(var(--type-size), calc(var(--type-room) / 5.7))); }
 html.short:not(.compact, .task) { --type-room: calc(var(--app-h) - var(--safe-t) - var(--safe-b) - 240px); }
-html.short:not(.compact, .task):has(#typing-note:not(:empty)) { --type-room: calc(var(--app-h) - var(--safe-t) - var(--safe-b) - 272px); }
+html.short:not(.compact, .task).has-note { --type-room: calc(var(--app-h) - var(--safe-t) - var(--safe-b) - 272px); }
 html.task { --type-room: calc(var(--app-h) - var(--safe-t) - var(--safe-b) - 248px); }
 html.task.short:not(.compact) { --type-room: calc(var(--app-h) - var(--safe-t) - var(--safe-b) - 72px); }
 
@@ -1872,7 +1872,7 @@ html.task .footer .hints .hint-kb { margin-left: auto; color: var(--accent); }
 html.task #status-line { display: none; }
 /* the bar's first and last words line up with what's under them */
 html.task:not(.playing) .footer { padding: 0 16px; }
-html.task:not(.playing) #app:has(#view-typing:not([hidden])) .footer { padding: 0 28px; }
+html.task:not(.playing) #app:is([data-view="test"], [data-view="practice"]) .footer { padding: 0 28px; }
 
 /* ---------- the test and practice ---------- */
 
@@ -2281,15 +2281,15 @@ html.short:not(.compact) :is(#view-forest .fh-over, #view-game .pr-over) .hints 
    AGAIN, REPLAY and the way back: it goes, and the end screen has its room. While a round is paused
    the bar keeps the score and the clock but not its buttons: RESUME, RESTART and the way back are on
    the pause screen. */
-html:where(.compact, .short):not(.playing) #app:has(:is(#view-forest, #view-game):not([hidden])) .footer { display: none; }
-html.task.playing:where(.compact, .short) #app:has(#view-forest:not([hidden]) .fh-over:not([hidden]), #view-game:not([hidden]) .pr-over:not([hidden])) #hints { visibility: hidden; }
+html:where(.compact, .short):not(.playing) #app:is([data-view="forest"], [data-view="game"]) .footer { display: none; }
+html.task.playing:where(.compact, .short) #app.paused:is([data-view="forest"], [data-view="game"]) #hints { visibility: hidden; }
 
 /* ---------- Forest Hop: choose your animal ---------- */
 
 /* PLAY is the action bar's. A locked animal can't be played: then PLAY leaves the bar, and the action
    is the page's UNLOCK. */
 :where(html.compact, html.short) #view-forest-select .fh-play { display: none; }
-:where(html.compact, html.short) #app:has(#view-forest-select:not([hidden]) .fh-unlock) #hints [data-act="fh:play"] { display: none; }
+:where(html.compact, html.short) #app.fh-locked[data-view="forest-select"] #hints [data-act="fh:play"] { display: none; }
 
 /* the eight animals, a size for a phone */
 :where(html.compact, html.short) #view-forest-select .fh-animals { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; padding-top: 8px; }
@@ -2316,7 +2316,7 @@ html.task.playing:where(.compact, .short) #app:has(#view-forest:not([hidden]) .f
 @media (max-width: 600px) {
   /* MUSIC and EFFECTS are the two switches under SOUND, which also say whether they're on: with them
      out of the action bar, the rest of it fits without scrolling sideways. */
-  #app:has(#view-forest-select:not([hidden])) #hints :is([data-act="fh:music"], [data-act="fh:sfx"]) { display: none; }
+  #app[data-view="forest-select"] #hints :is([data-act="fh:music"], [data-act="fh:sfx"]) { display: none; }
 
   /* One column: the animal that's picked and what it takes to play it first (so a tap on a locked one
      shows straight away what unlocking it costs), then all eight to choose from, then the picked one's
@@ -2389,7 +2389,7 @@ html.short:not(.compact) #view-forest-select .col-side > .rule-head:not(:first-c
 
 /* While it's played the field takes every edge of what the keyboard leaves, down to nothing: forest.js
    sizes the tiles and the words to it. */
-html.task.playing #app:has(#view-forest:not([hidden])) .folder { padding: 0; }
+html.task.playing #app[data-view="forest"] .folder { padding: 0; }
 html.task #view-forest { padding: 0; }
 html.task #view-forest .fh-stage { min-height: 0; border: none; }
 
@@ -2477,16 +2477,16 @@ html.short:not(.compact) #view-game[data-state="over"] .pr-top { display: none; 
 
 /* Paused or over there's nothing to type: the board and the typed word make way for the screen that
    was over them, which takes the room it needs. */
-:where(html.compact, html.short) #view-game .pr-board:has(.pr-over:not([hidden])) { flex: none; height: auto; }
-:where(html.compact, html.short) #view-game .pr-board:has(.pr-over:not([hidden])) .pr-rows,
-:where(html.compact, html.short) #view-game .pr-main:has(.pr-over:not([hidden])) .pr-input { display: none; }
+:where(html.compact, html.short) #view-game:is([data-state="paused"], [data-state="over"]) .pr-board { flex: none; height: auto; }
+:where(html.compact, html.short) #view-game:is([data-state="paused"], [data-state="over"]) .pr-board .pr-rows,
+:where(html.compact, html.short) #view-game:is([data-state="paused"], [data-state="over"]) .pr-main .pr-input { display: none; }
 :where(html.compact, html.short) #view-game .pr-over { position: static; padding: 18px 0 20px; background: none; }
 
 /* While it's played: the steps and the seconds are in the action bar, the clock's bar is a strip
    across the screen under it, and the board and the typed word share what the keyboard leaves.
    (They're placed against the folder, which lets them show outside it here, so they come in with it
    when the game opens.) */
-html.task.playing:where(.compact, .short) #app:has(#view-game:not([hidden])) .folder { padding: 16px 8px 8px; overflow: visible; }
+html.task.playing:where(.compact, .short) #app[data-view="game"] .folder { padding: 16px 8px 8px; overflow: visible; }
 html.task #view-game { padding: 0; }
 html.task:where(.compact, .short) #view-game :is(.cols, .cols > *) { mask-image: none; animation: none; }
 html.task.playing:where(.compact, .short) #view-game .pr-top {
@@ -2572,8 +2572,8 @@ html.kb-open canvas.scope:not(.in-folder) { top: var(--app-top, 0px); bottom: au
 :where(html.compact, html.short) .tl-for-touch { display: inline; }
 :where(html.compact, html.short) :is(#view-tiles-select, .ludi-pop) button kbd { display: none; }
 /* Tiles' own actions in the bar (app.js, tilesHints) are for any small window, whatever points at it */
-html:is(.compact, .short, .task) #app:has(#view-tiles:not([hidden]), #view-tiles-select:not([hidden])) #hints .hint-touch:not(.hint-kb, .hint-nokb),
-html:is(.compact, .short, .task):not(.kb-open) #app:has(#view-tiles:not([hidden]), #view-tiles-select:not([hidden])) #hints .hint-touch.hint-nokb { display: inline-flex; }
+html:is(.compact, .short, .task) #app:is([data-view="tiles"], [data-view="tiles-select"]) #hints .hint-touch:not(.hint-kb, .hint-nokb),
+html:is(.compact, .short, .task):not(.kb-open) #app:is([data-view="tiles"], [data-view="tiles-select"]) #hints .hint-touch.hint-nokb { display: inline-flex; }
 
 /* ---------- the song screen ---------- */
 
@@ -2798,10 +2798,10 @@ html.short:not(.compact) #view-tiles .tl-hw { grid-area: 1 / 1 / span 2; justify
 html.short:not(.compact) #view-tiles .tl-queue { display: none; }
 html.short:not(.compact) #view-tiles .tl-typed-row { grid-area: 2 / 2; align-items: center; min-width: 0; margin: 0; }
 html.short:not(.compact) #view-tiles .tl-typed { padding: 3px 8px; font-size: 18px; }
-html.task.playing.short:not(.compact) #app:has(#view-tiles:not([hidden])) .folder { padding: 4px 12px 6px; }
+html.task.playing.short:not(.compact) #app[data-view="tiles"] .folder { padding: 4px 12px 6px; }
 /* From ×3 the line (and at ×4 the storm) swings out behind the whole app; the bar on top stays solid
    enough to read, as the boxes do */
-html.task.scope #app:has(#view-tiles:not([hidden])) .footer { background: color-mix(in srgb, var(--ground) 90%, transparent); }
+html.task.scope #app[data-view="tiles"] .footer { background: color-mix(in srgb, var(--ground) 90%, transparent); }
 /* with the keyboard up as well there's a sliver: no speed, and each box one line, its name and then
    its number (or the health bar) */
 @container tiles (max-height: 200px) {
@@ -2921,7 +2921,7 @@ html.compact :is(#view-ghost, #view-worm) .gr-count.long { font-size: clamp(14px
 /* ---------- Ghost Race: the race ---------- */
 
 /* The passage keeps its frame only while there's a race to type: paused or finished, a tap does nothing. */
-html:where(.compact, .short):not(.kb-open) #view-ghost .gr:has(.fh-over:not([hidden])) .words-box { outline: none; }
+html:where(.compact, .short):not(.kb-open) #view-ghost[data-over] .gr .words-box { outline: none; }
 
 /* ---------- both games on a phone on its side, in play ---------- */
 
@@ -2966,7 +2966,7 @@ html.task.short:not(.compact) :is(#view-ghost, #view-worm) .gr-count {
 }
 html.task.short:not(.compact) :is(#view-ghost, #view-worm) .gr-count.long { font-size: 22px; }
 @keyframes gw-count-bar { from { opacity: 0; transform: translate(0, -50%) scale(1.4); } 30% { opacity: 1; } to { transform: translate(0, -50%); } }
-html.task.short:not(.compact) :is(#view-ghost .gr-stage, #view-worm .wm-stage):has(.gr-count:not([hidden])) .fh-hud-l { visibility: hidden; }
+html.task.short:not(.compact) :is(#view-ghost[data-count] .gr-stage, #view-worm[data-count] .wm-stage) .fh-hud-l { visibility: hidden; }
 /* the dig: the prompt on one line with its label, the answer, one line of note; the picture gets what's left */
 html.task.short:not(.compact) #view-worm .wm { gap: 4px; }
 html.task.short:not(.compact) #view-worm .wm-panel { gap: 4px; }
@@ -2984,15 +2984,15 @@ html.task.kb-open.short:not(.compact) #view-worm .wm { gap: 0; }
 html.task.kb-open.short:not(.compact) #view-worm .wm-stage { flex: 0 0 0; border-width: 0; }
 html.task.kb-open.short:not(.compact) #view-worm .wm-input { min-height: 36px; }
 /* The reveal takes all the room there is, its button at the side where it's always in reach. */
-html.task.short:not(.compact) #view-worm .wm:has(.wm-reveal:not([hidden])) .wm-panel { display: none; }
-html.task.short:not(.compact) #view-worm .wm:has(.wm-reveal:not([hidden])) .wm-stage { flex: 1 1 0; border-width: 2px; }
+html.task.short:not(.compact) #view-worm[data-reveal] .wm .wm-panel { display: none; }
+html.task.short:not(.compact) #view-worm[data-reveal] .wm .wm-stage { flex: 1 1 0; border-width: 2px; }
 html.task.short:not(.compact) #view-worm .wm-reveal { display: grid; grid-template-columns: auto auto minmax(0, 1fr) minmax(150px, 28%); padding: 8px 12px; }
 html.task.short:not(.compact) #view-worm .wm-reveal > :not(.wm-tier, .wm-gain, .wm-ans) { grid-column: 1 / 4; }
 html.task.short:not(.compact) #view-worm .wm-reveal > .hints { position: sticky; top: 0; grid-area: 1 / 4 / span 9 / 5; align-self: start; margin: 0 0 0 8px; }
 html.task.short:not(.compact) #view-worm .wm-reveal p { margin-top: 4px; font-size: 13px; }
 
 /* a race's result has the whole game to itself: the passage is done with */
-:where(html.short:not(.compact)) #view-ghost .gr:has(.fh-over:not([hidden]) .fh-over-score) .gr-text { display: none; }
+:where(html.short:not(.compact)) #view-ghost[data-over="result"] .gr .gr-text { display: none; }
 
 /* ---------- Ghost Race: the track screen ---------- */
 
@@ -3067,7 +3067,7 @@ html.task.short:not(.compact) #view-worm .wm-reveal p { margin-top: 4px; font-si
 /* The reveal after each Daily answer: a card across the bottom of the picture. While it shows, the answer
    field and its note make way for it (the prompt stays, for what was asked). Its tier, points and answer
    share a line; an answer too long for what's left goes whole onto the next. */
-:where(html.compact, html.short) :is(#view-worm, #view-replay .rp-worm) .wm:has(.wm-reveal:not([hidden])) :is(.wm-bar, .wm-input, .wm-note, .wm-found) { display: none; }
+:where(html.compact, html.short) :is(#view-worm, #view-replay .rp-worm)[data-reveal] .wm :is(.wm-bar, .wm-input, .wm-note, .wm-found) { display: none; }
 :where(html.compact, html.short) :is(#view-worm, #view-replay .rp-worm) .wm-reveal {
   top: auto; right: 8px; bottom: 8px; left: 8px; width: auto; max-height: calc(100% - 16px); overflow-y: auto;
   display: flex; flex-wrap: wrap; align-items: center; gap: 0 10px;
