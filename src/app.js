@@ -903,8 +903,8 @@
   }
 
   function renderForestGuide() {
-    // a phone's own keyboard has space, return and delete keys
-    const touch = (TT.viewport.compact || TT.viewport.short) && window.matchMedia("(pointer: coarse)").matches;
+    // a phone's own keyboard has space, return and delete keys (say(), below)
+    const touch = say(false, true);
     const lane = (bg, inner) => `<div class="fh-lane" style="background: ${bg}">${inner}</div>`;
     const at = (c, html) => `<span class="fh-at" style="left: ${c * 56 + 3}px">${html}</span>`;
     const sp = (k, c) => at(c, TT.sprites.svg(k, 50));
@@ -2030,10 +2030,28 @@
 
   // Words for a phone: a touch screen in a small window has no mouse to click or keys to press, and
   // isn't a computer. A big window keeps the desktop's words, whatever it's on.
+  const touchWords = () => (TT.viewport.compact || TT.viewport.short) && !!window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
+  let saidTouch = null; // which of the two was said last
   function say(desktop, touch) {
-    const small = TT.viewport.compact || TT.viewport.short;
-    return small && window.matchMedia && window.matchMedia("(pointer: coarse)").matches ? touch : desktop;
+    saidTouch = touchWords();
+    return saidTouch ? touch : desktop;
   }
+  // A screen that says them is drawn again when its window turns into the other kind (an iPad's Split
+  // View or Slide Over), or it would keep the words it was drawn with. Not the song screen while lyrics
+  // are edited or tapped, nor Settings while deleting everything is being confirmed: that would lose
+  // what's been done there. The status line has them too, on a replay, the Leaderboard and a round's end.
+  const SAYS = {
+    "tiles-select": () => !ui.lyricsEdit && !ui.tap && renderTilesSelect(),
+    "worm-select": renderWormSelect,
+    "forest-guide": renderForestGuide,
+    leaderboard: renderLeaderboard,
+    settings: () => ui.settingsTab === "data" && !ui.wipe && renderSettings(),
+  };
+  window.addEventListener("resize", () => {
+    if (saidTouch === null || touchWords() === saidTouch) return;
+    if (SAYS[ui.view]) SAYS[ui.view]();
+    if (ui.view === "replay" || ui.view === "leaderboard" || ui.gameOver === ui.view) renderHints();
+  });
 
   const rp = { rec: null, a: null, T: 0, playing: false, speed: 1, raf: 0, last: 0, returnTo: "results", player: null };
   const SPEEDS = [0.5, 1, 2, 4];
