@@ -2691,7 +2691,8 @@
     if (!form) return;
     e.preventDefault();
     const name = new FormData(form).get("name");
-    const [kind, id] = form.dataset.form.split(":");
+    const [kind, ...rest] = form.dataset.form.split(":");
+    const id = rest.join(":"); // a saved profile's id may have colons of its own
     if (kind === "rename") {
       if (TT.profiles.rename(id, name)) {
         ui.renaming = null;
@@ -2964,7 +2965,7 @@
       case "practice": startTyping("practice"); break;
       case "play": startGame(); break;
       case "replay": {
-        const id = x === "last" ? (ui.view === "game" ? ui.lastGameId : ui.view === "forest" ? ui.lastForestId : ui.view === "tiles" ? ui.lastTilesId : ui.view === "ghost" ? ui.lastGhostId : ui.view === "worm" ? ui.lastWormId : ui.lastRoundId) : x;
+        const id = x === "last" ? (ui.view === "game" ? ui.lastGameId : ui.view === "forest" ? ui.lastForestId : ui.view === "tiles" ? ui.lastTilesId : ui.view === "ghost" ? ui.lastGhostId : ui.view === "worm" ? ui.lastWormId : ui.lastRoundId) : [x, ...rest].join(":"); // (a saved id may have colons of its own)
         if (id) openReplay(id, ui.view === "stats" ? "stats" : ui.view);
         break;
       }
