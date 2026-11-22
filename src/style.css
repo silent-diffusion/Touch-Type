@@ -1793,6 +1793,9 @@ html.scope .footer { background: none; }
   white-space: nowrap;
 }
 :where(html.compact, html.short, html.task) .hints .hint-primary { order: -1; background: var(--ink); color: var(--ground); }
+/* A finger leaves :hover on what it last tapped, and the big window's hover wash would replace the main
+   action's fill under its light letters: it keeps its fill. */
+:where(html.compact, html.short, html.task) .hints .hint-primary:hover { background: var(--ink); color: var(--ground); }
 @media (pointer: coarse) {
   :where(html.compact, html.short, html.task) .hints .hint-touch { display: inline-flex; }
 }
