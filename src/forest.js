@@ -1163,7 +1163,10 @@
 
     // The canvas's size on the page, kept from when it last changed: asking for it every frame makes
     // the browser work the layout out again in the middle of the frame. (0 until it's first known.)
-    let cw = 0, ch = 0;
+    // Only the round's own frames, and the death's, use it (inFrame): anything else that draws reads
+    // the size afresh, as it always did, so drawing after a resize, a new round or in a replay goes
+    // the same way.
+    let cw = 0, ch = 0, inFrame = false;
     new ResizeObserver(() => { cw = canvas.clientWidth; ch = canvas.clientHeight; }).observe(canvas);
 
     const ro = new ResizeObserver(() => {
@@ -1220,7 +1223,8 @@
 
     function draw() {
       if (!g) return;
-      const w = cw || canvas.clientWidth, h = ch || canvas.clientHeight;
+      if (!inFrame || !cw || !ch) { cw = canvas.clientWidth; ch = canvas.clientHeight; }
+      const w = cw, h = ch;
       if (!w || !h) return;
       const dpr = window.devicePixelRatio || 1;
       if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
@@ -1259,7 +1263,9 @@
       const step = () => {
         dieT = Math.min(DEATH_MS, performance.now() - t0);
         viewT = g.endT + dieT;
+        inFrame = true;
         draw();
+        inFrame = false;
         if (dieT >= DEATH_MS) return done();
         raf = requestAnimationFrame(step);
       };
@@ -1348,7 +1354,9 @@
         if (advance(g, viewT)) return end();
         renderHud();
       }
+      inFrame = true;
       draw();
+      inFrame = false;
       raf = requestAnimationFrame(frame);
     }
 

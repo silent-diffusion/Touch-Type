@@ -401,7 +401,9 @@
 
     // The canvas's size on the page, kept from when it last changed: asking for it every frame makes
     // the browser work the layout out again in the middle of the frame. (0 until it's first known.)
-    let cw = 0, ch = 0;
+    // Only the race's own frames use it (inFrame): anything else that draws reads the size afresh,
+    // as it always did, so drawing after a resize, a new round or in a replay goes the same way.
+    let cw = 0, ch = 0, inFrame = false;
     new ResizeObserver(() => { cw = canvas.clientWidth; ch = canvas.clientHeight; }).observe(canvas);
 
     const readAccent = () => { accent = getComputedStyle(root).getPropertyValue("--accent").trim() || "#B4472B"; };
@@ -544,7 +546,8 @@
 
     function draw() {
       if (!live) return;
-      const w = cw || canvas.clientWidth, h = ch || canvas.clientHeight;
+      if (!inFrame || !cw || !ch) { cw = canvas.clientWidth; ch = canvas.clientHeight; }
+      const w = cw, h = ch;
       if (!w || !h) return;
       const dpr = window.devicePixelRatio || 1;
       if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
@@ -640,7 +643,9 @@
         }
       }
       if (live.state === "finishing" && now() - live.finishedAt >= FINISH_MS) return showResults();
+      inFrame = true;
       draw();
+      inFrame = false;
       renderHud();
       place();
       raf = requestAnimationFrame(frame);
