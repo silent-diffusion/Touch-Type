@@ -350,8 +350,8 @@
     get leaderboard() { return say("Everyone on this computer, ranked.", "Everyone on this device, ranked."); },
     settings: "Changes save automatically.",
   };
-  // ...and once a race or a dig is over, the line its end put up
-  const OVER_STATUS = { ghost: "Race saved.", worm: "Dig saved." };
+  // ...and once a round is over, the line its end put up
+  const OVER_STATUS = { game: "Run saved.", forest: "Run saved.", tiles: "Round saved.", ghost: "Race saved.", worm: "Dig saved." };
 
   function renderHints() {
     let hints = HINTS[ui.view];
@@ -362,7 +362,7 @@
     }
     // a Daily Dig that's already done can only be replayed
     if (ui.view === "worm-select" && wormDigDone()) hints = hints.map((h) => (h[0] === "ENTER" ? ["R", "REPLAY", "wm:replay", "primary"] : h));
-    // a race or a dig that's over has buttons of its own: on a touch screen they're the only ones
+    // a round that's over has buttons of its own: on a touch screen they're the only ones
     if (ui.gameOver === ui.view) hints = hints.map(([key, label, act, flags]) => [key, label, act, `${flags || ""} keys`]);
     // Tiles' touch action bar follows what the screen is doing
     if (TILES_VIEWS.includes(ui.view)) hints = tilesHints(hints);
@@ -764,6 +764,8 @@
     onEnd(id) {
       setPlaying(false);
       ui.lastGameId = id;
+      ui.gameOver = "game";
+      renderHints();
       els.statusLine.textContent = `Run saved. ${say("Press R to replay it.", "Tap REPLAY to watch it.")}`;
     },
   });
@@ -778,6 +780,7 @@
   function startGame() {
     engine.stop();
     document.body.classList.remove("typing");
+    ui.gameOver = null;
     show("game");
     setPlaying(true);
     renderBar();
@@ -817,6 +820,8 @@
     onEnd(id) {
       setPlaying(false);
       ui.lastForestId = id;
+      ui.gameOver = "forest";
+      renderHints();
       els.statusLine.textContent = `Run saved. ${say("Press R to replay it.", "Tap REPLAY to watch it.")}`;
     },
   });
@@ -941,6 +946,7 @@
     engine.stop();
     runner.stop();
     document.body.classList.remove("typing");
+    ui.gameOver = null;
     show("forest");
     setPlaying(true);
     renderBar();
@@ -1324,6 +1330,8 @@
     onEnd(id) {
       setPlaying(false);
       ui.lastTilesId = id;
+      ui.gameOver = "tiles";
+      renderHints();
       els.statusLine.textContent = `Round saved. ${say("Press R to replay it.", "Tap REPLAY to watch it.")}`;
     },
     onState() {
@@ -1633,6 +1641,7 @@
       tilesData().ludicrousPlayed = true; // its button stops flashing
       TT.save();
     }
+    ui.gameOver = null;
     show("tiles");
     setPlaying(true);
     renderBar();
