@@ -2301,7 +2301,9 @@
       isOver: () => !!live && live.state === "over",
       isReady: () => !!live && live.state === "ready",
       isRunning: () => !!live && live.state === "running",
-      isPaused: () => !!live && live.state === "paused",
+      // A round coming back from a pause is still paused until its audio is ready (resume): its pause
+      // screen is up, so RESUME or Esc again (app.js) mustn't take it for a round that hasn't started.
+      isPaused: () => !!live && (live.state === "paused" || (live.state === "starting" && live.pausedAt != null)),
       pause, resume,
     };
   };

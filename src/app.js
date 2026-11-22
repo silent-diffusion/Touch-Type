@@ -1339,7 +1339,9 @@
       els.statusLine.textContent = `Round saved. ${say("Press R to replay it.", "Tap REPLAY to watch it.")}`;
     },
     onState() {
-      if (ui.view === "tiles") tilesBar();
+      if (ui.view !== "tiles") return;
+      tilesBar();
+      markPaused(); // (a round coming back from a pause is paused until it runs: tiles.isPaused)
     },
   });
   // the touch action bar follows what Tiles is doing (tilesHints); what the status line says stays
@@ -2941,14 +2943,16 @@
   }
 
   // Only these two pause and resume a game, so they mark the app while its round is paused (for
-  // style.css); show() clears it with any new screen or round.
+  // style.css); show() clears it with any new screen or round. (A Tiles round resumed carries on once
+  // its audio is ready, and is marked again then: its onState.)
   const markPaused = () => {
     const a = activeGame();
     els.app.classList.toggle("paused", !!a && a.g.isPaused());
   };
 
   // Esc: pauses a running game and resumes a paused one. Before a round starts or after it ends
-  // it goes back, as it always did.
+  // it goes back, as it always did. A Tiles round resumed but still waiting for its audio is paused
+  // (tiles.isPaused), so it stays.
   function togglePause() {
     const a = activeGame();
     if (!a) return;
