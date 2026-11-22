@@ -91,7 +91,8 @@
     s.second = !!s.second;
     s.autoUpdate = !!s.autoUpdate;
     // Added songs load a moment after start-up, so their ids are kept here.
-    if (!TT.songs.get(s.tilesSong) && !TT.music.isUser(s.tilesSong)) s.tilesSong = TT.songs.list[0].id;
+    // (looked up in the list: getting the song would also work its notes out, which start-up doesn't need)
+    if (!TT.songs.list.some((x) => x.id === s.tilesSong) && !TT.music.isUser(s.tilesSong)) s.tilesSong = TT.songs.list[0].id;
     if (!TT.tilesCore.DIFFS[s.tilesDiff]) s.tilesDiff = "medium";
     s.tilesMusic = s.tilesMusic !== false;
     s.tilesMetronome = !!s.tilesMetronome;
