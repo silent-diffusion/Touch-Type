@@ -684,6 +684,8 @@
     if (!PLAY_VIEWS.includes(view)) setPlaying(false);
     // the on-screen keyboard stays up only where there's typing to do
     if (view !== "test" && view !== "practice" && !PLAY_VIEWS.includes(view)) TT.keyboard.close();
+    // a Tiles round still loading isn't started once something else is on screen (startTiles)
+    ui.tlStarting = null;
     // Changing tab plays the folder transition (decided here, before anything on screen changes).
     const main = tabFor(view);
     const sub = main === "games" ? gameTabFor(view) : null;
@@ -1609,15 +1611,34 @@
     if (!song) return;
     TT.keyboard.open(); // while this is still the tap that started it (see setPlaying)
     // While it loads, keys typed on that keyboard aren't the song screen's shortcuts, and PLAY again
-    // doesn't load it a second time.
-    ui.tlStarting = true;
+    // doesn't load it a second time. The start is this song's, on this screen: with another song
+    // picked meanwhile, or another screen shown (show() lets go of it), the round isn't started.
+    const start = (ui.tlStarting = { song: song.id });
+    const dropped = () => {
+      if (ui.tlStarting !== start) return true;
+      if (S().tilesSong === song.id) return false;
+      // (still on the song screen, with another song picked: it's as it was before PLAY)
+      ui.tlStarting = null;
+      TT.keyboard.close();
+      renderHints();
+      return true;
+    };
+    // Only the latest song is kept decoded, so another song's load that's still going is let finish
+    // first: ending after this one's, it would take this song's audio away.
+    if (song.user && s.tilesMusic) {
+      await ui.tlLoad;
+      if (dropped()) return;
+    }
     // An added song's audio is loaded from disk the first time it's played.
     if (song.user && s.tilesMusic && !song.buffer) {
       els.statusLine.textContent = "Loading the song…";
+      const load = TT.music.buffer(song.id);
+      ui.tlLoad = load.catch(() => {});
       try {
-        await TT.music.buffer(song.id);
+        await load;
       } catch (err) {
-        ui.tlStarting = false;
+        if (dropped()) return;
+        ui.tlStarting = null;
         ui.tlNote = err.message;
         openTilesSelect();
         return;
@@ -1631,7 +1652,8 @@
         song.stems = null;
       }
     }
-    ui.tlStarting = false;
+    if (dropped()) return;
+    ui.tlStarting = null;
     engine.stop();
     runner.stop();
     forest.stop();
@@ -1929,7 +1951,7 @@
     const ids = [...TT.songs.list, ...TT.music.list()].map((z) => z.id);
     const diffs = tilesDiffIds();
     if (x === "select") { tiles.stop(); openTilesSelect(); return; }
-    if (x === "play") { if (!ui.tap && !ui.tlStarting) startTiles(); return; }
+    if (x === "play") { if (!ui.tap && !(ui.tlStarting && ui.tlStarting.song === s.tilesSong)) startTiles(); return; }
     if (x === "import") { if (!ui.tlBusy) fileInput.click(); return; }
     if (x === "tap") { startTap(); return; }
     if (x === "lyricsedit") { ui.lyricsEdit = true; ui.tlNote = ""; renderTilesSelect(); const t = $("tl-lyrics"); if (t) t.focus(); return; }
