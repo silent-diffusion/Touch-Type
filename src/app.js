@@ -712,7 +712,7 @@
     onEnd(id) {
       setPlaying(false);
       ui.lastGameId = id;
-      els.statusLine.textContent = "Run saved. Press R to replay it.";
+      els.statusLine.textContent = `Run saved. ${say("Press R to replay it.", "Tap REPLAY to watch it.")}`;
     },
   });
 
@@ -762,7 +762,7 @@
     onEnd(id) {
       setPlaying(false);
       ui.lastForestId = id;
-      els.statusLine.textContent = "Run saved. Press R to replay it.";
+      els.statusLine.textContent = `Run saved. ${say("Press R to replay it.", "Tap REPLAY to watch it.")}`;
     },
   });
   tapToType($("view-forest"), forest);
@@ -934,7 +934,7 @@
     onEnd(id) {
       setPlaying(false);
       ui.lastGhostId = id;
-      els.statusLine.textContent = "Race saved. Press R to replay it.";
+      els.statusLine.textContent = `Race saved. ${say("Press R to replay it.", "Tap REPLAY to watch it.")}`;
     },
   });
 
@@ -1068,7 +1068,7 @@
     onEnd(id) {
       setPlaying(false);
       ui.lastWormId = id;
-      els.statusLine.textContent = "Dig saved. Press R to replay it.";
+      els.statusLine.textContent = `Dig saved. ${say("Press R to replay it.", "Tap REPLAY to watch it.")}`;
     },
   });
 
@@ -1257,7 +1257,7 @@
     onEnd(id) {
       setPlaying(false);
       ui.lastTilesId = id;
-      els.statusLine.textContent = "Round saved. Press R to replay it.";
+      els.statusLine.textContent = `Round saved. ${say("Press R to replay it.", "Tap REPLAY to watch it.")}`;
     },
   });
 
