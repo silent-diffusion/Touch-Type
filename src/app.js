@@ -350,6 +350,8 @@
     get leaderboard() { return say("Everyone on this computer, ranked.", "Everyone on this device, ranked."); },
     settings: "Changes save automatically.",
   };
+  // ...and once a race or a dig is over, the line its end put up (on a phone, all its bar shows)
+  const OVER_STATUS = { ghost: "Race saved.", worm: "Dig saved." };
 
   function renderHints() {
     let hints = HINTS[ui.view];
@@ -372,7 +374,8 @@
       `<button class="${hintClass(act, flags)}" data-act="${act}">${key ? `<kbd>${key}</kbd>` : ""}${label}</button>`).join("");
     // a screen with nothing for a finger to press: its action bar is just the status line
     els.hints.parentNode.classList.toggle("bare", hints.every(([, , act, flags]) => act === "noop" || /\bkeys\b/.test(flags || "")));
-    els.statusLine.textContent = STATUS[ui.view];
+    els.statusLine.textContent = ui.gameOver === ui.view
+      ? `${OVER_STATUS[ui.view]} ${say("Press R to replay it.", "Tap REPLAY to watch it.")}` : STATUS[ui.view];
   }
 
   // ---------- full screen (desktop app) ----------
