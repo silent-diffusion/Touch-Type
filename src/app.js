@@ -861,9 +861,12 @@
     const open = unlocked(pick);
     const cards = FH_ANIMALS.map((a) => {
       const on = a.kind === pick.kind;
-      const tag = !unlocked(a) ? `LOCKED<span class="fh-dot"> ·</span> ${a.cost}` : d.bestBy[a.kind] ? `BEST ${esc(d.bestBy[a.kind])}` : "NEW";
+      const tag = !unlocked(a) ? `LOCKED · ${a.cost}` : d.bestBy[a.kind] ? `BEST ${esc(d.bestBy[a.kind])}` : "NEW";
+      // A small window puts a locked one's price under LOCKED, without the dot. That's a label of its own,
+      // shown there in place of the one above (style.css), so a big window's stays one run of text.
+      const small = unlocked(a) ? "" : `<span class="caps-label fh-price">LOCKED<span class="fh-dot"> ·</span> ${a.cost}</span>`;
       return `<button class="fh-animal ${on ? "on" : ""} ${unlocked(a) ? "" : "locked"}" data-act="fh:pick:${a.kind}" aria-pressed="${on}" aria-label="${a.title.toLowerCase()}${unlocked(a) ? "" : ", locked"}">
-        ${TT.sprites.svg(a.kind, 90)}<span class="fh-animal-name">${a.title}</span><span class="caps-label">${tag}</span>
+        ${TT.sprites.svg(a.kind, 90)}<span class="fh-animal-name">${a.title}</span><span class="caps-label">${tag}</span>${small}
       </button>`;
     }).join("");
     const th = TT.forestCore.theme(pick.kind);

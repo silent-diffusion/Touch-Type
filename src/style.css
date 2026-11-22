@@ -2353,7 +2353,11 @@ html.short:not(.compact) :is(#view-forest .fh-over, #view-game .pr-over) p { max
 :where(html.compact, html.short) #view-forest-select .fh-animal.on { border-width: 2px; box-shadow: inset 0 0 0 2px var(--ink); }
 :where(html.compact, html.short) #view-forest-select .fh-animal-name { font-size: 11px; letter-spacing: 0.04em; }
 :where(html.compact, html.short) #view-forest-select .fh-animal .caps-label { font-size: 11px; line-height: 1.2; letter-spacing: 0.04em; }
-/* a locked one's price goes under LOCKED, without the dot between them */
+/* a locked one's price goes under LOCKED, without the dot between them: app.js writes that as a second
+   label, shown here in place of the first (a big window keeps the first, which is one run of text) */
+#view-forest-select .fh-price { display: none; }
+:where(html.compact, html.short) #view-forest-select .fh-animal.locked > .caps-label { display: none; }
+:where(html.compact, html.short) #view-forest-select .fh-animal.locked > .fh-price { display: block; }
 :where(html.compact, html.short) #view-forest-select .fh-dot { display: block; height: 0; overflow: hidden; }
 
 :where(html.compact, html.short) #view-forest-select .col-side > .rule-head { padding: 6px 0; font-size: 13px; }
