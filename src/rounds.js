@@ -71,10 +71,11 @@
   const NUMBERS = ["duration", "lead", "seed", "v", "wpmScale", "offset", "fall", "endT", "cols"];
   // The words: Forest Hop's come as a set for the four directions, and Tiles' may have a gap (it
   // deals "word" there). A set holds those four words and nothing else: a speed test's start-up
-  // check and Ghost Race read any recording's words a letter at a time, whatever its game.
+  // check and Ghost Race read any recording's words a letter at a time, whatever its game. Any other
+  // word has letters (the app never makes an empty one): the replay puts its caret on one of them.
   const wordsOk = (rec) => listOf(rec.words,
     rec.game === "forest" ? (set) => isObject(set) && Object.keys(set).length === 4 && ["up", "left", "right", "down"].every((d) => isStr(set[d]))
-      : rec.game === "tiles" ? (w) => w == null || isStr(w) : isStr);
+      : rec.game === "tiles" ? (w) => w == null || isStr(w) : (w) => isStr(w) && w !== "");
   // Wormhole (wormhole.js): a key is a character, a prompt its number, and an answer that counted
   // has a name, points and a tier; a Daily picked up part way brings its earlier picks and their points.
   const answerOk = (r) => isObject(r) && (!r.name || (isStr(r.name) && isNum(r.pts) && isNum(r.tier) && Object.hasOwn(TT.wormCore.TIERS, r.tier)));
@@ -100,6 +101,10 @@
       if (rec.tiles != null && !listOf(rec.tiles, (x) => !x || (isObject(x) && isStr(x.w) && (x.l == null || isNum(x.l))))) return undefined;
       if (rec.hits != null && !listOf(rec.hits, isNum)) return undefined;
       if (rec.lanes != null && !listOf(rec.lanes, isNum)) return undefined;
+      // from v4 how many columns, each dealt a word as the replay and the analysis start: as many as
+      // one of the difficulties has (three to six), the only numbers the game writes
+      const cols = rec.cols != null && Object.values(TT.tilesCore.DIFFS).map((d) => d.cols);
+      if (cols && !(Number.isInteger(rec.cols) && rec.cols >= Math.min(...cols) && rec.cols <= Math.max(...cols))) return undefined;
       // Path Runner: its rows of paths, with their words
       if (rec.rows != null && !(typeof rec.rows === "object" &&
         Object.values(rec.rows).every((row) => isObject(row) && listOf(row.cells, (c) => isObject(c) && (c.word == null || isStr(c.word)))))) return undefined;
