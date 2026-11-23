@@ -1677,9 +1677,10 @@ html.short:not(.compact, .task) #app[data-view="practice"] {
 html.task { --type-room: calc(var(--app-h) - var(--safe-t) - var(--safe-b) - 248px); }
 html.task.short:not(.compact) { --type-room: calc(var(--app-h) - var(--safe-t) - var(--safe-b) - 72px); }
 
-/* the folder is one panel: no parent folder around it */
-:where(html.compact, html.short) #app.has-sub .folder-stack { background: none; border: none; border-radius: 0; padding: 0; }
-:where(html.compact, html.short) #app.has-sub .folder { box-shadow: none; }
+/* the folder is one panel: no parent folder around it. The same on a big screen with the keyboard up, under
+   its slim bar (while a game is played it has no frame anyway). */
+:where(html.compact, html.short, html.task:not(.playing)) #app.has-sub .folder-stack { background: none; border: none; border-radius: 0; padding: 0; }
+:where(html.compact, html.short, html.task:not(.playing)) #app.has-sub .folder { box-shadow: none; }
 :where(html.compact, html.short) .folder { padding: 12px 14px 14px; border-radius: 14px; }
 :where(html.compact, html.short) .folder .cols { gap: 24px; }
 :where(html.compact, html.short) :is(.view, .cols, .cols > *, #stats-body) { overscroll-behavior: contain; }
