@@ -3361,7 +3361,9 @@
       if (v === "tiles") {
         if (e.key === "Tab") { e.preventDefault(); act("tl:play"); }
         else if (e.key === "Escape") { e.preventDefault(); act("pause"); }
-        else if (tiles.isPaused()) { if (plainKey(e, "q")) act("tl:select"); }
+        // (not while a resumed round waits for its audio: RESUME has raised the on-screen keyboard,
+        // and a q typed on it is a word's)
+        else if (tiles.isPaused()) { if (plainKey(e, "q") && !tiles.isCounting()) act("tl:select"); }
         else if (tiles.isOver()) { if (plainKey(e, "r")) act("replay:last"); }
         else tiles.handleKey(e);
       } else if (ui.tap) {
