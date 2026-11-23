@@ -1863,8 +1863,12 @@
         ui.tlProgress = pct;
         refresh();
       });
-      S().tilesSong = id;
-      TT.saveSettings();
+      // It's the song picked now, unless a round of another one is on or starting meanwhile: RESTART and
+      // PLAY AGAIN play the song picked, so they'd start this one instead of the round's.
+      if (ui.view !== "tiles" && !ui.tlStarting) {
+        S().tilesSong = id;
+        TT.saveSettings();
+      }
       const song = TT.songs.get(id);
       const found = TT.lyrics.words(song.lyrics).length;
       ui.tlNote = `Added "${song.title}". Its beat is about ${Math.round(song.bpm)} BPM.` +
