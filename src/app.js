@@ -1898,7 +1898,7 @@
     if (!song || !song.user) return;
     ui.lyricsEdit = false;
     ui.tlNote = "Loading the song…";
-    ui.tap = { mode, id: song.id, taps: [], bpm: 0, src: null, zeroPerf: 0, words: mode === "lyrics" ? TT.lyrics.sequence(song.lyrics) : [] };
+    const tap = (ui.tap = { mode, id: song.id, taps: [], bpm: 0, src: null, zeroPerf: 0, words: mode === "lyrics" ? TT.lyrics.sequence(song.lyrics) : [] });
     renderTilesSelect();
     let buffer;
     try {
@@ -1907,12 +1907,15 @@
       tlLoading(load);
       buffer = await load;
     } catch (err) {
+      if (ui.tap !== tap) return; // (cancelled: tapping along that's open now is another's)
       ui.tap = null;
       ui.tlNote = err.message;
       renderTilesSelect();
       return;
     }
-    if (!ui.tap) return; // cancelled while loading
+    // Cancelled while loading, and maybe tapping along again (this song or another) since: that has a
+    // load of its own, and this one's audio would play in it, where CANCEL can't stop it.
+    if (ui.tap !== tap) return;
     const ctx = TT.tilesAudio.get();
     const src = ctx.createBufferSource();
     src.buffer = buffer;
