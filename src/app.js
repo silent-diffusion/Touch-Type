@@ -2314,8 +2314,12 @@
   // Everyone on this computer, ranked by their best in each game. The game pages and Stats show only
   // the active profile; this compares them all.
   const LB_GAMES = [["forest", "Forest Hop"], ["tiles", "Tiles"], ["ghost", "Ghost Race"], ["worm", "Wormhole"], ["path", "Path Runner"]];
+  // the filters' chosen song or Blitz pack, and whether their row scrolled sideways when last looked at
+  const LB_CHOSEN = ".lb-songs > .on, [aria-label='Prompts from'] > .on";
+  let lbSideways = false;
 
-  function renderLeaderboard() {
+  // keep: drawn again for a choice made on it, in its filters or tabs (the filter row may stay put, below)
+  function renderLeaderboard(keep) {
     const s = S();
     const tab = LB_GAMES.some(([id]) => id === ui.lbTab) ? ui.lbTab : "forest";
     const me = TT.profiles.activeId();
@@ -2417,6 +2421,8 @@
           `<tr class="${r.p.you ? "lb-you" : ""}"><td class="num">${i + 1}</td><td>${esc(r.p.name)}${r.p.you ? ` <span class="tag">YOU</span>` : ""}</td>${r.cells.map((c, j) => `<td class="num" data-h="${head[j]}">${esc(c)}</td>`).join("")}</tr>`).join("")}</tbody></table>`
       : `<p class="muted">Nobody has played this yet.</p>`;
 
+    const was = keep && $("view-leaderboard").querySelector(".lb-filters");
+    const wasOn = was && was.querySelector(LB_CHOSEN), wasLeft = was && was.scrollLeft;
     $("view-leaderboard").innerHTML = subtabs(LB_GAMES, tab, "lb:tab") + `
       <div class="cols">
         <section class="col-main">
@@ -2436,16 +2442,37 @@
             : `Everyone who plays on this ${say("computer", "device")} is ranked here by their best. The game pages show only your own.`}</p>
         </aside>
       </div>`;
-    // On its side the filters are one row that scrolls sideways (style.css), drawn from its start. If the
-    // song (or Blitz pack) that's chosen isn't all in view clear of the row's fade, the row is scrolled
-    // just far enough that it is: when the row can't show all three choices, the song comes first.
+    // A difficulty or mode chosen in the row leaves it where it was, so the button just tapped stays in
+    // view; a new song or pack, a new tab or a new visit brings the chosen one into view.
     const row = $("view-leaderboard").querySelector(".lb-filters");
-    const on = row && row.querySelector(".lb-songs > .on, [aria-label='Prompts from'] > .on");
+    const on = row && row.querySelector(LB_CHOSEN);
+    if (on && wasOn && on.dataset.act === wasOn.dataset.act) row.scrollLeft = wasLeft;
+    else if (row) revealLbChoice(row);
+    lbSideways = !!row && row.scrollWidth > row.clientWidth;
+  }
+  // On its side the filters are one row that scrolls sideways (style.css), drawn from its start. If the
+  // song (or Blitz pack) that's chosen isn't all in view clear of the row's fade, the row is scrolled
+  // just far enough that it is. The chosen difficulty and the mode sit just before the song, so they
+  // stay in view with it.
+  function revealLbChoice(row) {
+    const on = row.querySelector(LB_CHOSEN);
     if (on && row.scrollWidth > row.clientWidth) {
       const r = row.getBoundingClientRect(), b = on.getBoundingClientRect();
-      row.scrollLeft = Math.max(0, b.right + 36 - (r.left + row.clientWidth));
+      // (from where the row is: one turned back on its side may be given back where it was)
+      const by = b.right + 36 - (r.left + row.clientWidth);
+      if (by > 0) row.scrollLeft += by;
     }
   }
+  // Turned on its side (or a window made short) with the leaderboard open: the filters become that row,
+  // from its start, so the chosen song is brought into view as on a new draw. A row that was already
+  // sideways is left where it is, wherever it was scrolled to by hand.
+  window.addEventListener("resize", () => {
+    if (ui.view !== "leaderboard") return;
+    const row = $("view-leaderboard").querySelector(".lb-filters");
+    const sideways = !!row && row.scrollWidth > row.clientWidth;
+    if (sideways && !lbSideways) revealLbChoice(row);
+    lbSideways = sideways;
+  });
 
   const STATS_VIEWS = {
     overview() {
@@ -3108,7 +3135,7 @@
         else if (x === "track") ui.lbTrack = y;
         else if (x === "worm") ui.lbWorm = y;
         else if (x === "pack") ui.lbPack = y;
-        renderLeaderboard();
+        renderLeaderboard(true);
         break;
       case "settab": ui.settingsTab = x; if (ui.wipe !== "busy") ui.wipe = false; renderSettings(); break;
       case "set": setSetting(x, y); break;
