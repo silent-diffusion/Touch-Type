@@ -2106,6 +2106,9 @@
     // Pausing stops the clock and the music. On resume the start time moves on by the length of the
     // pause and the music picks up where it was, so the round carries on as if no time had passed.
     function pause() {
+      // A round waiting for its audio (start, resume) goes back to its START or pause screen, which is
+      // still up: left to its wait, it would run on with the app away (app.js pauses it then).
+      if (live && live.state === "starting") live.state = live.pausedAt != null ? "paused" : "ready";
       if (!live || live.state !== "running") return;
       live.state = "paused";
       live.pausedAt = performance.now();
@@ -2304,6 +2307,9 @@
       // A round coming back from a pause is still paused until its audio is ready (resume): its pause
       // screen is up, so RESUME or Esc again (app.js) mustn't take it for a round that hasn't started.
       isPaused: () => !!live && (live.state === "paused" || (live.state === "starting" && live.pausedAt != null)),
+      // Waiting for its audio to start or resume, the round runs by itself once it's ready, as a Ghost
+      // Race's countdown does: leaving the app pauses it (app.js, pauseIfRunning).
+      isCounting: () => !!live && live.state === "starting",
       pause, resume,
     };
   };
