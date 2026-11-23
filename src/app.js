@@ -1659,8 +1659,9 @@
       return true;
     };
     // Only the latest song is kept decoded, so another song's load that's still going is let finish
-    // first: ending after this one's, it would take this song's audio away.
-    if (song.user && s.tilesMusic && ui.tlLoad) {
+    // first: ending after this one's, it would take this song's audio away. (A song that's decoded
+    // already doesn't wait: the round keeps the audio it's given.)
+    if (song.user && s.tilesMusic && !song.buffer && ui.tlLoad) {
       els.statusLine.textContent = "Loading the song…";
       await ui.tlLoad;
       if (dropped()) return;
