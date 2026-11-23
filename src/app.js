@@ -1883,8 +1883,9 @@
       }
       const song = TT.songs.get(id);
       const found = TT.lyrics.words(song.lyrics).length;
+      // (LYRICS is the picked song's, so it's only suggested when that's this one)
       ui.tlNote = `Added "${song.title}". Its beat is about ${Math.round(song.bpm)} BPM.` +
-        (found ? ` Its lyrics were in the file: ${found} different words.` : " No lyrics were in the file; add them with LYRICS if you like.");
+        (found ? ` Its lyrics were in the file: ${found} different words.` : S().tilesSong === id ? " No lyrics were in the file; add them with LYRICS if you like." : " No lyrics were in the file.");
     } catch (err) {
       ui.tlNote = err.message;
     }
