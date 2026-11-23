@@ -1526,10 +1526,13 @@
       let words = form.trim().split(/\s+/);
       const typedWords = typed.split(/\s+/);
       // A leading "the", "a" or "an" can be left out (key), and then it isn't one of the words typed:
-      // "incredibels" is The Incredibles' second word.
-      if (words.length === typedWords.length + 1 && /^(the|a|an)$/i.test(words[0]) && !/^(the|a|an)$/i.test(typedWords[0])) words = words.slice(1);
+      // "incredibels" is The Incredibles' second word. Typed run into that word ("agoofy movei",
+      // "a-goofy"), it's typed with it, and the word is right if the two together are.
+      let article = "";
+      if (words.length === typedWords.length + 1 && /^(the|a|an)$/i.test(words[0]) && !/^(the|a|an)$/i.test(typedWords[0])) article = key(words.shift());
       const paired = words.length === typedWords.length;
-      const wrong = new Set(paired ? words.flatMap((w, i) => (key(w) !== key(typedWords[i]) ? [i] : [])) : []);
+      const same = (w, i) => key(w) === key(typedWords[i]) || (i === 0 && article + key(w) === key(typedWords[0]));
+      const wrong = new Set(paired ? words.flatMap((w, i) => (same(w, i) ? [] : [i])) : []);
       for (const { pos, ch } of live.removed) {
         if (low[pos] && low[pos] !== ch.toLowerCase()) {
           bump(low[pos], true);
