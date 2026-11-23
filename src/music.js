@@ -46,6 +46,11 @@
   // What Tiles sees: the same shape as a built-in song, with the beats from the analysis.
   function register(meta) {
     const an = meta.analysis;
+    // The song it replaces lets go of its audio (the new one has it if it's kept): the last Tiles round
+    // still knows that one, and keep() and remove() reach only the new one. (Its parts stay: a round
+    // paused and resumed reads them again.)
+    const old = TT.songs.get(PREFIX + meta.id);
+    if (old) old.buffer = null;
     TT.songs.register({
       id: PREFIX + meta.id,
       key: `${meta.id}:${an.rev || 1}`,
