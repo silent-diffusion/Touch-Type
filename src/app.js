@@ -1875,8 +1875,9 @@
         refresh();
       });
       // It's the song picked now, unless a round of another one is on or starting meanwhile: RESTART and
-      // PLAY AGAIN play the song picked, so they'd start this one instead of the round's.
-      if (ui.view !== "tiles" && !ui.tlStarting) {
+      // PLAY AGAIN play the song picked, so they'd start this one instead of the round's. (That round's
+      // replay counts as the round: its BACK goes back to the round's end.)
+      if (ui.view !== "tiles" && !(ui.view === "replay" && rp.returnTo === "tiles") && !ui.tlStarting) {
         S().tilesSong = id;
         TT.saveSettings();
       }
