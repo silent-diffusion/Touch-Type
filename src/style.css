@@ -2315,9 +2315,10 @@ html.compact #view-worm.wm-done .fh-over .hints button:is(:first-child:nth-last-
 /* The action bar. While a round is paused it keeps the scores but not its buttons (its PAUSE would only
    resume): RESUME, RESTART and the way back are on the pause screen. Once a round is over the bar goes,
    and the end screen has its room. (app.js marks the app: #app.paused, #app[data-view].) That's on a
-   touch screen: a short window with a mouse keeps the bar's line, the round saved and R to replay it. */
+   touch screen, or a window 600px wide or less, whose end screens need the room: a short window with a
+   mouse keeps the bar's line, the round saved and R to replay it. */
 html.task.playing:where(.compact, .short) #app.paused #hints { visibility: hidden; }
-@media (pointer: coarse) {
+@media (pointer: coarse), (max-width: 600px) {
   html:where(.compact, .short):not(.playing) #app:is([data-view="forest"], [data-view="game"], [data-view="tiles"], [data-view="ghost"], [data-view="worm"]) .footer { display: none; }
 }
 
