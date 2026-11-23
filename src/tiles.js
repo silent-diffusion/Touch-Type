@@ -2069,12 +2069,15 @@
     });
 
     // The round starts once the audio is running, so the music is in step from the first note.
+    // Only the latest START or RESUME's wait goes on: an earlier one that leaving the app cut short
+    // (pause) would start the round over from 0:00 in the middle of a later wait.
     async function start() {
       const round = live;
       round.state = "starting";
+      const wait = (round.wait = {});
       const s = round.sound;
       await audioReady(s.music || s.metronome ? getAudio() : null);
-      if (live !== round || round.state !== "starting") return; // left or restarted meanwhile
+      if (live !== round || round.state !== "starting" || round.wait !== wait) return; // left or restarted meanwhile
       round.state = "running";
       round.startedAt = performance.now();
       round.player = createPlayer({ song, startPerf: round.startedAt + round.offset, ...round.sound });
@@ -2125,9 +2128,10 @@
       if (!live || live.state !== "paused") return;
       const round = live;
       round.state = "starting";
+      const wait = (round.wait = {});
       const s = round.sound;
       await audioReady(s.music || s.metronome ? getAudio() : null);
-      if (live !== round || round.state !== "starting") return;
+      if (live !== round || round.state !== "starting" || round.wait !== wait) return;
       live.startedAt += performance.now() - live.pausedAt;
       live.state = "running";
       live.player = createPlayer({ song, startPerf: live.startedAt + live.offset, ...live.sound });
