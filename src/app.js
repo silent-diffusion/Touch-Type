@@ -3057,7 +3057,9 @@
   function togglePause() {
     const a = activeGame();
     if (!a) return;
-    if (a.g.isPaused()) { TT.keyboard.open(); a.g.resume(); }
+    // (RESUME on a Tiles round whose RESTART is still loading its song goes on with this round: the
+    // restart is let go, startTiles, or it would start the round over under the player when it loads)
+    if (a.g.isPaused()) { if (a.g === tiles) ui.tlStarting = null; TT.keyboard.open(); a.g.resume(); }
     else if (a.g.isRunning()) { a.g.pause(); TT.keyboard.close(); }
     else act(a.quit);
     markPaused();
