@@ -1385,6 +1385,9 @@
       const song = TT.songs.get(S().tilesSong);
       if (ui.tap) return bar(["SAVE", "tl:tapsave", "primary"], ...(ui.tap.mode === "lyrics" ? [["UNDO", "tl:tapundo"]] : []), ["CANCEL", "tl:tapcancel"]);
       if (ui.lyricsEdit && song && song.user) return bar(["SAVE", "tl:lyricssave", "primary"], ["OPEN .LRC FILE", "tl:lyricsfile", "nokb"], ["CANCEL", "tl:lyricscancel"]);
+      // PLAY waiting for the song to load says so here: the status line, which says it in a big window,
+      // is hidden while PLAY's keyboard is up (startTiles). Pressed again it does nothing, as PLAY did.
+      if (ui.tlStarting && ui.tlStarting.loading && ui.tlStarting.song === S().tilesSong) return bar(["LOADING", "tl:play", "primary"], ["ADD A SONG", "tl:import"]);
       return hints;
     }
     if (tiles.isReady()) return bar(["SONGS", "tl:select"]);
@@ -1658,11 +1661,19 @@
       renderHints();
       return true;
     };
+    // The wait for its audio says so: the status line, and the action bar's PLAY (tilesHints), as that
+    // line is hidden while the keyboard is up on a phone, or on a big iPad's slim bar.
+    const loading = () => {
+      els.statusLine.textContent = "Loading the song…";
+      if (start.loading) return;
+      start.loading = true;
+      if (ui.view === "tiles-select") tilesBar();
+    };
     // Only the latest song is kept decoded, so another song's load that's still going is let finish
     // first: ending after this one's, it would take this song's audio away. (A song that's decoded
     // already doesn't wait: the round keeps the audio it's given.)
     if (song.user && s.tilesMusic && !song.buffer && ui.tlLoad) {
-      els.statusLine.textContent = "Loading the song…";
+      loading();
       await ui.tlLoad;
       if (dropped()) return;
     }
@@ -1670,7 +1681,7 @@
     // keep (tiles.js): a song loaded later, or added, takes it from the song.
     let audio = song.buffer;
     if (song.user && s.tilesMusic && !song.buffer) {
-      els.statusLine.textContent = "Loading the song…";
+      loading();
       const load = TT.music.buffer(song.id);
       tlLoading(load);
       try {
@@ -2032,6 +2043,8 @@
     else return;
     TT.saveSettings();
     if (ui.view === "tiles-select") renderTilesSelect();
+    // (a song picked while PLAY loads one: the action bar's LOADING is only for that one, tilesHints)
+    if (ui.tlStarting && (x === "song" || x === "next" || x === "prev") && ui.view === "tiles-select") tilesBar();
   }
 
   // ---------- replay ----------
