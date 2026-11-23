@@ -2004,6 +2004,8 @@
     TT.saveSettings();
     ui.tlNote = `Removed "${song.title}".`;
     renderTilesSelect();
+    // (removed while PLAY loads it: the action bar's LOADING was for that song, tilesHints)
+    if (ui.tlStarting && ui.view === "tiles-select") tilesBar();
   }
 
   function tilesAct(x, y) {
